@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+/**
+ * doughnatello design tokens (Tailwind v4, CSS-first).
+ *
+ * Two separate colour systems — never mix them:
+ *  1. COMPOSITION colours: what money is (needs/wants/saved/leftover/debt).
+ *  2. STATUS colours: how a thing is tracking (under / near / over).
+ * Status must never reuse a composition colour, and colour is never used alone
+ * (always paired with a % or label) — see components.
+ *
+ * Light mode only. Flat: no gradients, no shadows. Warm-grey surfaces (stone),
+ * hairline borders only where needed.
+ */
+@theme {
+  /* Brand / primary actions */
+  --color-brand: #7c3aed;
+
+  /* Composition palette.
+   * Top-level composition is 3 segments — Leftover · Expense · Savings.
+   * needs/wants exist only inside the grouped Categories view. */
+  --color-expense: #7c3aed; /* merged expense — vivid purple */
+  --color-needs: #534ab7; /* committed — dark purple (grouped view only) */
+  --color-wants: #afa9ec; /* discretionary — light purple (grouped view only) */
+  --color-saved: #1d9e75; /* set aside — green */
+  --color-leftover: #c4b5fd; /* free — light purple */
+  --color-debt: #d85a30; /* coral, not red — a loan on schedule is not an error */
+
+  /* Status palette (distinct from composition) */
+  --color-status-under: #1d9e75;
+  --color-status-near: #d0971a;
+  --color-status-over: #d85a30;
+}
+
+@layer base {
+  html {
+    /* Serbian-friendly, flat system stack. */
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color-scheme: light;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-stone-50);
+    color: var(--color-stone-900);
+  }
+
+  /* The numbers are the interface — align every figure. */
+  .tnum,
+  [data-money] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Respect reduced-motion globally. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
