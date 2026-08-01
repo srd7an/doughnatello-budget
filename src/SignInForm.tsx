@@ -2,6 +2,39 @@ import { useState } from 'react'
 import { useAuthActions } from '@convex-dev/auth/react'
 
 /**
+ * Turn a thrown auth error into something a person can act on.
+ *
+ * Convex Auth rejects a signup for several reasons — a password under 8
+ * characters, an address already registered, a misconfigured deployment — and
+ * they arrive as the same kind of thrown Error. Guessing at one cause (this used
+ * to always say "that email may already be in use") sends people off to fix a
+ * problem they do not have, so match on what the error actually says and only
+ * fall back to a vague message when there is genuinely nothing to go on.
+ */
+export function explainAuthError(e: unknown, flow: 'signUp' | 'signIn'): string {
+  const raw = e instanceof Error ? e.message : String(e)
+
+  // The Password provider's own rule: `password.length < 8` throws.
+  if (/InvalidSecret|password/i.test(raw) && /short|length|invalid/i.test(raw)) {
+    return 'Password must be at least 8 characters.'
+  }
+  if (/already exists|already in use|duplicate/i.test(raw)) {
+    return 'An account with that email already exists — sign in instead.'
+  }
+  if (/InvalidAccountId|InvalidSecret/i.test(raw)) {
+    return flow === 'signUp'
+      ? 'Could not create that account. Check the email, and use at least 8 characters for the password.'
+      : 'That email and password did not match.'
+  }
+  if (/fetch|network|Failed to fetch/i.test(raw)) {
+    return 'Could not reach the server. Check your connection and try again.'
+  }
+  return flow === 'signUp'
+    ? `Could not sign up. ${raw}`
+    : `Could not sign in. ${raw}`
+}
+
+/**
  * Public signup + sign in with email and password. Pre-Phase-3 styling — the
  * real designed auth screen arrives with the Figma work.
  */
@@ -36,12 +69,8 @@ export function SignInForm() {
             formData.set('flow', flow)
             try {
               await signIn('password', formData)
-            } catch {
-              setError(
-                flow === 'signUp'
-                  ? 'Could not sign up. That email may already be in use.'
-                  : 'That email and password did not match.',
-              )
+            } catch (e) {
+              setError(explainAuthError(e, flow))
               setSubmitting(false)
             }
           }}
@@ -54,14 +83,19 @@ export function SignInForm() {
             placeholder="Email"
             className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2.5 text-neutral-900 outline-none focus-visible:border-violet-500 focus-visible:ring-2 focus-visible:ring-violet-200"
           />
+          {/* minLength mirrors the Password provider's own rule, so the browser
+              catches it before a round trip does. */}
           <input
             name="password"
             type="password"
             required
+            minLength={flow === 'signUp' ? 8 : undefined}
             autoComplete={
               flow === 'signUp' ? 'new-password' : 'current-password'
             }
-            placeholder="Password"
+            placeholder={
+              flow === 'signUp' ? 'Password — at least 8 characters' : 'Password'
+            }
             className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2.5 text-neutral-900 outline-none focus-visible:border-violet-500 focus-visible:ring-2 focus-visible:ring-violet-200"
           />
 
