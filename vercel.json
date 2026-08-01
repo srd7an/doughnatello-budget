@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "outputDirectory": "dist",
+
+  "//buildCommand": "Deploys the Convex functions, then builds the frontend with VITE_CONVEX_URL pointing at the deployment it just pushed to. Building the two separately is how you get a site talking to last week's backend. Needs CONVEX_DEPLOY_KEY set in Vercel's environment variables.",
+  "buildCommand": "npx convex deploy --cmd 'npm run build'",
+
+  "//rewrites": "The app is a single page: React Router owns /settings/funds, the server has no such file. Without this, a reload or a shared link 404s. Vercel serves real files first, so assets are unaffected.",
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}
