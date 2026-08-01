@@ -1,7 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { requireMember, requireDoc } from "./lib/auth";
-import { potBalance } from "./lib/balances";
+import { debtOwed, potBalance } from "./lib/balances";
 
 const potKind = v.union(
   v.literal("savings"),
@@ -69,8 +69,12 @@ export const get = query({
 
 /**
  * Each non-archived pot with its computed balance (transfers in − spent from
- * it). Used by the Add-transaction modal's "Take from", and later by the
- * balances UI.
+ * it). Used by the Add-transaction modal's "Take from" and by the Funds and
+ * Loans settings panels.
+ *
+ * `balance` is meaningless for a debt pot — you do not "have" money in a loan —
+ * so debt pots carry `owed` instead, and the two are deliberately separate
+ * fields so no caller can add them together.
  */
 export const balances = query({
   args: { householdId: v.id("households") },
@@ -91,6 +95,12 @@ export const balances = query({
         icon: p.icon,
         color: p.color,
         balance: await potBalance(ctx, householdId, p._id),
+        owed: p.kind === "debt" ? await debtOwed(ctx, householdId, p) : null,
+        targetAmount: p.targetAmount ?? null,
+        targetDate: p.targetDate ?? null,
+        interestRate: p.interestRate ?? null,
+        minimumPayment: p.minimumPayment ?? null,
+        originalAmount: p.originalAmount ?? null,
       })),
     );
   },

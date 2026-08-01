@@ -15,12 +15,3 @@ export function Swatch({
     />
   )
 }
-
-/** Section heading used to label the scaffolded parts of a screen. */
-export function Scaffolded({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="rounded-xl border border-dashed border-stone-200 bg-white p-4 text-sm text-stone-500">
-      {children}
-    </p>
-  )
-}

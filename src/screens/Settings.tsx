@@ -1,42 +1,48 @@
 import { Link } from 'react-router-dom'
+import { useAuthActions } from '@convex-dev/auth/react'
 import { useHousehold } from '../household/HouseholdContext'
-import { Scaffolded } from '../ui/Swatch'
 
-// CONFIG, not flow or stock — no period control. Grouped as Your money /
-// Organising / Household / App. Items with a `to` are built; the rest become
-// editable detail panels in Phase 10.
-type Item = { label: string; to?: string }
-
-const SECTIONS: { group: string; items: Item[] }[] = [
+/**
+ * CONFIG, not flow or stock — no period control, no figures. Settings is a
+ * directory: one subject per panel, grouped so the money things sit together and
+ * the household things sit together.
+ */
+const SECTIONS: { group: string; items: { label: string; to: string }[] }[] = [
   {
     group: 'Your money',
     items: [
-      { label: 'Account & bank' },
-      { label: 'Funds' },
-      { label: 'Assets' },
-      { label: 'Loans' },
+      { label: 'Account & bank', to: 'account' },
+      { label: 'Funds', to: 'funds' },
+      { label: 'Assets', to: 'assets' },
+      { label: 'Loans', to: 'loans' },
     ],
   },
   {
     group: 'Organising',
     items: [
-      { label: 'Categories' },
+      { label: 'Categories', to: 'categories' },
       { label: 'Repeating', to: 'repeating' },
     ],
   },
-  { group: 'Household', items: [{ label: 'People' }, { label: 'Invites' }] },
+  {
+    group: 'Household',
+    items: [
+      { label: 'People', to: 'people' },
+      { label: 'Invites', to: 'invites' },
+    ],
+  },
   {
     group: 'App',
     items: [
-      { label: 'Currency & format' },
-      { label: 'Export' },
-      { label: 'Sign out' },
+      { label: 'Currency & format', to: 'format' },
+      { label: 'Export', to: 'export' },
     ],
   },
 ]
 
 export function Settings() {
   const { household } = useHousehold()
+  const { signOut } = useAuthActions()
 
   return (
     <div className="space-y-6">
@@ -55,35 +61,30 @@ export function Settings() {
             </h2>
             <ul className="overflow-hidden rounded-xl border border-stone-200 bg-white">
               {section.items.map((item) => (
-                <li
-                  key={item.label}
-                  className="border-b border-stone-100 last:border-b-0"
-                >
-                  {item.to ? (
-                    <Link
-                      to={item.to}
-                      className="flex min-h-11 items-center px-4 text-sm text-stone-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
-                    >
-                      <span className="flex-1">{item.label}</span>
-                      <span aria-hidden className="text-stone-300">
-                        ›
-                      </span>
-                    </Link>
-                  ) : (
-                    <span className="flex min-h-11 items-center px-4 text-sm text-stone-400">
-                      {item.label}
+                <li key={item.label} className="border-b border-stone-100 last:border-b-0">
+                  <Link
+                    to={item.to}
+                    className="flex min-h-11 items-center px-4 text-sm text-stone-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
+                  >
+                    <span className="flex-1">{item.label}</span>
+                    <span aria-hidden className="text-stone-300">
+                      ›
                     </span>
-                  )}
+                  </Link>
                 </li>
               ))}
             </ul>
           </section>
         ))}
-      </div>
 
-      <Scaffolded>
-        The greyed sections become editable detail panels in Phase 10.
-      </Scaffolded>
+        {/* Sign out is an action, not a panel, so it sits on its own. */}
+        <button
+          onClick={() => void signOut()}
+          className="flex min-h-11 w-full items-center rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
+        >
+          Sign out
+        </button>
+      </div>
     </div>
   )
 }
