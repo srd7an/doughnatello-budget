@@ -1,6 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { requireAdmin, requireCallerId } from "./lib/auth";
+import { requireAdmin, requireCallerId, requireDoc } from "./lib/auth";
 
 const DEFAULT_EXPIRY_DAYS = 7;
 
@@ -108,6 +108,21 @@ export const accept = mutation({
     }
     await ctx.db.patch(invite._id, { acceptedAt: Date.now() });
     return invite.householdId;
+  },
+});
+
+/**
+ * Admin-only: withdraw an unaccepted invite. Deleted rather than flagged — an
+ * invite link that no longer resolves is exactly the intent, and there is
+ * nothing worth keeping about an invitation that was never used.
+ */
+export const revoke = mutation({
+  args: { inviteId: v.id("householdInvites") },
+  handler: async (ctx, { inviteId }) => {
+    const { doc } = await requireDoc(ctx, "householdInvites", inviteId);
+    await requireAdmin(ctx, doc.householdId);
+    if (doc.acceptedAt) throw new Error("That invite has already been used");
+    await ctx.db.delete(inviteId);
   },
 });
 
