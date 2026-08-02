@@ -13,6 +13,7 @@ import type * as assets from "../assets.js";
 import type * as auth from "../auth.js";
 import type * as categories from "../categories.js";
 import type * as crons from "../crons.js";
+import type * as devSeed from "../devSeed.js";
 import type * as exports from "../exports.js";
 import type * as households from "../households.js";
 import type * as http from "../http.js";
@@ -40,6 +41,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   categories: typeof categories;
   crons: typeof crons;
+  devSeed: typeof devSeed;
   exports: typeof exports;
   households: typeof households;
   http: typeof http;
