@@ -75,7 +75,13 @@ export function TransactionsList() {
 }
 
 function TransactionRow({ row, onOpen }: { row: Row; onOpen: () => void }) {
-  const color = row.pot?.color ?? row.category?.color ?? '#a8a29e'
+  // The category you chose is what the row wears. A fund or a loan is context —
+  // where the money came from, what it paid off — and it says so in the pill
+  // beside the name; letting it take the icon meant picking Grocery and being
+  // shown a piggy bank. Only a transfer, which has no category, falls back to
+  // the fund. Same order as DueSoon and Repeating.
+  const glyph = row.category ?? row.pot
+  const color = glyph?.color ?? '#a8a29e'
   const name = row.payee || row.category?.name || row.pot?.name || '—'
 
   return (
@@ -86,11 +92,7 @@ function TransactionRow({ row, onOpen }: { row: Row; onOpen: () => void }) {
       >
         {/* A bare icon in the category's own colour. The design has no disc behind
           it — the tinted circle it replaced added weight to every single row. */}
-        <CategoryIcon
-          icon={row.pot?.icon ?? row.category?.icon}
-          color={color}
-          className="shrink-0"
-        />
+        <CategoryIcon icon={glyph?.icon} color={color} className="shrink-0" />
 
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-stone-800">
           {name}
