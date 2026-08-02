@@ -6,11 +6,21 @@ import { usePeriod } from '../period/PeriodContext'
 import { formatMoney, formatPercent } from '../lib/format'
 import { CaretRightIcon, CategoryIcon } from '../ui/icons'
 import { Swatch } from '../ui/Swatch'
+import { ChartTooltip, SERIES } from '../ui/ChartTooltip'
 import { TransactionsList } from './TransactionsList'
 import { CategoriesList, Toggle } from './CategoriesList'
 import { DueSoon } from './DueSoon'
 
 type Lens = 'transactions' | 'categories'
+
+/** The segment under the pointer, and where to put its readout. */
+type Hover = {
+  label: string
+  amount: number
+  color: string
+  x: number
+  y: number
+}
 
 // Month zoom: FLOW over the selected month. Hero is income; the composition bar
 // and metric row are the same Leftover · Expense · Savings, keyed together.
@@ -30,6 +40,7 @@ export function MonthView() {
 
   const [lens, setLens] = useState<Lens>('transactions')
   const [grouped, setGrouped] = useState(false)
+  const [hover, setHover] = useState<Hover | null>(null)
 
   const now = new Date()
   const isCurrentMonth =
@@ -56,18 +67,61 @@ export function MonthView() {
           <span className="ml-1 text-sm text-stone-500">RSD</span>
         </p>
 
-        {/* Composition bar: Leftover · Expense · Savings, width = income */}
-        <div className="mt-3 flex h-5 gap-1">
+        {/* Composition bar: Leftover · Expense · Savings, width = income.
+            Each segment answers for itself on hover and focus; the metric row
+            below is the same three figures, always visible. */}
+        <div
+          className="mt-3 flex h-5 gap-1"
+          onPointerLeave={() => setHover(null)}
+        >
           {income > 0 ? (
             <>
-              <Seg className="bg-leftover" frac={Math.max(leftToSpend, 0) / denom} />
-              <Seg className="bg-expense" frac={(summary?.expense ?? 0) / denom} />
-              <Seg className="bg-saved" frac={(summary?.savings ?? 0) / denom} />
+              <Seg
+                className="bg-leftover"
+                color={SERIES.leftover}
+                label={isCurrentMonth ? 'Left to spend' : 'Leftover'}
+                amount={Math.max(leftToSpend, 0)}
+                frac={Math.max(leftToSpend, 0) / denom}
+                onHover={setHover}
+              />
+              <Seg
+                className="bg-expense"
+                color={SERIES.expense}
+                label="Expense"
+                amount={summary?.expense ?? 0}
+                frac={(summary?.expense ?? 0) / denom}
+                onHover={setHover}
+              />
+              <Seg
+                className="bg-saved"
+                color={SERIES.saved}
+                label="Savings"
+                amount={summary?.savings ?? 0}
+                frac={(summary?.savings ?? 0) / denom}
+                onHover={setHover}
+              />
             </>
           ) : (
             <div className="w-full rounded-sm bg-stone-100" />
           )}
         </div>
+
+        {hover && (
+          <ChartTooltip
+            x={hover.x}
+            y={hover.y}
+            title={label}
+            rows={[
+              {
+                label: hover.label + (income > 0 ? ` · ${formatPercent(hover.amount / income)}` : ''),
+                value: formatMoney(hover.amount),
+                color: hover.color,
+                lead: true,
+              },
+              { label: 'of income', value: formatMoney(income), color: SERIES.income },
+            ]}
+          />
+        )}
 
         {/* Metric row = legend, keyed to the bar */}
         <div className="mt-4 flex flex-wrap gap-8">
@@ -131,13 +185,39 @@ export function MonthView() {
   )
 }
 
-function Seg({ className, frac }: { className: string; frac: number }) {
+function Seg({
+  className,
+  color,
+  label,
+  amount,
+  frac,
+  onHover,
+}: {
+  className: string
+  color: string
+  label: string
+  amount: number
+  frac: number
+  onHover: (h: Hover | null) => void
+}) {
   const pct = Math.max(0, Math.min(1, frac)) * 100
   if (pct <= 0) return null
-  // Keep a small segment visible so it never vanishes.
+  // Keep a small segment visible so it never vanishes. A 1.5%-wide segment is
+  // also a 4px hit target, which is why it carries its value in aria-label and
+  // in the metric row rather than only under the pointer.
   return (
-    <div
-      className={`rounded-sm ${className}`}
+    <button
+      type="button"
+      aria-label={`${label} ${formatMoney(amount)}`}
+      onPointerMove={(e) =>
+        onHover({ label, amount, color, x: e.clientX, y: e.clientY })
+      }
+      onFocus={(e) => {
+        const r = e.currentTarget.getBoundingClientRect()
+        onHover({ label, amount, color, x: r.left + r.width / 2, y: r.top })
+      }}
+      onBlur={() => onHover(null)}
+      className={`rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${className}`}
       style={{ width: `${Math.max(pct, 1.5)}%` }}
     />
   )
