@@ -21,6 +21,9 @@
   /* Type. Geist for text, Geist Mono for every figure — matching the design,
      where the numbers are visibly a different family, not just tabular. */
   --font-sans: "Geist Variable", system-ui, sans-serif;
+  /* Mono is for CODE, not for money — invite tokens and column names, where a
+     slashed zero helps you tell 0 from O. Amounts use the sans tabular figures
+     below; see the note on .tnum. */
   --font-mono: "Geist Mono Variable", ui-monospace, monospace;
 
   /* Brand / primary actions */
@@ -62,13 +65,15 @@
     color: var(--color-stone-800);
   }
 
-  /* The numbers are the interface. Geist Mono with stylistic set 9, which is
-     what the design specifies on every figure — it is the alternate digit set,
-     so without it the numerals are subtly the wrong shapes. */
+  /* The numbers are the interface: every figure is tabular so columns align.
+
+     Deliberately Geist SANS, not Geist Mono. Geist Mono's only zero glyph is
+     slashed — the font ships no stylistic sets and no alternate zero, so the
+     slash cannot be turned off, and a diagonal through every 0 is noise on a
+     screen made of amounts. Geist sans has real tabular figures (zero.tf),
+     which gives the alignment without the slash. */
   .tnum,
   [data-money] {
-    font-family: var(--font-mono);
-    font-feature-settings: "ss09" 1;
     font-variant-numeric: tabular-nums;
   }
 
