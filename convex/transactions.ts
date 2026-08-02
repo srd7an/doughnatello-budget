@@ -331,15 +331,21 @@ async function enrichRows(
       // expense pays down, or failing that the fund an expense was funded from.
       const fromPot = t.fromPotId ? potById.get(t.fromPotId) : undefined;
       let pot: (typeof pots)[number] | undefined;
-      if (t.potId) {
-        pot = potById.get(t.potId);
-      } else if (t.direction === "expense") {
+      // The fund an expense was actually paid out of. Reported separately from
+      // the pill because the pill may be showing a loan instead, and because
+      // "everything that touched this fund" needs the id, not the name.
+      let fundedFromPotId: Id<"pots"> | undefined;
+      if (t.direction === "expense") {
         const funding = await ctx.db
           .query("transactionFunding")
           .withIndex("by_transaction", (q) => q.eq("transactionId", t._id))
           .collect();
-        const potFunding = funding.find((f) => f.potId);
-        if (potFunding?.potId) pot = potById.get(potFunding.potId);
+        fundedFromPotId = funding.find((f) => f.potId)?.potId;
+      }
+      if (t.potId) {
+        pot = potById.get(t.potId);
+      } else if (fundedFromPotId) {
+        pot = potById.get(fundedFromPotId);
       }
 
       return {
@@ -352,6 +358,7 @@ async function enrichRows(
         categoryId: t.categoryId ?? null,
         potId: t.potId ?? null,
         fromPotId: t.fromPotId ?? null,
+        fundedFromPotId: fundedFromPotId ?? null,
         category: category
           ? {
               name: category.name,

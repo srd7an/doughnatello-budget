@@ -24,6 +24,8 @@ type Period = {
   label: string // "2026" or "July 2026", matching the current granularity
   setGranularity: (g: Granularity) => void
   step: (delta: number) => void // steps year or month depending on granularity
+  /** Jump straight to a month and zoom in — what clicking a column does. */
+  openMonth: (year: number, month: number) => void
 }
 
 const PeriodContext = createContext<Period | null>(null)
@@ -51,6 +53,15 @@ export function PeriodProvider({ children }: { children: ReactNode }) {
     [granularity, stepMonth],
   )
 
+  // Stepping moves within a granularity; this is the other move — picking a
+  // month out of the year you are looking at, which is what makes the twelve
+  // columns navigation rather than decoration.
+  const openMonth = useCallback((y: number, m: number) => {
+    setYear(y)
+    setMonth(m)
+    setGranularity('month')
+  }, [])
+
   const value = useMemo<Period>(
     () => ({
       granularity,
@@ -59,8 +70,9 @@ export function PeriodProvider({ children }: { children: ReactNode }) {
       label: granularity === 'year' ? String(year) : formatMonth(year, month),
       setGranularity,
       step,
+      openMonth,
     }),
-    [granularity, year, month, step],
+    [granularity, year, month, step, openMonth],
   )
 
   return (

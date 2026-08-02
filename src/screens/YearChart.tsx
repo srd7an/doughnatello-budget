@@ -34,9 +34,12 @@ const HEIGHT = 160
 export function YearChart({
   months,
   currentMonthIndex,
+  onOpenMonth,
 }: {
   months: MonthDatum[]
   currentMonthIndex: number
+  /** Given a 0-based month index — clicking a column zooms into it. */
+  onOpenMonth?: (index: number) => void
 }) {
   const [hover, setHover] = useState<{ i: number; x: number; y: number } | null>(
     null,
@@ -53,9 +56,11 @@ export function YearChart({
   // The same four figures the tooltip shows, as a sentence — so the column's
   // aria-label carries them and no value lives only behind a pointer.
   const readout = (m: MonthDatum, i: number) =>
-    `${MONTH_NAMES[i]}: income ${formatMoney(m.income)}, left ${formatMoney(
-      m.leftToSpend,
-    )}, expense ${formatMoney(m.expense)}, savings ${formatMoney(m.savings)}`
+    `${onOpenMonth ? 'Open ' : ''}${MONTH_NAMES[i]}: income ${formatMoney(
+      m.income,
+    )}, left ${formatMoney(m.leftToSpend)}, expense ${formatMoney(
+      m.expense,
+    )}, savings ${formatMoney(m.savings)}`
 
   const rowsFor = (m: MonthDatum): TooltipRow[] => {
     const share = (n: number) => (m.income > 0 ? ` · ${formatPercent(n / m.income)}` : '')
@@ -109,13 +114,16 @@ export function YearChart({
               // A month with nothing in it has nothing to say.
               disabled={isFuture || h === 0}
               aria-label={readout(m, i)}
+              onClick={() => onOpenMonth?.(i)}
               onPointerMove={(e) => setHover({ i, x: e.clientX, y: e.clientY })}
               onFocus={(e) => {
                 const r = e.currentTarget.getBoundingClientRect()
                 setHover({ i, x: r.left + r.width / 2, y: r.top })
               }}
               onBlur={() => setHover(null)}
-              className="relative flex flex-1 items-end justify-center rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+              className={`relative flex flex-1 items-end justify-center rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
+                onOpenMonth ? 'cursor-pointer' : 'cursor-default'
+              }`}
               style={{ height: HEIGHT }}
             >
               {i === currentMonthIndex && (
@@ -161,6 +169,7 @@ export function YearChart({
           y={hover.y}
           title={MONTH_NAMES[hover.i]}
           rows={rowsFor(months[hover.i])}
+          footnote={onOpenMonth ? 'Click to open' : undefined}
         />
       )}
     </div>

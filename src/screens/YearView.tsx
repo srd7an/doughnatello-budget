@@ -14,7 +14,7 @@ import { CategoriesList, Toggle } from './CategoriesList'
 // chart shows the path; the accordion rows show the endpoints.
 export function YearView() {
   const { household } = useHousehold()
-  const { year } = usePeriod()
+  const { year, openMonth } = usePeriod()
   const yearKey = String(year)
   const [grouped, setGrouped] = useState(false)
 
@@ -63,7 +63,12 @@ export function YearView() {
         </div>
       </section>
 
-      <YearChart months={data.months} currentMonthIndex={currentMonthIndex} />
+      {/* The twelve columns are navigation: click one to zoom into it. */}
+      <YearChart
+        months={data.months}
+        currentMonthIndex={currentMonthIndex}
+        onOpenMonth={(i) => openMonth(year, i + 1)}
+      />
 
       {/* Stock accordions — path is the chart, endpoints are these rows */}
       <div className="overflow-hidden rounded-2xl border border-stone-200">

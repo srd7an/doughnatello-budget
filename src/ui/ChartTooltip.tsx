@@ -29,11 +29,14 @@ export function ChartTooltip({
   y,
   title,
   rows,
+  footnote,
 }: {
   x: number
   y: number
   title: string
   rows: TooltipRow[]
+  /** What clicking would do — the affordance a cursor alone under-sells. */
+  footnote?: string
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
@@ -72,6 +75,11 @@ export function ChartTooltip({
           </li>
         ))}
       </ul>
+      {footnote && (
+        <p className="mt-1.5 border-t border-stone-100 pt-1.5 text-xs text-stone-400">
+          {footnote}
+        </p>
+      )}
     </div>
   )
 }

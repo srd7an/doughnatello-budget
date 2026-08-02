@@ -4,7 +4,7 @@ import { api } from '../../convex/_generated/api'
 import { useHousehold } from '../household/HouseholdContext'
 import { usePeriod } from '../period/PeriodContext'
 import { formatMoney, initials } from '../lib/format'
-import { ArrowRightIcon, CategoryIcon } from '../ui/icons'
+import { ArrowRightIcon, CategoryIcon, XIcon } from '../ui/icons'
 import { dayLabel } from '../lib/dates'
 import type { Id } from '../../convex/_generated/dataModel'
 import { TransactionDetail } from './TransactionDetail'
@@ -21,20 +21,71 @@ function useMonthRows() {
   })
 }
 
-export function TransactionsList() {
-  const rows = useMonthRows()
+/**
+ * What the list has been narrowed to, and what to call it on screen.
+ *
+ * One filter at a time, and it always comes from clicking the thing it names —
+ * a bar segment, a fund. There is no filter UI to build up a query in, because
+ * the question is always "show me the ones behind THAT number".
+ */
+export type TxFilter =
+  | { kind: 'direction'; direction: 'expense' | 'income' | 'transfer'; label: string }
+  | { kind: 'pot'; potId: Id<'pots'>; label: string }
+
+function matches(row: Row, filter: TxFilter): boolean {
+  if (filter.kind === 'direction') return row.direction === filter.direction
+  // Everything that touched this fund: money set aside into it, moved out of
+  // it, and spending it paid for.
+  return (
+    row.potId === filter.potId ||
+    row.fromPotId === filter.potId ||
+    row.fundedFromPotId === filter.potId
+  )
+}
+
+export function TransactionsList({
+  filter,
+  onClearFilter,
+}: {
+  filter?: TxFilter | null
+  onClearFilter?: () => void
+} = {}) {
+  const all = useMonthRows()
   const [openId, setOpenId] = useState<Id<'transactions'> | null>(null)
 
-  if (rows === undefined) {
+  if (all === undefined) {
     return <p className="py-8 text-center text-sm text-stone-400">Loading…</p>
   }
+  const rows = filter ? all.filter((r) => matches(r, filter)) : all
+
+  // A visible, removable chip whenever the list is showing less than it has.
+  // A list that quietly holds 8 of 40 rows is how people conclude their data
+  // is missing.
+  const chip = filter && (
+    <button
+      onClick={onClearFilter}
+      className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-brand bg-violet-50 px-3 py-1 text-sm text-stone-900 hover:bg-violet-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+    >
+      {filter.label}
+      <XIcon size={14} aria-hidden />
+      <span className="sr-only">Clear filter</span>
+    </button>
+  )
+
   if (rows.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-stone-200 bg-white p-8 text-center">
-        <p className="text-stone-500">Nothing logged this month yet.</p>
-        <p className="mt-1 text-sm text-stone-400">
-          Tap Add transaction to start.
-        </p>
+      <div>
+        {chip}
+        <div className="rounded-2xl border border-dashed border-stone-200 bg-white p-8 text-center">
+          <p className="text-stone-500">
+            {filter
+              ? `Nothing here for ${filter.label.toLowerCase()} this month.`
+              : 'Nothing logged this month yet.'}
+          </p>
+          <p className="mt-1 text-sm text-stone-400">
+            {filter ? 'Clear the filter to see the rest.' : 'Tap Add transaction to start.'}
+          </p>
+        </div>
       </div>
     )
   }
@@ -49,6 +100,7 @@ export function TransactionsList() {
 
   return (
     <div className="space-y-6">
+      {chip}
       {groups.map((g) => (
         <section key={g.day}>
           <h3 className="mb-1 text-xs tracking-[0.24px] text-stone-600 uppercase">

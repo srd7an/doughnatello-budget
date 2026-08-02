@@ -362,6 +362,48 @@ describe("loan payments", () => {
   });
 });
 
+describe("list rows", () => {
+  test("a row names the fund it was paid out of, so it can be filtered by it", async () => {
+    const { t, householdId, groceryCat } = await setup();
+    const fund = await asA(t).mutation(api.pots.create, {
+      householdId,
+      name: "Holiday",
+      kind: "sinking",
+      icon: "plane",
+      color: "#3B82F6",
+    });
+    await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "transfer",
+      amount: 50_000_00,
+      potId: fund,
+      occurredOn: "2026-07-02",
+    });
+    await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "expense",
+      amount: 20_000_00,
+      categoryId: groceryCat,
+      takeFromPotId: fund,
+      occurredOn: "2026-07-05",
+    });
+
+    const rows = await asA(t).query(api.transactions.listMonth, {
+      householdId,
+      month: "2026-07",
+    });
+    const spend = rows.find((r) => r.direction === "expense")!;
+    const setAside = rows.find((r) => r.direction === "transfer")!;
+
+    // The spend points at the fund through its funding, the transfer through
+    // its destination — between them, everything that touched the fund.
+    expect(spend.fundedFromPotId).toBe(fund);
+    expect(spend.potId).toBeNull();
+    expect(setAside.potId).toBe(fund);
+    expect(setAside.fundedFromPotId).toBeNull();
+  });
+});
+
 describe("isolation", () => {
   test("A cannot create a transaction in B's household", async () => {
     const { t } = await setup(); // t has user-a's household

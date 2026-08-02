@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import type { Id } from '../../convex/_generated/dataModel'
 import { useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { useHousehold } from '../household/HouseholdContext'
@@ -7,7 +8,7 @@ import { formatMoney, formatPercent } from '../lib/format'
 import { CaretRightIcon, CategoryIcon } from '../ui/icons'
 import { Swatch } from '../ui/Swatch'
 import { ChartTooltip, SERIES } from '../ui/ChartTooltip'
-import { TransactionsList } from './TransactionsList'
+import { TransactionsList, type TxFilter } from './TransactionsList'
 import { CategoriesList, Toggle } from './CategoriesList'
 import { DueSoon } from './DueSoon'
 
@@ -41,6 +42,17 @@ export function MonthView() {
   const [lens, setLens] = useState<Lens>('transactions')
   const [grouped, setGrouped] = useState(false)
   const [hover, setHover] = useState<Hover | null>(null)
+  const [filter, setFilter] = useState<TxFilter | null>(null)
+
+  // A filter belongs to the month it was set in. Carrying "Rainy day" into
+  // September, where nothing touched it, would look like data loss.
+  useEffect(() => setFilter(null), [monthKey])
+
+  /** Clicking a number means: show me the transactions behind it. */
+  const show = (f: TxFilter) => {
+    setFilter(f)
+    setLens('transactions')
+  }
 
   const now = new Date()
   const isCurrentMonth =
@@ -76,6 +88,9 @@ export function MonthView() {
         >
           {income > 0 ? (
             <>
+              {/* Leftover has no click: it is what did NOT happen, the
+                  residue of the other two. There are no transactions behind
+                  it to show. */}
               <Seg
                 className="bg-leftover"
                 color={SERIES.leftover}
@@ -91,6 +106,9 @@ export function MonthView() {
                 amount={summary?.expense ?? 0}
                 frac={(summary?.expense ?? 0) / denom}
                 onHover={setHover}
+                onSelect={() =>
+                  show({ kind: 'direction', direction: 'expense', label: 'Expenses' })
+                }
               />
               <Seg
                 className="bg-saved"
@@ -99,6 +117,9 @@ export function MonthView() {
                 amount={summary?.savings ?? 0}
                 frac={(summary?.savings ?? 0) / denom}
                 onHover={setHover}
+                onSelect={() =>
+                  show({ kind: 'direction', direction: 'transfer', label: 'Money set aside' })
+                }
               />
             </>
           ) : (
@@ -143,6 +164,7 @@ export function MonthView() {
             amount={summary?.savings ?? 0}
             share={income > 0 ? (summary?.savings ?? 0) / income : null}
             breakdown={savingsByPot}
+            onPick={(potId, name) => show({ kind: 'pot', potId, label: name })}
           />
         </div>
       </section>
@@ -172,7 +194,7 @@ export function MonthView() {
       </div>
 
       {lens === 'transactions' ? (
-        <TransactionsList />
+        <TransactionsList filter={filter} onClearFilter={() => setFilter(null)} />
       ) : (
         <CategoriesList
           rows={rows ?? []}
@@ -192,6 +214,7 @@ function Seg({
   amount,
   frac,
   onHover,
+  onSelect,
 }: {
   className: string
   color: string
@@ -199,6 +222,7 @@ function Seg({
   amount: number
   frac: number
   onHover: (h: Hover | null) => void
+  onSelect?: () => void
 }) {
   const pct = Math.max(0, Math.min(1, frac)) * 100
   if (pct <= 0) return null
@@ -208,7 +232,12 @@ function Seg({
   return (
     <button
       type="button"
-      aria-label={`${label} ${formatMoney(amount)}`}
+      aria-label={
+        onSelect
+          ? `${label} ${formatMoney(amount)} — show these transactions`
+          : `${label} ${formatMoney(amount)}`
+      }
+      onClick={onSelect}
       onPointerMove={(e) =>
         onHover({ label, amount, color, x: e.clientX, y: e.clientY })
       }
@@ -217,13 +246,20 @@ function Seg({
         onHover({ label, amount, color, x: r.left + r.width / 2, y: r.top })
       }}
       onBlur={() => onHover(null)}
-      className={`rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${className}`}
+      className={`rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
+        onSelect ? 'cursor-pointer' : 'cursor-default'
+      } ${className}`}
       style={{ width: `${Math.max(pct, 1.5)}%` }}
     />
   )
 }
 
-type PotSaving = { potId: string; name: string; icon: string; amount: number }
+type PotSaving = {
+  potId: Id<'pots'>
+  name: string
+  icon: string
+  amount: number
+}
 
 function Metric({
   swatch,
@@ -231,12 +267,14 @@ function Metric({
   amount,
   share,
   breakdown,
+  onPick,
 }: {
   swatch: string
   label: string
   amount: number
   share: number | null
   breakdown?: PotSaving[]
+  onPick?: (potId: Id<'pots'>, name: string) => void
 }) {
   const [open, setOpen] = useState(false)
   const expandable = !!breakdown && breakdown.length > 0
@@ -270,14 +308,20 @@ function Metric({
       {expandable && open && (
         <ul className="mt-1 space-y-0.5">
           {breakdown!.map((b) => (
-            <li
-              key={b.potId}
-              className="tnum flex justify-between text-xs text-stone-500"
-            >
-              <span>
-                <CategoryIcon icon={b.icon} size={14} /> {b.name}
-              </span>
-              <span>{formatMoney(b.amount)}</span>
+            <li key={b.potId}>
+              {/* Not just what went in — the whole month against that fund,
+                  what left it included. */}
+              <button
+                type="button"
+                onClick={() => onPick?.(b.potId, b.name)}
+                aria-label={`${b.name} ${formatMoney(b.amount)} — show everything against this fund`}
+                className="tnum flex w-full justify-between gap-6 rounded text-xs text-stone-500 hover:text-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+              >
+                <span>
+                  <CategoryIcon icon={b.icon} size={14} /> {b.name}
+                </span>
+                <span>{formatMoney(b.amount)}</span>
+              </button>
             </li>
           ))}
         </ul>
@@ -312,7 +356,7 @@ function LensTab({
 type Row = {
   direction: string
   amount: number
-  potId: string | null
+  potId: Id<'pots'> | null
   pot: { name: string; icon: string } | null
 }
 
