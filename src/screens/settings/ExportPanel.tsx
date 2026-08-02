@@ -55,7 +55,6 @@ export function ExportPanel() {
 
   return (
     <Panel
-      title="Export"
       description="Your money, in a file you own. Nothing here locks your history into this app."
     >
       {rows.length === 0 ? (

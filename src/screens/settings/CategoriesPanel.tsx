@@ -64,7 +64,6 @@ export function CategoriesPanel() {
 
   return (
     <Panel
-      title="Categories"
       description="What your money is for. Needs and Wants group the spending views; income is kept separate."
     >
       {GROUPS.map((g) => {

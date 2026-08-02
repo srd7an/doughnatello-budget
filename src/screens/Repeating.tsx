@@ -34,7 +34,6 @@ export function Repeating() {
 
   return (
     <Panel
-      title="Repeating"
       description="Money that comes back every month. Set one up from Add transaction → Repeat."
     >
       {rules === undefined ? (

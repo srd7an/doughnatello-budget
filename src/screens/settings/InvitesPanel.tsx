@@ -46,7 +46,7 @@ export function InvitesPanel() {
 
   if (!isAdmin) {
     return (
-      <Panel title="Invites">
+      <Panel>
         <Empty>Only an admin can invite people to this household.</Empty>
       </Panel>
     )
@@ -65,7 +65,6 @@ export function InvitesPanel() {
 
   return (
     <Panel
-      title="Invites"
       description="A link that lets one person join this household. It works once, then it is spent."
     >
       <PrimaryButton

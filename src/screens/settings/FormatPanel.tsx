@@ -32,7 +32,7 @@ export function FormatPanel() {
 
   if (household.role !== 'admin') {
     return (
-      <Panel title="Currency & format">
+      <Panel>
         <Empty>Only an admin can change the household's name or currency.</Empty>
       </Panel>
     )
@@ -61,7 +61,7 @@ export function FormatPanel() {
   }
 
   return (
-    <Panel title="Currency & format">
+    <Panel>
       <Card className="space-y-4 p-4">
         <Field label="Household name">
           <TextInput value={name} onChange={(e) => setName(e.target.value)} />

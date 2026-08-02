@@ -51,7 +51,6 @@ export function AssetsPanel() {
 
   return (
     <Panel
-      title="Assets"
       description="Things you own that are worth something. They count toward net worth and nothing else."
     >
       {assets.length === 0 ? (

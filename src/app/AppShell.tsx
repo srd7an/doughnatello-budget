@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, Outlet, useLocation } from 'react-router-dom'
+import { Link, Outlet } from 'react-router-dom'
 import { useMutation } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { PlusIcon } from '../ui/icons'
@@ -7,6 +7,7 @@ import { useHousehold } from '../household/HouseholdContext'
 import { AvatarMenu } from './AvatarMenu'
 import { PeriodControl } from './PeriodControl'
 import { AddTransactionModal } from './AddTransactionModal'
+import { SettingsModal } from '../screens/settings/SettingsModal'
 
 /**
  * The shell has no tab nav — the period control (in the header) is the whole
@@ -22,7 +23,7 @@ export function AppShell() {
   const [addOpen, setAddOpen] = useState(false)
   const { household } = useHousehold()
   const sync = useMutation(api.recurring.sync)
-  const inSettings = useLocation().pathname.startsWith('/settings')
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   // Materialise anything that came due since the last visit, so the Due block is
   // right on first paint instead of waiting for the nightly cron. Idempotent, so
@@ -39,21 +40,19 @@ export function AppShell() {
           {/* Row 1: brand + account */}
           <div className="flex items-center justify-between">
             <BrandMark />
-            <AvatarMenu />
+            <AvatarMenu onOpenSettings={() => setSettingsOpen(true)} />
           </div>
 
-          {/* Row 2: period control (the nav) + add. Neither applies to config. */}
-          {!inSettings && (
-            <div className="mt-2 flex items-center justify-between gap-2">
-              <PeriodControl />
-              <button
-                onClick={() => setAddOpen(true)}
-                className="hidden items-center gap-1.5 rounded-full border border-violet-800 bg-brand px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:flex"
-              >
-                Add transaction
-              </button>
-            </div>
-          )}
+          {/* Row 2: period control (the nav) + add */}
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <PeriodControl />
+            <button
+              onClick={() => setAddOpen(true)}
+              className="hidden items-center gap-1.5 rounded-full border border-violet-800 bg-brand px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:flex"
+            >
+              Add transaction
+            </button>
+          </div>
         </div>
       </header>
 
@@ -62,17 +61,19 @@ export function AppShell() {
       </main>
 
       {/* Mobile: Add FAB for thumb reach */}
-      {!inSettings && (
-        <button
-          onClick={() => setAddOpen(true)}
-          aria-label="Add transaction"
-          className="fixed bottom-6 right-4 z-30 grid size-14 place-items-center rounded-full bg-brand text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:hidden"
-        >
-          <PlusIcon className="size-6" />
-        </button>
-      )}
+      <button
+        onClick={() => setAddOpen(true)}
+        aria-label="Add transaction"
+        className="fixed bottom-6 right-4 z-30 grid size-14 place-items-center rounded-full bg-brand text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:hidden"
+      >
+        <PlusIcon className="size-6" />
+      </button>
 
       <AddTransactionModal open={addOpen} onClose={() => setAddOpen(false)} />
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
     </div>
   )
 }

@@ -47,7 +47,6 @@ export function LoansPanel() {
 
   return (
     <Panel
-      title="Loans"
       description="What you owe. Paying a loan is an ordinary expense tagged with the loan — record it from Add transaction."
     >
       {loans.length === 0 ? (

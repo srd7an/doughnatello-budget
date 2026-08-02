@@ -40,7 +40,6 @@ export function PeoplePanel() {
 
   return (
     <Panel
-      title="People"
       description="Everyone here sees every transaction. Admins can also invite, rename and remove."
     >
       <Card>

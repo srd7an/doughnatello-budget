@@ -36,9 +36,11 @@ import { PiggyBankIcon } from '@phosphor-icons/react/dist/csr/PiggyBank'
 import { PlusIcon as PhPlusIcon } from '@phosphor-icons/react/dist/csr/Plus'
 import { RepeatIcon } from '@phosphor-icons/react/dist/csr/Repeat'
 import { ShoppingBagIcon } from '@phosphor-icons/react/dist/csr/ShoppingBag'
+import { SignOutIcon } from '@phosphor-icons/react/dist/csr/SignOut'
 import { StarIcon } from '@phosphor-icons/react/dist/csr/Star'
 import { SuitcaseIcon } from '@phosphor-icons/react/dist/csr/Suitcase'
 import { WalletIcon } from '@phosphor-icons/react/dist/csr/Wallet'
+import { XIcon } from '@phosphor-icons/react/dist/csr/X'
 
 type PhosphorIcon = ComponentType<{
   size?: number | string
@@ -110,6 +112,8 @@ export {
   RepeatIcon,
   ChartPieSliceIcon,
   ArrowRightIcon,
+  SignOutIcon,
+  XIcon,
 }
 
 export function PlusIcon({ className }: { className?: string }) {

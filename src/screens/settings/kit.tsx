@@ -1,5 +1,4 @@
 import { useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
 import { formatMoney, toPara } from '../../lib/format'
 import { CategoryIcon, ICON_KEYS } from '../../ui/icons'
 
@@ -11,29 +10,21 @@ import { CategoryIcon, ICON_KEYS } from '../../ui/icons'
  * screen visited nine times rather than nine screens.
  */
 
+/**
+ * The body of one settings section. The TITLE is not here — the modal renders
+ * it, because the section is named in the sidebar too and the two must not be
+ * able to disagree.
+ */
 export function Panel({
-  title,
   description,
   children,
 }: {
-  title: string
   description?: string
   children: ReactNode
 }) {
   return (
     <div className="space-y-5">
-      <section>
-        <Link
-          to="/settings"
-          className="text-sm text-stone-500 hover:text-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-        >
-          ← Settings
-        </Link>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight">{title}</h1>
-        {description && (
-          <p className="mt-1 text-sm text-stone-500">{description}</p>
-        )}
-      </section>
+      {description && <p className="text-sm text-stone-500">{description}</p>}
       {children}
     </div>
   )

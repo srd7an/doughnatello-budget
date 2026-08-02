@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useAuthActions } from '@convex-dev/auth/react'
 import { useHousehold } from '../household/HouseholdContext'
 import { initials } from '../lib/format'
@@ -9,10 +8,9 @@ import { initials } from '../lib/format'
  * slot), alongside a household switcher when there's more than one, and sign
  * out.
  */
-export function AvatarMenu() {
+export function AvatarMenu({ onOpenSettings }: { onOpenSettings: () => void }) {
   const { household, all, setActive } = useHousehold()
   const { signOut } = useAuthActions()
-  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -75,7 +73,7 @@ export function AvatarMenu() {
 
           <MenuItem
             onClick={() => {
-              navigate('/settings')
+              onOpenSettings()
               setOpen(false)
             }}
           >

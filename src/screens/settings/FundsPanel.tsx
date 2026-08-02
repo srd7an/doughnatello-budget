@@ -47,7 +47,6 @@ export function FundsPanel() {
 
   return (
     <Panel
-      title="Funds"
       description="Money with a job. Setting money aside reduces what is left to spend, the same as spending it."
     >
       {funds.length === 0 ? (

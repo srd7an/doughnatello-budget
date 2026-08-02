@@ -56,6 +56,7 @@ export function AddTransactionModal({
 
   const categories = useQuery(api.categories.list, { householdId }) ?? []
   const potBalances = useQuery(api.pots.balances, { householdId }) ?? []
+  const accounts = useQuery(api.accounts.list, { householdId }) ?? []
   const create = useMutation(api.transactions.create)
   const createRule = useMutation(api.recurring.create)
 
@@ -73,6 +74,7 @@ export function AddTransactionModal({
   const [takeFrom, setTakeFrom] = useState<'income' | Id<'pots'>>('income')
   const [occurredOn, setOccurredOn] = useState(todayISO())
   const [payee, setPayee] = useState('')
+  const [accountId, setAccountId] = useState<Id<'accounts'> | null>(null)
   const [repeat, setRepeat] = useState<Repeat>('once')
   const [estimate, setEstimate] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -86,6 +88,7 @@ export function AddTransactionModal({
     setTakeFrom('income')
     setOccurredOn(todayISO())
     setPayee('')
+    setAccountId(null)
     setRepeat('once')
     setEstimate(false)
   }, [open])
@@ -139,6 +142,7 @@ export function AddTransactionModal({
           direction === 'transfer' ? undefined : (categoryId ?? undefined),
         potId: direction === 'transfer' ? (potId ?? undefined) : undefined,
         payee: payee.trim() || undefined,
+        accountId: accountId ?? undefined,
       }
       const takeFromPotId =
         direction === 'expense' && takeFrom !== 'income' ? takeFrom : undefined
@@ -288,6 +292,26 @@ export function AddTransactionModal({
             />
           </Field>
         </div>
+
+        {/* Account — only when there is more than one, so the common case
+            stays a single tap. */}
+        {accounts.length > 1 && (
+          <Field label="Account">
+            <ChipRow>
+              {accounts.map((a) => (
+                <Chip
+                  key={a._id}
+                  active={
+                    accountId === a._id || (!accountId && a.isPrimary)
+                  }
+                  onClick={() => setAccountId(a._id)}
+                >
+                  {a.name}
+                </Chip>
+              ))}
+            </ChipRow>
+          </Field>
+        )}
 
         {/* Repeat — off by default; most transactions happen once. */}
         <Field label="Repeat">
