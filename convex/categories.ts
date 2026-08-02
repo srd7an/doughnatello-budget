@@ -89,3 +89,43 @@ export const unarchive = mutation({
     await ctx.db.patch(categoryId, { isArchived: false });
   },
 });
+
+/**
+ * Delete an archived category for good.
+ *
+ * Archiving exists because a category's name is stamped on every transaction in
+ * it — so this refuses while anything still points here. That keeps the rule
+ * ("history is never silently rewritten") while unblocking the case it was
+ * never meant to catch: a category created by mistake and never used.
+ */
+export const remove = mutation({
+  args: { categoryId: v.id("categories") },
+  handler: async (ctx, { categoryId }) => {
+    const { doc } = await requireDoc(ctx, "categories", categoryId);
+    if (!doc.isArchived) {
+      throw new Error("Archive it first — deleting is for things you are done with");
+    }
+
+    const used = await ctx.db
+      .query("transactions")
+      .withIndex("by_household_category", (q) =>
+        q.eq("householdId", doc.householdId).eq("categoryId", categoryId),
+      )
+      .first();
+    if (used) {
+      throw new Error(
+        "This category has transactions. Deleting it would leave them unlabelled.",
+      );
+    }
+
+    const rules = await ctx.db
+      .query("recurringRules")
+      .withIndex("by_household", (q) => q.eq("householdId", doc.householdId))
+      .collect();
+    if (rules.some((r) => r.categoryId === categoryId)) {
+      throw new Error("A repeating rule still uses this category.");
+    }
+
+    await ctx.db.delete(categoryId);
+  },
+});

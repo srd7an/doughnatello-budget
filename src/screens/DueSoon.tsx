@@ -3,7 +3,12 @@ import { useMutation, useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { useHousehold } from '../household/HouseholdContext'
-import { formatMoney, toPara } from '../lib/format'
+import {
+  formatMoney,
+  inputToPara,
+  paraToInput,
+  sanitizeMoneyInput,
+} from '../lib/format'
 import { CategoryIcon, RepeatIcon } from '../ui/icons'
 import { localISO } from '../lib/dates'
 import { dueLabel } from '../lib/recurrence'
@@ -84,7 +89,7 @@ function DueRow({
   // An estimate opens with the amount editable — the whole reason it is an
   // estimate is that the real figure arrives with the bill.
   const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(String(Math.round(item.amount / 100)))
+  const [draft, setDraft] = useState(paraToInput(item.amount))
   const [busy, setBusy] = useState(false)
 
   const label = item.payee ?? item.category?.name ?? item.pot?.name ?? 'Repeating'
@@ -101,8 +106,8 @@ function DueRow({
     }
   }
 
-  const confirmAmount = editing ? toPara(Number(draft || '0')) : undefined
-  const canConfirm = !editing || Number(draft || '0') > 0
+  const confirmAmount = editing ? inputToPara(draft) : undefined
+  const canConfirm = !editing || inputToPara(draft) > 0
 
   return (
     <li className="border-t border-stone-100 px-4 py-3">
@@ -120,9 +125,9 @@ function DueRow({
           <div className="flex items-center gap-1">
             <input
               autoFocus
-              inputMode="numeric"
+              inputMode="decimal"
               value={draft}
-              onChange={(e) => setDraft(e.target.value.replace(/[^\d]/g, ''))}
+              onChange={(e) => setDraft(sanitizeMoneyInput(e.target.value))}
               aria-label={`Amount for ${label}`}
               className="tnum w-24 rounded-lg border border-stone-200 px-2 py-1.5 text-right text-sm outline-none focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-violet-200"
             />
@@ -158,7 +163,7 @@ function DueRow({
           <button
             onClick={() => {
               setEditing(false)
-              setDraft(String(Math.round(item.amount / 100)))
+              setDraft(paraToInput(item.amount))
             }}
             className="min-h-9 px-2 text-sm text-stone-500 hover:text-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
           >

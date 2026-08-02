@@ -3,7 +3,7 @@ import { useMutation, useQuery } from 'convex/react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { useHousehold } from '../../household/HouseholdContext'
-import { formatMoney, toPara } from '../../lib/format'
+import { formatMoney, inputToPara, paraToInput } from '../../lib/format'
 import { localISO } from '../../lib/dates'
 import { Modal } from '../../ui/Modal'
 import { PlusIcon } from '../../ui/icons'
@@ -138,16 +138,12 @@ export function AccountsPanel() {
               <Row label="Total balance">
                 <div className="flex items-center gap-2">
                   <input
-                    inputMode="numeric"
-                    value={String(Math.round(draft.balance / 100))}
+                    inputMode="decimal"
+                    value={paraToInput(draft.balance)}
                     onChange={(e) =>
                       edit(
                         a._id,
-                        {
-                          balance: toPara(
-                            Number(e.target.value.replace(/[^\d-]/g, '') || '0'),
-                          ),
-                        },
+                        { balance: inputToPara(e.target.value) },
                         draft,
                       )
                     }
@@ -359,11 +355,9 @@ function AddAccount({
       </Row>
       <Row label="Total balance">
         <input
-          inputMode="numeric"
-          value={String(Math.round(balance / 100))}
-          onChange={(e) =>
-            setBalance(toPara(Number(e.target.value.replace(/[^\d-]/g, '') || '0')))
-          }
+          inputMode="decimal"
+          value={paraToInput(balance)}
+          onChange={(e) => setBalance(inputToPara(e.target.value))}
           className={`${inputClass} tnum text-right`}
         />
       </Row>

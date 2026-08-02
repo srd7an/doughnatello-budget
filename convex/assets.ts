@@ -80,3 +80,23 @@ export const archive = mutation({
     await ctx.db.patch(assetId, { isArchived: true });
   },
 });
+
+/** Delete an archived asset. Nothing references an asset, so this is always safe. */
+export const remove = mutation({
+  args: { assetId: v.id("assets") },
+  handler: async (ctx, { assetId }) => {
+    const { doc } = await requireDoc(ctx, "assets", assetId);
+    if (!doc.isArchived) {
+      throw new Error("Archive it first — deleting is for things you are done with");
+    }
+    await ctx.db.delete(assetId);
+  },
+});
+
+export const unarchive = mutation({
+  args: { assetId: v.id("assets") },
+  handler: async (ctx, { assetId }) => {
+    await requireDoc(ctx, "assets", assetId);
+    await ctx.db.patch(assetId, { isArchived: false });
+  },
+});

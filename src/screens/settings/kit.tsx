@@ -1,6 +1,12 @@
 import { useState, type ReactNode } from 'react'
-import { formatMoney, toPara } from '../../lib/format'
-import { CategoryIcon, ICON_KEYS } from '../../ui/icons'
+import {
+  formatMoney,
+  inputToPara,
+  paraToInput,
+  sanitizeMoneyInput,
+} from '../../lib/format'
+import { CaretRightIcon, CategoryIcon, ICON_KEYS } from '../../ui/icons'
+import { Popover } from '../../ui/Popover'
 
 /**
  * Shared furniture for the Settings detail panels.
@@ -105,17 +111,17 @@ export function MoneyInput({
   para: number
   onChange: (para: number) => void
 } & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'>) {
-  const [draft, setDraft] = useState(String(Math.round(para / 100)))
+  const [draft, setDraft] = useState(paraToInput(para))
   return (
     <div className="flex items-center gap-2">
       <input
         {...rest}
-        inputMode="numeric"
+        inputMode="decimal"
         value={draft}
         onChange={(e) => {
-          const clean = e.target.value.replace(/[^\d]/g, '')
+          const clean = sanitizeMoneyInput(e.target.value)
           setDraft(clean)
-          onChange(toPara(Number(clean || '0')))
+          onChange(inputToPara(clean))
         }}
         className={`${inputClass} tnum text-right`}
       />
@@ -208,12 +214,18 @@ export function ConfirmButton({
 }
 
 
-// Identity colours for categories and funds. Deliberately NOT the composition
-// or status tokens — those carry meaning that a user-chosen colour must not
-// borrow.
+/**
+ * Identity colours for categories and funds — one readable step of each hue,
+ * balanced so no swatch shouts louder than its neighbours. Deliberately NOT the
+ * composition or status tokens: those carry meaning a user-chosen colour must
+ * not borrow.
+ */
 export const COLORS = [
-  '#E8632A', '#E0A400', '#EA580C', '#D6336C', '#EC4899', '#DB2777',
-  '#22C55E', '#16A34A', '#65A30D', '#3B82F6', '#0EA5E9', '#B45309',
+  '#E11D48', '#F43F5E', '#EC4899', '#D946EF', // rose → fuchsia
+  '#A855F7', '#8B5CF6', '#6366F1', '#3B82F6', // purple → blue
+  '#0EA5E9', '#06B6D4', '#14B8A6', '#10B981', // sky → emerald
+  '#22C55E', '#84CC16', '#EAB308', '#F59E0B', // green → amber
+  '#F97316', '#EA580C', '#B45309', '#78716C', // orange → stone
 ]
 
 export function IconPicker({
@@ -224,24 +236,37 @@ export function IconPicker({
   onChange: (icon: string) => void
 }) {
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {ICON_KEYS.map((i) => (
-        <button
-          key={i}
-          type="button"
-          aria-label={i}
-          aria-pressed={value === i}
-          onClick={() => onChange(i)}
-          className={`grid size-11 place-items-center rounded-lg border text-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
-            value === i
-              ? 'border-brand bg-violet-50'
-              : 'border-stone-200 hover:bg-stone-50'
-          }`}
-        >
-          <CategoryIcon icon={i} />
-        </button>
-      ))}
-    </div>
+    <Popover
+      label="Choose an icon"
+      trigger={
+        <>
+          <CategoryIcon icon={value} />
+          <CaretRightIcon size={12} className="rotate-90 text-stone-400" />
+        </>
+      }
+    >
+      {(close) => (
+        <div className="grid max-h-64 w-64 grid-cols-6 gap-1 overflow-y-auto">
+          {ICON_KEYS.map((i) => (
+            <button
+              key={i}
+              type="button"
+              aria-label={i}
+              aria-pressed={value === i}
+              onClick={() => {
+                onChange(i)
+                close()
+              }}
+              className={`grid size-9 place-items-center rounded-lg focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand ${
+                value === i ? 'bg-violet-100' : 'hover:bg-stone-100'
+              }`}
+            >
+              <CategoryIcon icon={i} />
+            </button>
+          ))}
+        </div>
+      )}
+    </Popover>
   )
 }
 
@@ -253,26 +278,45 @@ export function ColorPicker({
   onChange: (color: string) => void
 }) {
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {COLORS.map((c) => (
-        <button
-          key={c}
-          type="button"
-          aria-label={c}
-          aria-pressed={value === c}
-          onClick={() => onChange(c)}
-          className={`size-11 rounded-lg border-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
-            value === c ? 'border-stone-900' : 'border-transparent'
-          }`}
-        >
+    <Popover
+      label="Choose a colour"
+      trigger={
+        <>
           <span
             aria-hidden
-            className="block size-full rounded-md"
-            style={{ backgroundColor: c }}
+            className="size-5 rounded-md"
+            style={{ backgroundColor: value }}
           />
-        </button>
-      ))}
-    </div>
+          <CaretRightIcon size={12} className="rotate-90 text-stone-400" />
+        </>
+      }
+    >
+      {(close) => (
+        <div className="grid w-56 grid-cols-5 gap-1.5">
+          {COLORS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              aria-label={c}
+              aria-pressed={value === c}
+              onClick={() => {
+                onChange(c)
+                close()
+              }}
+              className={`grid size-9 place-items-center rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
+                value === c ? 'ring-2 ring-stone-900' : ''
+              }`}
+            >
+              <span
+                aria-hidden
+                className="size-6 rounded-md"
+                style={{ backgroundColor: c }}
+              />
+            </button>
+          ))}
+        </div>
+      )}
+    </Popover>
   )
 }
 
@@ -298,5 +342,70 @@ export function Stat({
         {formatMoney(amount)}
       </p>
     </div>
+  )
+}
+
+/**
+ * The archived tail of a list: restore, or delete for good.
+ *
+ * Deletion is refused by the server while anything still references the thing,
+ * so the error is shown here rather than pre-emptively hiding the button —
+ * "why can't I delete this?" deserves an answer, not a missing control.
+ */
+export function ArchivedList({
+  items,
+  onRestore,
+  onDelete,
+}: {
+  items: { id: string; name: string }[]
+  onRestore: (id: string) => Promise<unknown>
+  onDelete: (id: string) => Promise<unknown>
+}) {
+  const [error, setError] = useState<string | null>(null)
+  if (items.length === 0) return null
+
+  return (
+    <Card>
+      <div className="border-b border-stone-100 px-4 py-3">
+        <h2 className="text-sm font-semibold text-stone-500">Archived</h2>
+        <p className="text-xs text-stone-400">
+          Kept so past months still add up. Anything nothing points at any more
+          can be deleted for good.
+        </p>
+        {error && <p className="mt-1 text-xs text-debt">{error}</p>}
+      </div>
+      <ul>
+        {items.map((it) => (
+          <li
+            key={it.id}
+            className="flex items-center gap-2 border-b border-stone-100 p-4 last:border-b-0"
+          >
+            <span className="min-w-0 flex-1 truncate text-sm text-stone-500">
+              {it.name}
+            </span>
+            <GhostButton
+              onClick={async () => {
+                setError(null)
+                await onRestore(it.id)
+              }}
+            >
+              Restore
+            </GhostButton>
+            <ConfirmButton
+              label="Delete"
+              confirmLabel="Delete for good"
+              onConfirm={async () => {
+                setError(null)
+                try {
+                  await onDelete(it.id)
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : 'Could not delete')
+                }
+              }}
+            />
+          </li>
+        ))}
+      </ul>
+    </Card>
   )
 }

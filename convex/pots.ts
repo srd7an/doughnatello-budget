@@ -138,3 +138,61 @@ export const archive = mutation({
     await ctx.db.patch(potId, { isArchived: true });
   },
 });
+
+/**
+ * Delete an archived fund or loan for good. Refuses while any transaction,
+ * funding row, repeating rule or asset still points at it — the same rule as
+ * categories: nothing that would rewrite history, everything that would not.
+ */
+export const remove = mutation({
+  args: { potId: v.id("pots") },
+  handler: async (ctx, { potId }) => {
+    const { doc } = await requireDoc(ctx, "pots", potId);
+    if (!doc.isArchived) {
+      throw new Error("Archive it first — deleting is for things you are done with");
+    }
+
+    const moved = await ctx.db
+      .query("transactions")
+      .withIndex("by_household_pot", (q) =>
+        q.eq("householdId", doc.householdId).eq("potId", potId),
+      )
+      .first();
+    if (moved) throw new Error("This has transactions against it.");
+
+    const funded = await ctx.db
+      .query("transactionFunding")
+      .withIndex("by_household_pot", (q) =>
+        q.eq("householdId", doc.householdId).eq("potId", potId),
+      )
+      .first();
+    if (funded) throw new Error("Money has been spent from this.");
+
+    const [rules, assets] = await Promise.all([
+      ctx.db
+        .query("recurringRules")
+        .withIndex("by_household", (q) => q.eq("householdId", doc.householdId))
+        .collect(),
+      ctx.db
+        .query("assets")
+        .withIndex("by_household", (q) => q.eq("householdId", doc.householdId))
+        .collect(),
+    ]);
+    if (rules.some((r) => r.potId === potId || r.fundedFromPotId === potId)) {
+      throw new Error("A repeating rule still uses this.");
+    }
+    if (assets.some((a) => a.linkedDebtPotId === potId)) {
+      throw new Error("An asset is still linked to this loan.");
+    }
+
+    await ctx.db.delete(potId);
+  },
+});
+
+export const unarchive = mutation({
+  args: { potId: v.id("pots") },
+  handler: async (ctx, { potId }) => {
+    await requireDoc(ctx, "pots", potId);
+    await ctx.db.patch(potId, { isArchived: false });
+  },
+});

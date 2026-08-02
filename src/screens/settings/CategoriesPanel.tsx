@@ -53,6 +53,8 @@ export function CategoriesPanel() {
   const update = useMutation(api.categories.update)
   const archive = useMutation(api.categories.archive)
   const unarchive = useMutation(api.categories.unarchive)
+  const remove = useMutation(api.categories.remove)
+  const [error, setError] = useState<string | null>(null)
 
   const [adding, setAdding] = useState<Kind | null>(null)
   const [editing, setEditing] = useState<Id<'categories'> | null>(null)
@@ -97,11 +99,6 @@ export function CategoriesPanel() {
                   ) : (
                     <div className="flex items-center gap-3 p-4">
                       <CategoryIcon icon={c.icon} color={c.color} />
-                      <span
-                        aria-hidden
-                        className="size-2.5 rounded-full"
-                        style={{ backgroundColor: c.color }}
-                      />
                       <span className="min-w-0 flex-1 truncate text-sm font-medium">
                         {c.name}
                       </span>
@@ -151,8 +148,10 @@ export function CategoriesPanel() {
           <div className="border-b border-stone-100 px-4 py-3">
             <h2 className="text-sm font-semibold text-stone-500">Archived</h2>
             <p className="text-xs text-stone-400">
-              Hidden from the pickers. Past transactions keep them.
+              Hidden from the pickers. Past transactions keep them. One with no
+              transactions can be deleted for good.
             </p>
+            {error && <p className="mt-1 text-xs text-debt">{error}</p>}
           </div>
           <ul>
             {archived.map((c) => (
@@ -169,6 +168,18 @@ export function CategoriesPanel() {
                 <GhostButton onClick={() => unarchive({ categoryId: c._id })}>
                   Restore
                 </GhostButton>
+                <ConfirmButton
+                  label="Delete"
+                  confirmLabel="Delete for good"
+                  onConfirm={async () => {
+                    setError(null)
+                    try {
+                      await remove({ categoryId: c._id })
+                    } catch (e) {
+                      setError(e instanceof Error ? e.message : 'Could not delete')
+                    }
+                  }}
+                />
               </li>
             ))}
           </ul>

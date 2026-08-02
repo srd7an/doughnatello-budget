@@ -11,8 +11,16 @@
  * they read in Latin script alongside the app's Latin UI.
  */
 
-const dinarsFmt = new Intl.NumberFormat("sr-RS", { maximumFractionDigits: 0 });
-const percentFmt = new Intl.NumberFormat("sr-RS", {
+// Thousands separated by "," and decimals by "." — 44,413.50. Note this is NOT
+// the sr-RS convention (which is the reverse, 44.413,50); it is the format the
+// app was asked for. Both live behind these two formatters, so switching back
+// is a one-line change here and nowhere else.
+const dinarsFmt = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+const dinarsDecimalFmt = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+const percentFmt = new Intl.NumberFormat("en-US", {
   style: "percent",
   maximumFractionDigits: 1,
 });
@@ -36,19 +44,57 @@ export function fromPara(para: number): number {
 }
 
 /**
- * Format stored para as grouped dinars, e.g. 4441300 → "44.413".
- * RSD is shown without decimals. Pass `signed` to force a leading + for
- * positives (period-change figures); negatives always show a minus.
+ * Format stored para as grouped dinars: 4441300 → "44,413", 123450 → "1,234.50".
+ *
+ * Decimals appear only when there ARE any. A whole amount reads as a whole
+ * number (the design's figures are all whole), but a stored 50 para is never
+ * hidden — rounding it away would show a figure that does not match the money.
+ * Pass `signed` to force a leading + for positives; negatives always show minus.
  */
 export function formatMoney(
   para: number,
   opts: { signed?: boolean } = {},
 ): string {
-  const dinars = Math.round(para / 100);
-  const body = dinarsFmt.format(Math.abs(dinars));
-  if (dinars < 0) return `${MINUS}${body}`;
-  if (opts.signed && dinars > 0) return `+${body}`;
+  const rounded = Math.round(para);
+  const abs = Math.abs(rounded);
+  const body =
+    abs % 100 === 0
+      ? dinarsFmt.format(abs / 100)
+      : dinarsDecimalFmt.format(abs / 100);
+  if (rounded < 0) return `${MINUS}${body}`;
+  if (opts.signed && rounded > 0) return `+${body}`;
   return body;
+}
+
+/**
+ * Typed money → stored para, and back.
+ *
+ * One decimal point, digits either side, nothing else — sanitising as the user
+ * types rather than validating on submit, so a field can never hold something
+ * that is not a number. `paraToInput` is the inverse for populating a field:
+ * it keeps sub-unit precision and drops a pointless ".00".
+ */
+export function sanitizeMoneyInput(raw: string): string {
+  const cleaned = raw.replace(/[^\d.]/g, "");
+  const firstDot = cleaned.indexOf(".");
+  if (firstDot === -1) return cleaned;
+  const whole = cleaned.slice(0, firstDot);
+  const rest = cleaned.slice(firstDot + 1).replace(/\./g, "");
+  return `${whole}.${rest.slice(0, 2)}`;
+}
+
+export function inputToPara(text: string): number {
+  const n = Number(sanitizeMoneyInput(text));
+  return Number.isFinite(n) ? Math.round(n * 100) : 0;
+}
+
+export function paraToInput(para: number): string {
+  if (para === 0) return "";
+  const abs = Math.abs(para);
+  const sign = para < 0 ? "-" : "";
+  return abs % 100 === 0
+    ? `${sign}${abs / 100}`
+    : `${sign}${(abs / 100).toFixed(2)}`;
 }
 
 /** Format a fraction (0..1) as a Serbian percentage: 0.137 → "13,7%". */

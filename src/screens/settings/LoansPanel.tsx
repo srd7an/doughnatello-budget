@@ -6,6 +6,7 @@ import { useHousehold } from '../../household/HouseholdContext'
 import { formatMoney, formatPercent } from '../../lib/format'
 import { CategoryIcon } from '../../ui/icons'
 import {
+  ArchivedList,
   Card,
   ConfirmButton,
   Empty,
@@ -34,14 +35,18 @@ export function LoansPanel() {
   const householdId = household._id
 
   const pots = useQuery(api.pots.balances, { householdId })
+  const allPots = useQuery(api.pots.list, { householdId, includeArchived: true })
   const create = useMutation(api.pots.create)
   const update = useMutation(api.pots.update)
   const archive = useMutation(api.pots.archive)
+  const remove = useMutation(api.pots.remove)
+  const unarchive = useMutation(api.pots.unarchive)
 
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<Id<'pots'> | null>(null)
 
-  if (pots === undefined) return <Loading />
+  if (pots === undefined || allPots === undefined) return <Loading />
+  const archived = allPots.filter((p) => p.isArchived && p.kind === 'debt')
   const loans = pots.filter((p) => p.kind === 'debt')
   const owedTotal = loans.reduce((s, l) => s + (l.owed ?? 0), 0)
 
@@ -108,6 +113,12 @@ export function LoansPanel() {
       ) : (
         <PrimaryButton onClick={() => setAdding(true)}>Add a loan</PrimaryButton>
       )}
+
+      <ArchivedList
+        items={archived.map((p) => ({ id: p._id, name: p.name }))}
+        onRestore={(id) => unarchive({ potId: id as Id<'pots'> })}
+        onDelete={(id) => remove({ potId: id as Id<'pots'> })}
+      />
 
       <Note>
         A loan payment does not change your net worth — cash goes down and debt

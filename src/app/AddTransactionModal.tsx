@@ -4,7 +4,7 @@ import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { useHousehold } from '../household/HouseholdContext'
 import { Modal } from '../ui/Modal'
-import { formatMoney, toPara } from '../lib/format'
+import { formatMoney, inputToPara, sanitizeMoneyInput } from '../lib/format'
 import { CategoryIcon } from '../ui/icons'
 // The one implementation of the recurrence calendar, shared with the backend so
 // the date the modal promises is the date the rule generates.
@@ -104,8 +104,8 @@ export function AddTransactionModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [direction, categories.length])
 
-  const amountDinars = Number(amountStr || '0')
-  const amountPara = toPara(amountDinars)
+  const amountPara = inputToPara(amountStr)
+  const amountDinars = amountPara / 100
 
   const canSave = useMemo(() => {
     if (amountDinars <= 0) return false
@@ -116,9 +116,11 @@ export function AddTransactionModal({
   const press = (key: string) => {
     setAmountStr((s) => {
       if (key === 'back') return s.slice(0, -1)
-      if (s.length >= 9) return s // cap
+      if (s.length >= 12) return s // cap
       if (s === '' && key === '0') return s
-      return s + key
+      // sanitize enforces one dot and at most two decimals, so the keypad
+      // cannot build a number the field would reject.
+      return sanitizeMoneyInput(s + key)
     })
   }
 
@@ -196,12 +198,12 @@ export function AddTransactionModal({
 
       {/* Keypad */}
       <div className="mt-4 grid grid-cols-3 gap-2">
-        {['1', '2', '3', '4', '5', '6', '7', '8', '9', '000', '0', 'back'].map(
+        {['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', 'back'].map(
           (k) => (
             <button
               key={k}
-              onClick={() => (k === '000' ? ['0', '0', '0'].forEach(press) : press(k))}
-              aria-label={k === 'back' ? 'Delete' : k}
+              onClick={() => press(k)}
+              aria-label={k === 'back' ? 'Delete' : k === '.' ? 'Decimal point' : k}
               className="h-12 rounded-xl bg-stone-50 text-lg font-medium text-stone-800 hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
             >
               {k === 'back' ? '⌫' : k}
@@ -224,10 +226,9 @@ export function AddTransactionModal({
                   <Chip
                     key={p._id}
                     active={potId === p._id}
-                    color={p.color}
                     onClick={() => setPotId(p._id)}
                   >
-                    <CategoryIcon icon={p.icon} size={16} /> {p.name}
+                    <CategoryIcon icon={p.icon} size={16} color={p.color} /> {p.name}
                   </Chip>
                 ))}
               </ChipRow>
@@ -240,10 +241,9 @@ export function AddTransactionModal({
                 <Chip
                   key={c._id}
                   active={categoryId === c._id}
-                  color={c.color}
                   onClick={() => setCategoryId(c._id)}
                 >
-                  <CategoryIcon icon={c.icon} size={16} /> {c.name}
+                  <CategoryIcon icon={c.icon} size={16} color={c.color} /> {c.name}
                 </Chip>
               ))}
             </ChipRow>
@@ -264,10 +264,9 @@ export function AddTransactionModal({
                 <Chip
                   key={p._id}
                   active={takeFrom === p._id}
-                  color={p.color}
                   onClick={() => setTakeFrom(p._id)}
                 >
-                  <CategoryIcon icon={p.icon} size={16} /> {p.name} · {formatMoney(p.balance)}
+                  <CategoryIcon icon={p.icon} size={16} color={p.color} /> {p.name} · {formatMoney(p.balance)}
                 </Chip>
               ))}
             </ChipRow>
@@ -383,14 +382,13 @@ function ChipRow({ children }: { children: React.ReactNode }) {
   )
 }
 
+// Colour lives on the category's icon now, not on a separate dot beside it.
 function Chip({
   active,
-  color,
   onClick,
   children,
 }: {
   active: boolean
-  color?: string
   onClick: () => void
   children: React.ReactNode
 }) {
@@ -403,13 +401,6 @@ function Chip({
           : 'border-stone-200 text-stone-600 hover:bg-stone-50'
       }`}
     >
-      {color && (
-        <span
-          aria-hidden
-          className="size-2 rounded-full"
-          style={{ backgroundColor: color }}
-        />
-      )}
       {children}
     </button>
   )

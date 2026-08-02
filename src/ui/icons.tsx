@@ -41,6 +41,55 @@ import { StarIcon } from '@phosphor-icons/react/dist/csr/Star'
 import { SuitcaseIcon } from '@phosphor-icons/react/dist/csr/Suitcase'
 import { WalletIcon } from '@phosphor-icons/react/dist/csr/Wallet'
 import { XIcon } from '@phosphor-icons/react/dist/csr/X'
+import { ShoppingCartIcon } from '@phosphor-icons/react/dist/csr/ShoppingCart'
+import { CoffeeIcon } from '@phosphor-icons/react/dist/csr/Coffee'
+import { BeerSteinIcon } from '@phosphor-icons/react/dist/csr/BeerStein'
+import { PizzaIcon } from '@phosphor-icons/react/dist/csr/Pizza'
+import { HeartIcon } from '@phosphor-icons/react/dist/csr/Heart'
+import { PillIcon } from '@phosphor-icons/react/dist/csr/Pill'
+import { StethoscopeIcon } from '@phosphor-icons/react/dist/csr/Stethoscope'
+import { FirstAidIcon } from '@phosphor-icons/react/dist/csr/FirstAid'
+import { BookIcon } from '@phosphor-icons/react/dist/csr/Book'
+import { GraduationCapIcon } from '@phosphor-icons/react/dist/csr/GraduationCap'
+import { BriefcaseIcon } from '@phosphor-icons/react/dist/csr/Briefcase'
+import { DeviceMobileIcon } from '@phosphor-icons/react/dist/csr/DeviceMobile'
+import { LaptopIcon } from '@phosphor-icons/react/dist/csr/Laptop'
+import { WifiHighIcon } from '@phosphor-icons/react/dist/csr/WifiHigh'
+import { TShirtIcon } from '@phosphor-icons/react/dist/csr/TShirt'
+import { ScissorsIcon } from '@phosphor-icons/react/dist/csr/Scissors'
+import { WrenchIcon } from '@phosphor-icons/react/dist/csr/Wrench'
+import { ToolboxIcon } from '@phosphor-icons/react/dist/csr/Toolbox'
+import { PaintBrushIcon } from '@phosphor-icons/react/dist/csr/PaintBrush'
+import { TreeIcon } from '@phosphor-icons/react/dist/csr/Tree'
+import { PlantIcon } from '@phosphor-icons/react/dist/csr/Plant'
+import { SunIcon } from '@phosphor-icons/react/dist/csr/Sun'
+import { UmbrellaIcon } from '@phosphor-icons/react/dist/csr/Umbrella'
+import { TrainIcon } from '@phosphor-icons/react/dist/csr/Train'
+import { BusIcon } from '@phosphor-icons/react/dist/csr/Bus'
+import { BicycleIcon } from '@phosphor-icons/react/dist/csr/Bicycle'
+import { TicketIcon } from '@phosphor-icons/react/dist/csr/Ticket'
+import { MusicNotesIcon } from '@phosphor-icons/react/dist/csr/MusicNotes'
+import { FilmSlateIcon } from '@phosphor-icons/react/dist/csr/FilmSlate'
+import { GameControllerIcon } from '@phosphor-icons/react/dist/csr/GameController'
+import { CameraIcon } from '@phosphor-icons/react/dist/csr/Camera'
+import { BabyIcon } from '@phosphor-icons/react/dist/csr/Baby'
+import { CatIcon } from '@phosphor-icons/react/dist/csr/Cat'
+import { ReceiptIcon } from '@phosphor-icons/react/dist/csr/Receipt'
+import { CreditCardIcon } from '@phosphor-icons/react/dist/csr/CreditCard'
+import { CoinsIcon } from '@phosphor-icons/react/dist/csr/Coins'
+import { TrendUpIcon } from '@phosphor-icons/react/dist/csr/TrendUp'
+import { ShieldIcon } from '@phosphor-icons/react/dist/csr/Shield'
+import { KeyIcon } from '@phosphor-icons/react/dist/csr/Key'
+import { GlobeIcon } from '@phosphor-icons/react/dist/csr/Globe'
+import { MapPinIcon } from '@phosphor-icons/react/dist/csr/MapPin'
+import { WineIcon } from '@phosphor-icons/react/dist/csr/Wine'
+import { HamburgerIcon } from '@phosphor-icons/react/dist/csr/Hamburger'
+import { BedIcon } from '@phosphor-icons/react/dist/csr/Bed'
+import { BathtubIcon } from '@phosphor-icons/react/dist/csr/Bathtub'
+import { HandbagIcon } from '@phosphor-icons/react/dist/csr/Handbag'
+import { NewspaperIcon } from '@phosphor-icons/react/dist/csr/Newspaper'
+import { BroomIcon } from '@phosphor-icons/react/dist/csr/Broom'
+import { ConfettiIcon } from '@phosphor-icons/react/dist/csr/Confetti'
 
 type PhosphorIcon = ComponentType<{
   size?: number | string
@@ -69,6 +118,55 @@ const CATEGORY_ICONS: Record<string, PhosphorIcon> = {
   piggy: PiggyBankIcon,
   bag: ShoppingBagIcon,
   suitcase: SuitcaseIcon,
+  cart: ShoppingCartIcon,
+  coffee: CoffeeIcon,
+  beer: BeerSteinIcon,
+  pizza: PizzaIcon,
+  heart: HeartIcon,
+  pill: PillIcon,
+  stethoscope: StethoscopeIcon,
+  firstaid: FirstAidIcon,
+  book: BookIcon,
+  school: GraduationCapIcon,
+  work: BriefcaseIcon,
+  phone: DeviceMobileIcon,
+  laptop: LaptopIcon,
+  internet: WifiHighIcon,
+  clothes: TShirtIcon,
+  haircut: ScissorsIcon,
+  repair: WrenchIcon,
+  tools: ToolboxIcon,
+  paint: PaintBrushIcon,
+  garden: TreeIcon,
+  plant: PlantIcon,
+  holiday: SunIcon,
+  insurance: UmbrellaIcon,
+  train: TrainIcon,
+  bus: BusIcon,
+  bike: BicycleIcon,
+  ticket: TicketIcon,
+  music: MusicNotesIcon,
+  cinema: FilmSlateIcon,
+  games: GameControllerIcon,
+  photo: CameraIcon,
+  baby: BabyIcon,
+  cat: CatIcon,
+  receipt: ReceiptIcon,
+  card: CreditCardIcon,
+  coins: CoinsIcon,
+  invest: TrendUpIcon,
+  shield: ShieldIcon,
+  rent: KeyIcon,
+  travel: GlobeIcon,
+  place: MapPinIcon,
+  wine: WineIcon,
+  fastfood: HamburgerIcon,
+  bed: BedIcon,
+  bath: BathtubIcon,
+  handbag: HandbagIcon,
+  news: NewspaperIcon,
+  cleaning: BroomIcon,
+  party: ConfettiIcon,
 }
 
 /** Every selectable icon key, for the pickers. */

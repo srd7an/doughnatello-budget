@@ -14,6 +14,7 @@ import {
   Loading,
   MoneyInput,
   Note,
+  ArchivedList,
   Panel,
   PrimaryButton,
   TextInput,
@@ -34,11 +35,13 @@ export function AssetsPanel() {
   const { household } = useHousehold()
   const householdId = household._id
 
-  const assets = useQuery(api.assets.list, { householdId })
+  const assets = useQuery(api.assets.list, { householdId, includeArchived: true })
   const pots = useQuery(api.pots.balances, { householdId })
   const create = useMutation(api.assets.create)
   const update = useMutation(api.assets.update)
   const archive = useMutation(api.assets.archive)
+  const remove = useMutation(api.assets.remove)
+  const unarchive = useMutation(api.assets.unarchive)
 
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<Id<'assets'> | null>(null)
@@ -46,14 +49,16 @@ export function AssetsPanel() {
   if (assets === undefined || pots === undefined) return <Loading />
 
   const debts = pots.filter((p) => p.kind === 'debt')
-  const total = assets.reduce((s, a) => s + a.value, 0)
+  const archived = assets.filter((a) => a.isArchived)
+  const live = assets.filter((a) => !a.isArchived)
+  const total = live.reduce((s, a) => s + a.value, 0)
   const today = localISO(new Date())
 
   return (
     <Panel
       description="Things you own that are worth something. They count toward net worth and nothing else."
     >
-      {assets.length === 0 ? (
+      {live.length === 0 ? (
         <Empty>No assets yet — a flat, a car, anything worth recording.</Empty>
       ) : (
         <Card>
@@ -64,7 +69,7 @@ export function AssetsPanel() {
             </span>
           </div>
           <ul>
-            {assets.map((a) => (
+            {live.map((a) => (
               <li key={a._id} className="border-b border-stone-100 last:border-b-0">
                 {editing === a._id ? (
                   <AssetForm
@@ -113,6 +118,14 @@ export function AssetsPanel() {
         <PrimaryButton onClick={() => setAdding(true)}>
           Add an asset
         </PrimaryButton>
+      )}
+
+      {archived.length > 0 && (
+        <ArchivedList
+          items={archived.map((a) => ({ id: a._id, name: a.name }))}
+          onRestore={(id) => unarchive({ assetId: id as Id<'assets'> })}
+          onDelete={(id) => remove({ assetId: id as Id<'assets'> })}
+        />
       )}
 
       <Note>
