@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useAuthActions } from '@convex-dev/auth/react'
 import { useHousehold } from '../household/HouseholdContext'
 import { initials } from '../lib/format'
+import { CheckIcon } from '../ui/icons'
 
 /**
  * Avatar → menu. Settings lives here (visited twice a year, no permanent nav
@@ -61,9 +62,7 @@ export function AvatarMenu({ onOpenSettings }: { onOpenSettings: () => void }) {
                 >
                   {h.name}
                   {h._id === household._id && (
-                    <span aria-hidden className="text-brand">
-                      ✓
-                    </span>
+                    <CheckIcon size={16} className="text-brand" aria-hidden />
                   )}
                 </button>
               ))}

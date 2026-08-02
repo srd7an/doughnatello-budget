@@ -24,6 +24,7 @@ import { CalendarDotsIcon } from '@phosphor-icons/react/dist/csr/CalendarDots'
 import { CaretLeftIcon } from '@phosphor-icons/react/dist/csr/CaretLeft'
 import { CaretRightIcon } from '@phosphor-icons/react/dist/csr/CaretRight'
 import { CarProfileIcon } from '@phosphor-icons/react/dist/csr/CarProfile'
+import { CheckIcon } from '@phosphor-icons/react/dist/csr/Check'
 import { ChartPieSliceIcon } from '@phosphor-icons/react/dist/csr/ChartPieSlice'
 import { DogIcon } from '@phosphor-icons/react/dist/csr/Dog'
 import { FlowerIcon } from '@phosphor-icons/react/dist/csr/Flower'
@@ -212,6 +213,7 @@ export {
   ArrowRightIcon,
   SignOutIcon,
   XIcon,
+  CheckIcon,
 }
 
 export function PlusIcon({ className }: { className?: string }) {

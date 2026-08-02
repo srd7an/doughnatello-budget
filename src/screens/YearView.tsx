@@ -4,7 +4,7 @@ import { api } from '../../convex/_generated/api'
 import { useHousehold } from '../household/HouseholdContext'
 import { usePeriod } from '../period/PeriodContext'
 import { formatMoney } from '../lib/format'
-import { CategoryIcon } from '../ui/icons'
+import { CaretRightIcon, CategoryIcon } from '../ui/icons'
 import { Swatch } from '../ui/Swatch'
 import { YearChart } from './YearChart'
 import { CategoriesList, Toggle } from './CategoriesList'
@@ -149,8 +149,13 @@ function Accordion({
         disabled={empty}
         className="flex min-h-12 w-full items-center gap-2 px-4 text-sm focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
       >
-        <span className="w-3 shrink-0 text-xs text-stone-400" aria-hidden>
-          {empty ? '' : open ? '▾' : '▸'}
+        <span className="grid w-3 shrink-0 place-items-center" aria-hidden>
+          {!empty && (
+            <CaretRightIcon
+              size={12}
+              className={`text-stone-400 transition-transform ${open ? 'rotate-90' : ''}`}
+            />
+          )}
         </span>
         <span className="flex-1 text-left font-medium">{label}</span>
         <ChangeBalance

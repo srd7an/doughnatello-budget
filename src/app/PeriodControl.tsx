@@ -4,6 +4,7 @@ import {
   CalendarDotsIcon,
   CaretLeftIcon,
   CaretRightIcon,
+  CheckIcon,
 } from '../ui/icons'
 
 /**
@@ -119,11 +120,7 @@ function MenuItem({
       className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
     >
       {children}
-      {active && (
-        <span aria-hidden className="text-brand">
-          ✓
-        </span>
-      )}
+      {active && <CheckIcon size={16} className="text-brand" aria-hidden />}
     </button>
   )
 }

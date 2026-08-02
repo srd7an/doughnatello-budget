@@ -4,7 +4,7 @@ import { api } from '../../convex/_generated/api'
 import { useHousehold } from '../household/HouseholdContext'
 import { usePeriod } from '../period/PeriodContext'
 import { formatMoney, formatPercent } from '../lib/format'
-import { CategoryIcon } from '../ui/icons'
+import { CaretRightIcon, CategoryIcon } from '../ui/icons'
 import { Swatch } from '../ui/Swatch'
 import { TransactionsList } from './TransactionsList'
 import { CategoriesList, Toggle } from './CategoriesList'
@@ -174,9 +174,11 @@ function Metric({
         {label}
         <Swatch className={swatch} />
         {expandable && (
-          <span aria-hidden className="text-xs text-stone-400">
-            {open ? '▾' : '▸'}
-          </span>
+          <CaretRightIcon
+            size={12}
+            aria-hidden
+            className={`text-stone-400 transition-transform ${open ? 'rotate-90' : ''}`}
+          />
         )}
       </button>
       <p className="tnum mt-0.5 text-sm">
