@@ -36,6 +36,7 @@ export const create = mutation({
     payee: v.optional(v.string()),
     note: v.optional(v.string()),
     paidBy: v.optional(v.string()), // defaults to the caller
+    accountId: v.optional(v.id("accounts")), // defaults to the primary account
   },
   handler: async (ctx, args) => {
     const { userId } = await requireMember(ctx, args.householdId);
@@ -54,6 +55,7 @@ export type TransactionInput = {
   payee?: string;
   note?: string;
   paidBy?: string;
+  accountId?: Id<"accounts">;
 };
 
 /**
@@ -74,13 +76,17 @@ export async function insertTransaction(
     throw new Error("Amount must be a positive whole number of para");
   }
 
-  const account = (
-    await ctx.db
-      .query("accounts")
-      .withIndex("by_household", (q) => q.eq("householdId", args.householdId))
-      .collect()
-  ).find((a) => a.isPrimary && !a.isArchived);
-  if (!account) throw new Error("No primary account");
+  // A household may hold several accounts; the caller names one or gets the
+  // primary. An id from the client selects, it never authorises — hence the
+  // household check.
+  const accounts = await ctx.db
+    .query("accounts")
+    .withIndex("by_household", (q) => q.eq("householdId", args.householdId))
+    .collect();
+  const account = args.accountId
+    ? accounts.find((a) => a._id === args.accountId)
+    : accounts.find((a) => a.isPrimary && !a.isArchived);
+  if (!account) throw new Error("Account not found");
 
   // Category: required for income/expense, forbidden for transfer.
   if (args.direction === "transfer") {

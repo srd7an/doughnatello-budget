@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'vitest'
-import { csvCell, paraToDecimal, toCsv } from './csv'
+import {
+  csvCell,
+  decimalToPara,
+  guessMapping,
+  paraToDecimal,
+  parseCsv,
+  toCsv,
+} from './csv'
 
 /**
  * The export is the one place the app hands your money to another program, so
@@ -61,5 +68,74 @@ describe('toCsv', () => {
         '2026-07-01,Idea,2000.00\r\n' +
         '2026-07-02,"Bakery, Sun",350.50',
     )
+  })
+})
+
+describe('parseCsv', () => {
+  test('reads quoted cells containing commas and quotes', () => {
+    const rows = parseCsv(
+      'Date,Payee,Amount\r\n2026-07-02,"Bakery ""Sun"", Novi Sad",350.50',
+    )
+    expect(rows[1]).toEqual(['2026-07-02', 'Bakery "Sun", Novi Sad', '350.50'])
+  })
+
+  test('survives its own export — BOM, CRLF, trailing newline', () => {
+    const csv = '﻿Date,Amount\r\n2026-07-01,2000.00\r\n'
+    expect(parseCsv(csv)).toEqual([
+      ['Date', 'Amount'],
+      ['2026-07-01', '2000.00'],
+    ])
+  })
+
+  test('keeps embedded newlines inside quotes', () => {
+    expect(parseCsv('A,B\n"one\ntwo",x')[1]).toEqual(['one\ntwo', 'x'])
+  })
+})
+
+describe('decimalToPara', () => {
+  test('reads our own export format', () => {
+    expect(decimalToPara('44413.00')).toBe(4441300)
+    expect(decimalToPara('1.99')).toBe(199)
+    expect(decimalToPara('-1.50')).toBe(-150)
+  })
+
+  test('reads Serbian grouping, where the comma is the decimal', () => {
+    expect(decimalToPara('44.413,00')).toBe(4441300)
+    expect(decimalToPara('1.234,56')).toBe(123456)
+  })
+
+  test('reads thousands separators with a dot decimal', () => {
+    expect(decimalToPara('1,234.56')).toBe(123456)
+  })
+
+  test('strips currency symbols and spaces', () => {
+    expect(decimalToPara(' 2 000,00 RSD ')).toBe(200000)
+  })
+
+  test('returns null for junk', () => {
+    expect(decimalToPara('')).toBeNull()
+    expect(decimalToPara('n/a')).toBeNull()
+  })
+})
+
+describe('guessMapping', () => {
+  test('maps our export headers exactly', () => {
+    const m = guessMapping([
+      'Date', 'Type', 'Amount', 'Category', 'Fund',
+      'Paid from fund', 'Payee', 'Note', 'Paid by',
+    ])
+    expect(m.date).toBe(0)
+    expect(m.direction).toBe(1)
+    expect(m.amount).toBe(2)
+    expect(m.category).toBe(3)
+    expect(m.payee).toBe(6)
+  })
+
+  test('finds what it can in a bank export and leaves the rest unset', () => {
+    const m = guessMapping(['Datum', 'Opis', 'Iznos'])
+    expect(m.date).toBe(0)
+    expect(m.payee).toBe(1)
+    expect(m.amount).toBe(2)
+    expect(m.fund).toBe(-1)
   })
 })

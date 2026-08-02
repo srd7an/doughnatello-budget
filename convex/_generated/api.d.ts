@@ -16,6 +16,7 @@ import type * as crons from "../crons.js";
 import type * as exports from "../exports.js";
 import type * as households from "../households.js";
 import type * as http from "../http.js";
+import type * as imports from "../imports.js";
 import type * as invites from "../invites.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_balances from "../lib/balances.js";
@@ -42,6 +43,7 @@ declare const fullApi: ApiFromModules<{
   exports: typeof exports;
   households: typeof households;
   http: typeof http;
+  imports: typeof imports;
   invites: typeof invites;
   "lib/auth": typeof lib_auth;
   "lib/balances": typeof lib_balances;
