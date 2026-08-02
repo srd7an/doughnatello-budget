@@ -35,12 +35,16 @@ export function explainAuthError(e: unknown, flow: 'signUp' | 'signIn'): string 
 }
 
 /**
- * Public signup + sign in with email and password. Pre-Phase-3 styling — the
+ * Public sign in + signup with email and password. Pre-Phase-3 styling — the
  * real designed auth screen arrives with the Figma work.
+ *
+ * Signing IN is the default: almost everyone arriving here already has an
+ * account, and landing them on a signup form makes the common case the one that
+ * needs a click. Creating an account is one tap away underneath.
  */
 export function SignInForm() {
   const { signIn } = useAuthActions()
-  const [flow, setFlow] = useState<'signUp' | 'signIn'>('signUp')
+  const [flow, setFlow] = useState<'signUp' | 'signIn'>('signIn')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
