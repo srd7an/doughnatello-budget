@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react'
+import { XIcon } from './icons'
 
 /**
  * Minimal accessible modal: role=dialog, closes on Esc and backdrop click,
@@ -53,14 +54,14 @@ export function Modal({
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+          {/* Same close control as the settings modal — one shape for "dismiss
+              this", wherever you meet it. */}
           <button
             onClick={onClose}
             aria-label="Close"
-            className="grid size-11 place-items-center rounded-lg text-stone-500 hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            className="grid size-8 place-items-center rounded-full text-stone-600 hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
           >
-            <span aria-hidden className="text-xl">
-              ×
-            </span>
+            <XIcon size={20} aria-hidden />
           </button>
         </div>
         {children}
