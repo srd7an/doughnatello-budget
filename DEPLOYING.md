@@ -37,6 +37,9 @@ JSON has no comments, which is why this file exists.
 
 ## Notes
 
+- **Pushing to `main` deploys straight to production**, functions and frontend
+  together, with no review step in between. Vercel can roll the frontend back
+  instantly, but a revert does not undo data — a bad migration stays bad.
 - The production Convex deployment starts **empty**. It is a separate database
   from dev, so you sign up and create the household again there.
 - Signup is **open** and there is no email verification (`convex/auth.ts`).
