@@ -232,6 +232,142 @@ describe("editing", () => {
     ).rejects.toThrow(/destination pot/);
   });
 
+  // The edit form offers every field the add form does, so each of these is a
+  // change someone can now make with two taps.
+  test("clearing the payee clears it, rather than putting it back", async () => {
+    const { t, householdId, grocery } = await setup();
+    const id = await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "expense",
+      amount: 1_000_00,
+      categoryId: grocery,
+      occurredOn: "2026-07-01",
+      payee: "Maxi",
+      note: "milk",
+    });
+
+    // Omitted stays; empty clears. Both in one edit, so they cannot pass by
+    // accidentally sharing a code path.
+    await asA(t).mutation(api.transactions.update, {
+      transactionId: id,
+      payee: "",
+    });
+    const after = await asA(t).query(api.transactions.detail, {
+      transactionId: id,
+    });
+    expect(after.payee).toBeNull();
+    expect(after.note).toBe("milk");
+  });
+
+  test("moving an expense to another fund empties the first and fills the second", async () => {
+    const { t, householdId, grocery } = await setup();
+    const potIds = await Promise.all(
+      ["Holiday", "Repairs"].map((name) =>
+        asA(t).mutation(api.pots.create, {
+          householdId,
+          name,
+          kind: "sinking",
+          icon: "piggy",
+          color: "#1D9E75",
+        }),
+      ),
+    );
+    for (const potId of potIds) {
+      await asA(t).mutation(api.transactions.create, {
+        householdId,
+        direction: "transfer",
+        amount: 50_000_00,
+        potId,
+        occurredOn: "2026-07-01",
+      });
+    }
+    const id = await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "expense",
+      amount: 20_000_00,
+      categoryId: grocery,
+      takeFromPotId: potIds[0],
+      occurredOn: "2026-07-05",
+    });
+
+    await asA(t).mutation(api.transactions.update, {
+      transactionId: id,
+      takeFromPotId: potIds[1],
+    });
+
+    const pots = await asA(t).query(api.pots.balances, { householdId });
+    expect(pots.find((p) => p._id === potIds[0])!.balance).toBe(50_000_00);
+    expect(pots.find((p) => p._id === potIds[1])!.balance).toBe(30_000_00);
+  });
+
+  test("naming a loan on an existing expense pays it down; clearing it gives it back", async () => {
+    const { t, householdId, grocery } = await setup();
+    const loan = await asA(t).mutation(api.pots.create, {
+      householdId,
+      name: "Car loan",
+      kind: "debt",
+      icon: "car",
+      color: "#B45309",
+      originalAmount: 900_000_00,
+    });
+    const id = await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "expense",
+      amount: 24_500_00,
+      categoryId: grocery,
+      occurredOn: "2026-07-12",
+    });
+
+    await asA(t).mutation(api.transactions.update, {
+      transactionId: id,
+      potId: loan,
+    });
+    const owed = async () =>
+      (await asA(t).query(api.pots.balances, { householdId })).find(
+        (p) => p._id === loan,
+      )!.owed;
+    expect(await owed()).toBe(875_500_00);
+
+    await asA(t).mutation(api.transactions.update, {
+      transactionId: id,
+      clearLoan: true,
+    });
+    expect(await owed()).toBe(900_000_00);
+  });
+
+  test("a transfer turned into an expense does not become a loan payment", async () => {
+    const { t, householdId, grocery } = await setup();
+    const potId = await asA(t).mutation(api.pots.create, {
+      householdId,
+      name: "Holiday",
+      kind: "sinking",
+      icon: "plane",
+      color: "#3B82F6",
+    });
+    const id = await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "transfer",
+      amount: 10_000_00,
+      potId,
+      occurredOn: "2026-07-01",
+    });
+
+    // The destination fund would otherwise carry over into potId, where on an
+    // expense it would read as "pays off this fund" — which it is not.
+    await asA(t).mutation(api.transactions.update, {
+      transactionId: id,
+      direction: "expense",
+      categoryId: grocery,
+    });
+
+    const after = await asA(t).query(api.transactions.detail, {
+      transactionId: id,
+    });
+    expect(after.potId).toBeNull();
+    const pots = await asA(t).query(api.pots.balances, { householdId });
+    expect(pots.find((p) => p._id === potId)!.balance).toBe(0);
+  });
+
   test("an amount of zero is refused", async () => {
     const { t, householdId, grocery } = await setup();
     const id = await asA(t).mutation(api.transactions.create, {

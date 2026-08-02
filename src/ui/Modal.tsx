@@ -50,7 +50,10 @@ export function Modal({
         aria-label={title}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-t-2xl bg-white p-5 outline-none sm:rounded-2xl sm:border sm:border-stone-200"
+        // Tall content scrolls inside the panel rather than off the screen —
+        // the transaction form runs past a phone's viewport once a repeat or
+        // the funding breakdown is showing.
+        className="max-h-[90svh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-5 outline-none sm:max-h-[85svh] sm:rounded-2xl sm:border sm:border-stone-200"
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold tracking-tight">{title}</h2>

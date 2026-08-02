@@ -468,8 +468,10 @@ export const update = mutation({
       categoryId,
       potId,
       occurredOn: args.occurredOn ?? doc.occurredOn,
-      payee: args.payee ?? doc.payee,
-      note: args.note ?? doc.note,
+      // An omitted field keeps what is there; an EMPTY one clears it. Without
+      // the distinction, deleting a payee in the form silently put it back.
+      payee: args.payee === "" ? undefined : (args.payee ?? doc.payee),
+      note: args.note === "" ? undefined : (args.note ?? doc.note),
       paidBy: args.paidBy ?? doc.paidBy,
       accountId: args.accountId ?? doc.accountId,
     });
