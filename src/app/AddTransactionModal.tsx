@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
@@ -9,7 +9,7 @@ import { CategoryIcon } from '../ui/icons'
 // The one implementation of the recurrence calendar, shared with the backend so
 // the date the modal promises is the date the rule generates.
 import { nextDue, parseISO } from '../../convex/lib/recurrence'
-import { cadenceLabel } from '../lib/recurrence'
+import { cadenceLabel, untilDateForCount } from '../lib/recurrence'
 
 type Direction = 'expense' | 'income' | 'transfer'
 
@@ -77,7 +77,13 @@ export function AddTransactionModal({
   const [accountId, setAccountId] = useState<Id<'accounts'> | null>(null)
   const [repeat, setRepeat] = useState<Repeat>('once')
   const [estimate, setEstimate] = useState(false)
+  // How the repeat ends. Stored as an untilDate either way — "12 times" is
+  // just a friendlier way of picking the date the twelfth one falls on.
+  const [endMode, setEndMode] = useState<'forever' | 'on' | 'after'>('forever')
+  const [endOn, setEndOn] = useState('')
+  const [times, setTimes] = useState('12')
   const [saving, setSaving] = useState(false)
+  const amountRef = useRef<HTMLInputElement>(null)
 
   // Reset to sensible defaults whenever the modal opens.
   useEffect(() => {
@@ -91,6 +97,11 @@ export function AddTransactionModal({
     setAccountId(null)
     setRepeat('once')
     setEstimate(false)
+    setEndMode('forever')
+    setEndOn('')
+    setTimes('12')
+    // A frame later, so the modal has mounted and focus is not stolen back.
+    requestAnimationFrame(() => amountRef.current?.focus())
   }, [open])
 
   // Default the category to the first relevant one so one-tap save works.
@@ -113,24 +124,36 @@ export function AddTransactionModal({
     return !!categoryId
   }, [amountDinars, direction, potId, categoryId])
 
-  const press = (key: string) => {
-    setAmountStr((s) => {
-      if (key === 'back') return s.slice(0, -1)
-      if (s.length >= 12) return s // cap
-      if (s === '' && key === '0') return s
-      // sanitize enforces one dot and at most two decimals, so the keypad
-      // cannot build a number the field would reject.
-      return sanitizeMoneyInput(s + key)
-    })
-  }
-
   // The rule starts at the NEXT occurrence: the transaction being saved right
   // now covers this one, so generating an occurrence for it too would double it.
   const anchorDay = parseISO(occurredOn).d
-  const ruleStartsOn =
+  const recurrence =
     repeat === 'once'
       ? null
-      : nextDue(occurredOn, { cadence: repeat, intervalCount: 1, anchorDay })
+      : { cadence: repeat, intervalCount: 1, anchorDay }
+  const ruleStartsOn = recurrence ? nextDue(occurredOn, recurrence) : null
+
+  /**
+   * The date the rule should stop.
+   *
+   * "Repeats 12 times" counts the transaction being entered right now as the
+   * first — so the rule generates 11 more, and we walk forward to find the date
+   * the last of them lands on. Storing a date rather than a count keeps one
+   * source of truth: the rule already stops at untilDate.
+   */
+  const untilDate = (() => {
+    if (!recurrence || !ruleStartsOn) return undefined
+    if (endMode === 'on') return endOn || undefined
+    if (endMode === 'after') {
+      return untilDateForCount(
+        ruleStartsOn,
+        recurrence,
+        Number(times),
+        nextDue,
+      )
+    }
+    return undefined
+  })()
 
   const save = async () => {
     if (!canSave || saving) return
@@ -159,6 +182,7 @@ export function AddTransactionModal({
           cadence: repeat,
           anchorDay,
           startOn: ruleStartsOn,
+          untilDate,
         })
       }
       onClose()
@@ -188,29 +212,28 @@ export function AddTransactionModal({
         ))}
       </div>
 
-      {/* Amount */}
-      <div className="mt-5 text-center tnum">
-        <span className="text-4xl font-semibold tracking-tight">
-          {formatMoney(amountPara)}
+      {/* Amount. Looks like the figure it is, but you type straight into it —
+          a borderless input rather than a keypad, which was a lot of chrome for
+          something every keyboard already does. */}
+      <label className="mt-6 block">
+        <span className="sr-only">Amount</span>
+        <span className="flex items-baseline justify-center gap-1">
+          <input
+            ref={amountRef}
+            inputMode="decimal"
+            value={amountStr}
+            onChange={(e) => setAmountStr(sanitizeMoneyInput(e.target.value))}
+            placeholder="0"
+            aria-label="Amount"
+            // Width follows the content so the figure stays centred as it grows.
+            size={Math.max(amountStr.length || 1, 1)}
+            className="tnum w-auto min-w-[2ch] border-0 bg-transparent p-0 text-center text-[40px] leading-none text-stone-800 outline-none placeholder:text-stone-300"
+          />
+          <span className="text-sm text-stone-500">
+            {household.baseCurrency}
+          </span>
         </span>
-        <span className="ml-1 text-sm text-stone-400">RSD</span>
-      </div>
-
-      {/* Keypad */}
-      <div className="mt-4 grid grid-cols-3 gap-2">
-        {['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', 'back'].map(
-          (k) => (
-            <button
-              key={k}
-              onClick={() => press(k)}
-              aria-label={k === 'back' ? 'Delete' : k === '.' ? 'Decimal point' : k}
-              className="h-12 rounded-xl bg-stone-50 text-lg font-medium text-stone-800 hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
-            >
-              {k === 'back' ? '⌫' : k}
-            </button>
-          ),
-        )}
-      </div>
+      </label>
 
       {/* Contextual fields */}
       <div className="mt-5 space-y-4">
@@ -333,6 +356,63 @@ export function AddTransactionModal({
               {cadenceLabel(repeat, 1, anchorDay, ruleStartsOn)} · next on{' '}
               {ruleStartsOn}. This one is saved now.
             </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="text-xs text-stone-500">Ends</span>
+              {(
+                [
+                  ['forever', 'Never'],
+                  ['after', 'After'],
+                  ['on', 'On'],
+                ] as const
+              ).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setEndMode(mode)}
+                  aria-pressed={endMode === mode}
+                  className={`min-h-8 rounded-full border px-2.5 text-xs ${
+                    endMode === mode
+                      ? 'border-brand bg-violet-50 text-stone-900'
+                      : 'border-stone-200 text-stone-600 hover:bg-white'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+
+              {endMode === 'after' && (
+                <span className="flex items-center gap-1.5">
+                  <input
+                    inputMode="numeric"
+                    value={times}
+                    onChange={(e) =>
+                      setTimes(e.target.value.replace(/[^\d]/g, '').slice(0, 3))
+                    }
+                    aria-label="Number of times"
+                    className="tnum w-14 rounded-lg border border-stone-200 bg-white px-2 py-1 text-right text-xs outline-none focus-visible:border-brand"
+                  />
+                  <span className="text-xs text-stone-500">times in total</span>
+                </span>
+              )}
+
+              {endMode === 'on' && (
+                <input
+                  type="date"
+                  value={endOn}
+                  min={ruleStartsOn}
+                  onChange={(e) => setEndOn(e.target.value)}
+                  aria-label="Repeat until"
+                  className="rounded-lg border border-stone-200 bg-white px-2 py-1 text-xs outline-none focus-visible:border-brand"
+                />
+              )}
+            </div>
+
+            {untilDate && (
+              <p className="mt-1.5 text-xs text-stone-500">
+                Last one on {untilDate}.
+              </p>
+            )}
+
             <label className="mt-2 flex items-center gap-2 text-xs text-stone-600">
               <input
                 type="checkbox"

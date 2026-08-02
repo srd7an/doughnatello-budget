@@ -54,3 +54,24 @@ function daysBetween(from: string, to: string): number {
     (Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86_400_000,
   )
 }
+
+/**
+ * The date the LAST occurrence falls on, when a repeat is set to run a fixed
+ * number of times.
+ *
+ * `total` counts the transaction being entered now as the first, because that
+ * is what "repeats 12 times" means to a person — so a rule starting at the
+ * second occurrence generates `total - 1` of them. Returns `startOn` itself for
+ * a total of 2 (one now, one more).
+ */
+export function untilDateForCount(
+  startOn: string,
+  recurrence: { cadence: Cadence; intervalCount: number; anchorDay: number },
+  total: number,
+  next: (date: string, r: typeof recurrence) => string,
+): string {
+  const capped = Math.max(2, Math.min(Math.trunc(total) || 0, 600))
+  let date = startOn
+  for (let i = 2; i < capped; i++) date = next(date, recurrence)
+  return date
+}
