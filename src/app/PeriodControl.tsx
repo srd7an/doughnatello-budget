@@ -34,15 +34,15 @@ export function PeriodControl() {
 
   return (
     <div className="relative flex items-center" ref={ref}>
-      <div className="flex items-center rounded-full border border-stone-200 bg-white">
+      <div className="flex items-stretch overflow-hidden rounded-full border border-stone-200 bg-white">
         <Step label="Previous period" onClick={() => step(-1)}>
           <CaretLeftIcon size={20} aria-hidden />
         </Step>
-        <span className="h-6 w-px bg-stone-200" />
+        <span aria-hidden className="w-px self-stretch bg-stone-200" />
         <Step label="Next period" onClick={() => step(1)}>
           <CaretRightIcon size={20} aria-hidden />
         </Step>
-        <span className="h-6 w-px bg-stone-200" />
+        <span aria-hidden className="w-px self-stretch bg-stone-200" />
         <button
           onClick={() => setMenuOpen((o) => !o)}
           aria-haspopup="menu"
