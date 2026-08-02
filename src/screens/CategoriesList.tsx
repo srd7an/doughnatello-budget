@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { formatMoney, formatPercent } from '../lib/format'
-import { CategoryIcon } from '../ui/icons'
+import { CaretRightIcon, CategoryIcon } from '../ui/icons'
 import { dayLabel } from '../lib/dates'
 
 export type CategoryRowData = {
@@ -116,27 +116,22 @@ export function CategoriesList({
         </div>
       )}
 
-      <div className="overflow-hidden rounded-2xl border border-stone-200">
-        {/* Income */}
-        <RowShell tint="#bef264" bg="bg-lime-50">
-          <RowButton
-            expanded={open.has('income')}
-            onClick={() => toggle('income')}
-            leading={<span className="font-medium">Income</span>}
-            trailing={
-              <span data-money className="font-semibold">
-                {formatMoney(income)}
-              </span>
-            }
-          />
-        </RowShell>
+      <div className="flex flex-col gap-1">
+        {/* Income spans the full width — it is not a share of spending, so
+            there is no bar to draw and no percentage to show. */}
+        <FullRow
+          tone="bg-lime-100"
+          expanded={open.has('income')}
+          onClick={() => toggle('income')}
+          label="Income"
+          amount={income}
+        />
         {open.has('income') && <TxnList txns={incomeTxns} />}
 
         {grouped ? (
           <>
             <Group
               label="Needs"
-              bg="bg-stone-50"
               cats={cats.filter((c) => c.kind === 'committed')}
               totalExpense={totalExpense}
               open={open}
@@ -144,7 +139,6 @@ export function CategoriesList({
             />
             <Group
               label="Wants"
-              bg="bg-orange-50"
               cats={cats.filter((c) => c.kind === 'discretionary')}
               totalExpense={totalExpense}
               open={open}
@@ -173,16 +167,116 @@ export function CategoriesList({
   )
 }
 
+/**
+ * A category row. The BAR IS THE ROW: the tinted block's width encodes this
+ * category's share of the period's spending, with the figures sitting outside
+ * it to the right. That is the design's mechanism, and it is more honest than
+ * the tint-behind-the-row it replaced — the block's edge is a readable position
+ * you can compare down the column, where a wash of colour is not.
+ *
+ * The width is share-of-total, the same number the % shows. Normalising to the
+ * largest category would make the top row always full and the bar would then
+ * disagree with its own label.
+ */
+function BarRow({
+  share,
+  tone,
+  expanded,
+  onClick,
+  icon,
+  iconColor,
+  label,
+  amount,
+  indent = false,
+}: {
+  share: number
+  tone: string
+  expanded: boolean
+  onClick: () => void
+  icon?: string
+  iconColor?: string
+  label: string
+  amount: number
+  indent?: boolean
+}) {
+  return (
+    <div className={`flex items-center gap-2 ${indent ? 'pl-6' : ''}`}>
+      <div className="min-w-0 flex-1">
+        <button
+          onClick={onClick}
+          aria-expanded={expanded}
+          // A floor of 11rem so a 2% category still shows its name. Without it
+          // the smallest rows collapse to an unreadable stub.
+          style={{ width: `max(${Math.min(share * 100, 100)}%, 11rem)` }}
+          className={`flex min-h-9 max-w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand ${tone}`}
+        >
+          <CaretRightIcon
+            size={16}
+            aria-hidden
+            className={`shrink-0 text-stone-500 transition-transform ${expanded ? 'rotate-90' : ''}`}
+          />
+          {icon && <CategoryIcon icon={icon} color={iconColor} className="shrink-0" />}
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-stone-800">
+            {label}
+          </span>
+        </button>
+      </div>
+      <span data-money className="w-9 shrink-0 text-right text-sm text-stone-500">
+        {formatPercent(share)}
+      </span>
+      <span
+        data-money
+        className="w-[100px] shrink-0 text-right text-sm text-stone-800"
+      >
+        {formatMoney(amount)}
+      </span>
+    </div>
+  )
+}
+
+/** A row with no share to encode — the block spans the width, figure inside. */
+function FullRow({
+  tone,
+  expanded,
+  onClick,
+  label,
+  amount,
+}: {
+  tone: string
+  expanded: boolean
+  onClick: () => void
+  label: string
+  amount: number
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-expanded={expanded}
+      className={`flex min-h-9 w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand ${tone}`}
+    >
+      <CaretRightIcon
+        size={16}
+        aria-hidden
+        className={`shrink-0 text-stone-500 transition-transform ${expanded ? 'rotate-90' : ''}`}
+      />
+      <span className="min-w-0 flex-1 truncate text-sm font-medium text-stone-800">
+        {label}
+      </span>
+      <span data-money className="w-[100px] text-right text-sm text-stone-800">
+        {formatMoney(amount)}
+      </span>
+    </button>
+  )
+}
+
 function Group({
   label,
-  bg,
   cats,
   totalExpense,
   open,
   toggle,
 }: {
   label: string
-  bg: string
   cats: CatAgg[]
   totalExpense: number
   open: Set<string>
@@ -190,35 +284,29 @@ function Group({
 }) {
   const total = cats.reduce((s, c) => s + c.total, 0)
   const key = `group-${label}`
+  const share = totalExpense > 0 ? total / totalExpense : 0
   return (
     <>
-      <RowShell
-        tint={label === 'Needs' ? '#534AB7' : '#f59e0b'}
-        bg={bg}
-        share={totalExpense > 0 ? total / totalExpense : 0}
-      >
-        <RowButton
-          expanded={open.has(key)}
-          onClick={() => toggle(key)}
-          leading={<span className="font-medium">{label}</span>}
-          trailing={
-            <Amounts
-              share={totalExpense > 0 ? total / totalExpense : 0}
-              amount={total}
-            />
-          }
-        />
-      </RowShell>
+      <BarRow
+        share={share}
+        // Needs/Wants keep their own tints — this is the one view where the
+        // committed/discretionary split is expressed as colour.
+        tone={label === 'Needs' ? 'bg-violet-100' : 'bg-orange-100'}
+        expanded={open.has(key)}
+        onClick={() => toggle(key)}
+        label={label}
+        amount={total}
+      />
       {open.has(key) &&
         cats.map((c) => (
-          <div key={c.id} className="pl-4">
-            <CategoryRow
-              cat={c}
-              share={totalExpense > 0 ? c.total / totalExpense : 0}
-              open={open}
-              toggle={toggle}
-            />
-          </div>
+          <CategoryRow
+            key={c.id}
+            cat={c}
+            share={totalExpense > 0 ? c.total / totalExpense : 0}
+            open={open}
+            toggle={toggle}
+            indent
+          />
         ))}
     </>
   )
@@ -229,110 +317,45 @@ function CategoryRow({
   share,
   open,
   toggle,
+  indent,
 }: {
   cat: CatAgg
   share: number
   open: Set<string>
   toggle: (k: string) => void
+  indent?: boolean
 }) {
   return (
     <>
-      <RowShell tint={cat.color} share={share}>
-        <RowButton
-          expanded={open.has(cat.id)}
-          onClick={() => toggle(cat.id)}
-          leading={
-            <span className="flex items-center gap-2">
-              <CategoryIcon icon={cat.icon} color={cat.color} />
-              <span className="font-medium">{cat.name}</span>
-            </span>
-          }
-          trailing={<Amounts share={share} amount={cat.total} />}
-        />
-      </RowShell>
+      <BarRow
+        share={share}
+        tone="bg-stone-100"
+        expanded={open.has(cat.id)}
+        onClick={() => toggle(cat.id)}
+        icon={cat.icon}
+        iconColor={cat.color}
+        label={cat.name}
+        amount={cat.total}
+        indent={indent}
+      />
       {open.has(cat.id) && <TxnList txns={cat.txns} />}
     </>
   )
 }
 
-function Amounts({ share, amount }: { share: number; amount: number }) {
-  return (
-    <span className="tnum flex items-center gap-3">
-      <span className="text-sm text-stone-400">{formatPercent(share)}</span>
-      <span className="w-20 text-right font-medium">{formatMoney(amount)}</span>
-    </span>
-  )
-}
-
-/** A row with a proportional bar behind it (share of total). */
-function RowShell({
-  tint,
-  bg,
-  share,
-  children,
-}: {
-  tint?: string
-  bg?: string
-  share?: number
-  children: React.ReactNode
-}) {
-  return (
-    <div className={`relative border-b border-stone-100 last:border-b-0 ${bg ?? ''}`}>
-      {share !== undefined && share > 0 && (
-        <div
-          aria-hidden
-          className="absolute inset-y-0 left-0"
-          style={{
-            width: `${Math.min(share * 100, 100)}%`,
-            backgroundColor: `${tint ?? '#a8a29e'}22`,
-          }}
-        />
-      )}
-      <div className="relative">{children}</div>
-    </div>
-  )
-}
-
-function RowButton({
-  expanded,
-  onClick,
-  leading,
-  trailing,
-}: {
-  expanded: boolean
-  onClick: () => void
-  leading: React.ReactNode
-  trailing: React.ReactNode
-}) {
-  return (
-    <button
-      onClick={onClick}
-      aria-expanded={expanded}
-      className="flex min-h-11 w-full items-center gap-2 px-4 text-left text-sm focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
-    >
-      <span
-        aria-hidden
-        className="w-3 shrink-0 text-xs text-stone-400"
-      >
-        {expanded ? '▾' : '▸'}
-      </span>
-      <span className="min-w-0 flex-1 truncate">{leading}</span>
-      {trailing}
-    </button>
-  )
-}
-
 function TxnList({ txns }: { txns: Txn[] }) {
   return (
-    <ul className="bg-white">
+    <ul>
       {txns.map((t) => (
         <li
           key={t.id}
-          className="flex items-center gap-2 border-b border-stone-100 py-2 pr-4 pl-9 text-sm text-stone-600 last:border-b-0"
+          className="flex items-center gap-2 border-b border-dashed border-stone-300 py-1.5 pr-3 pl-11 text-sm"
         >
-          <span className="min-w-0 flex-1 truncate">{t.payee}</span>
-          <span className="text-xs text-stone-400">{dayLabel(t.occurredOn)}</span>
-          <span data-money className="w-20 text-right">
+          <span className="min-w-0 flex-1 truncate font-medium text-stone-800">
+            {t.payee}
+          </span>
+          <span className="flex-1 text-stone-600">{dayLabel(t.occurredOn)}</span>
+          <span data-money className="w-[100px] shrink-0 text-right text-stone-700">
             {formatMoney(t.amount)}
           </span>
         </li>
