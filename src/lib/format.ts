@@ -11,16 +11,14 @@
  * they read in Latin script alongside the app's Latin UI.
  */
 
-// Thousands separated by "," and decimals by "." — 44,413.50. Note this is NOT
-// the sr-RS convention (which is the reverse, 44.413,50); it is the format the
-// app was asked for. Both live behind these two formatters, so switching back
-// is a one-line change here and nowhere else.
-const dinarsFmt = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
-const dinarsDecimalFmt = new Intl.NumberFormat("en-US", {
+// Serbian convention: thousands separated by "." and decimals by "," —
+// 44.413,50 and 13,7%.
+const dinarsFmt = new Intl.NumberFormat("sr-RS", { maximumFractionDigits: 0 });
+const dinarsDecimalFmt = new Intl.NumberFormat("sr-RS", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
-const percentFmt = new Intl.NumberFormat("en-US", {
+const percentFmt = new Intl.NumberFormat("sr-RS", {
   style: "percent",
   maximumFractionDigits: 1,
 });
@@ -44,7 +42,7 @@ export function fromPara(para: number): number {
 }
 
 /**
- * Format stored para as grouped dinars: 4441300 → "44,413", 123450 → "1,234.50".
+ * Format stored para as grouped dinars: 4441300 → "44.413", 123450 → "1.234,50".
  *
  * Decimals appear only when there ARE any. A whole amount reads as a whole
  * number (the design's figures are all whole), but a stored 50 para is never
@@ -67,25 +65,63 @@ export function formatMoney(
 }
 
 /**
+ * Read a written amount into para, whichever way it is punctuated.
+ *
+ * Both separators are accepted because people paste as much as they type, and a
+ * field that rejects "44.413,50" from someone's bank statement is just rude.
+ * The rule, which is also what the CSV importer uses:
+ *
+ *   - both separators → the rightmost is the decimal ("1.234,56", "1,234.56")
+ *   - one separator, repeated, or with exactly 3 digits after → grouping
+ *   - otherwise → decimal ("1234,5", "1234.5")
+ *
+ * Returns null for anything with no digits in it at all.
+ */
+export function parseMoney(raw: string): number | null {
+  const cleaned = raw.replace(/\s/g, "").replace(/[^\d.,-]/g, "");
+  if (!cleaned || !/\d/.test(cleaned)) return null;
+
+  const dots = (cleaned.match(/\./g) ?? []).length;
+  const commas = (cleaned.match(/,/g) ?? []).length;
+
+  let normalised: string;
+  if (dots > 0 && commas > 0) {
+    const decimal =
+      cleaned.lastIndexOf(",") > cleaned.lastIndexOf(".") ? "," : ".";
+    const grouping = decimal === "," ? "." : ",";
+    normalised = cleaned.split(grouping).join("").replace(decimal, ".");
+  } else if (dots + commas === 0) {
+    normalised = cleaned;
+  } else {
+    const sep = dots > 0 ? "." : ",";
+    const after = cleaned.length - cleaned.lastIndexOf(sep) - 1;
+    normalised =
+      dots + commas > 1 || after === 3
+        ? cleaned.split(sep).join("")
+        : cleaned.replace(sep, ".");
+  }
+
+  const n = Number(normalised);
+  return Number.isFinite(n) ? Math.round(n * 100) : null;
+}
+
+/**
  * Typed money → stored para, and back.
  *
- * One decimal point, digits either side, nothing else — sanitising as the user
- * types rather than validating on submit, so a field can never hold something
- * that is not a number. `paraToInput` is the inverse for populating a field:
- * it keeps sub-unit precision and drops a pointless ".00".
+ * Sanitising as the user types rather than validating on submit, so a field can
+ * never hold something that is not a number. "," is the decimal separator here,
+ * matching how the figures are displayed, but "." is accepted as one too — a
+ * numeric keypad's only separator key is often a dot.
  */
 export function sanitizeMoneyInput(raw: string): string {
-  const cleaned = raw.replace(/[^\d.]/g, "");
-  const firstDot = cleaned.indexOf(".");
-  if (firstDot === -1) return cleaned;
-  const whole = cleaned.slice(0, firstDot);
-  const rest = cleaned.slice(firstDot + 1).replace(/\./g, "");
-  return `${whole}.${rest.slice(0, 2)}`;
+  // Only the character set is enforced here, not the arrangement: collapsing to
+  // a single separator would destroy a pasted "44.413,50" as you paste it.
+  // parseMoney decides which separator meant what.
+  return raw.replace(/[^\d.,]/g, "").slice(0, 15);
 }
 
 export function inputToPara(text: string): number {
-  const n = Number(sanitizeMoneyInput(text));
-  return Number.isFinite(n) ? Math.round(n * 100) : 0;
+  return parseMoney(sanitizeMoneyInput(text)) ?? 0;
 }
 
 export function paraToInput(para: number): string {
@@ -94,7 +130,7 @@ export function paraToInput(para: number): string {
   const sign = para < 0 ? "-" : "";
   return abs % 100 === 0
     ? `${sign}${abs / 100}`
-    : `${sign}${(abs / 100).toFixed(2)}`;
+    : `${sign}${(abs / 100).toFixed(2).replace(".", ",")}`;
 }
 
 /** Format a fraction (0..1) as a Serbian percentage: 0.137 → "13,7%". */

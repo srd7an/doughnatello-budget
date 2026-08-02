@@ -315,7 +315,7 @@ export function ImportPanel() {
       )}
 
       <Note>
-        Amounts may use either format: 44413.00 or 44.413,00. Dates must be
+        Amounts may use either format: 44.413,00 or 44413.00. Dates must be
         YYYY-MM-DD. Nothing is written until you press Import.
       </Note>
     </Panel>

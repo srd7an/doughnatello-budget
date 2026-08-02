@@ -1,3 +1,5 @@
+import { parseMoney } from './format'
+
 /**
  * CSV assembly for the export panel.
  *
@@ -31,38 +33,15 @@ export function toCsv(headers: string[], rows: string[][]): string {
     .join('\r\n')
 }
 
-/** Plain decimal string → integer para. "44413.00" → 4441300. */
+/**
+ * A written amount → integer para.
+ *
+ * Delegates to `parseMoney` in lib/format: an amount is punctuated the same way
+ * whether it arrives from a CSV or a keyboard, and two copies of that rule would
+ * eventually disagree about what "323,403" means.
+ */
 export function decimalToPara(value: string): number | null {
-  const cleaned = value
-    .trim()
-    .replace(/\s/g, '')
-    .replace(/[^\d.,+-]/g, '')
-  if (!cleaned || !/\d/.test(cleaned)) return null
-
-  const dots = (cleaned.match(/\./g) ?? []).length
-  const commas = (cleaned.match(/,/g) ?? []).length
-
-  let normalised: string
-  if (dots > 0 && commas > 0) {
-    // Both present: the one further right is the decimal point.
-    const decimal = cleaned.lastIndexOf(',') > cleaned.lastIndexOf('.') ? ',' : '.'
-    const grouping = decimal === ',' ? '.' : ','
-    normalised = cleaned.split(grouping).join('').replace(decimal, '.')
-  } else if (dots + commas === 0) {
-    normalised = cleaned
-  } else {
-    const sep = dots > 0 ? '.' : ','
-    const after = cleaned.length - cleaned.lastIndexOf(sep) - 1
-    // Repeated, or exactly three digits behind it, means grouping.
-    normalised =
-      dots + commas > 1 || after === 3
-        ? cleaned.split(sep).join('')
-        : cleaned.replace(sep, '.')
-  }
-
-  const n = Number(normalised)
-  if (!Number.isFinite(n)) return null
-  return Math.round(n * 100)
+  return parseMoney(value)
 }
 
 /**

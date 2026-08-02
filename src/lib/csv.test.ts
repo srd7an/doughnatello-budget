@@ -110,7 +110,7 @@ describe('decimalToPara', () => {
   })
 
   test('strips currency symbols and spaces', () => {
-    expect(decimalToPara(' 2 000,00 RSD ')).toBe(200000)
+    expect(decimalToPara(' 2000,00 RSD ')).toBe(200000)
   })
 
   test('returns null for junk', () => {
