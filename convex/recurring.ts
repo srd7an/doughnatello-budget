@@ -36,6 +36,25 @@ function assertPostable(mode: "exact" | "estimate", autoPost: boolean) {
   }
 }
 
+/**
+ * A rule's `potId` on an expense is the loan it pays down, exactly as on the
+ * transactions it posts. Only a debt pot qualifies — see assertLoan in
+ * transactions.ts for why a fund must not be named here.
+ */
+async function assertLoanRef(
+  ctx: MutationCtx,
+  householdId: Id<"households">,
+  direction: "income" | "expense" | "transfer",
+  potId: Id<"pots">,
+) {
+  if (direction !== "expense") throw new Error("Only an expense can pay off a loan");
+  const pot = await ctx.db.get(potId);
+  if (!pot || pot.householdId !== householdId) throw new Error("Pot not found");
+  if (pot.kind !== "debt") {
+    throw new Error("That is a fund, not a loan — use Take from to spend it");
+  }
+}
+
 async function assertRefs(
   ctx: MutationCtx,
   householdId: Id<"households">,
@@ -91,6 +110,11 @@ export const create = mutation({
     if (args.fundedFromPotId && args.direction !== "expense") {
       throw new Error("Take from only applies to expenses");
     }
+    // As on a transaction, potId on an expense names the loan it pays down —
+    // which is what makes a monthly instalment a rule like any other.
+    if (args.potId && args.direction !== "transfer") {
+      await assertLoanRef(ctx, args.householdId, args.direction, args.potId);
+    }
 
     const account = (
       await ctx.db
@@ -113,7 +137,7 @@ export const create = mutation({
       createdBy: userId,
       direction: args.direction,
       categoryId: args.direction === "transfer" ? undefined : args.categoryId,
-      potId: args.direction === "transfer" ? args.potId : undefined,
+      potId: args.direction === "income" ? undefined : args.potId,
       accountId: account._id,
       amount: args.amount,
       amountMode: args.amountMode,
@@ -159,6 +183,9 @@ export const update = mutation({
       patch.autoPost ?? doc.autoPost,
     );
     await assertRefs(ctx, doc.householdId, patch);
+    if (patch.potId && doc.direction !== "transfer") {
+      await assertLoanRef(ctx, doc.householdId, doc.direction, patch.potId);
+    }
 
     const fields = Object.fromEntries(
       Object.entries(patch).filter(([, val]) => val !== undefined),

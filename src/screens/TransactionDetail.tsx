@@ -130,6 +130,24 @@ export function TransactionDetail({
             </span>
           </div>
 
+          {/* The loan this payment pays down. Set when the transaction is
+              added; shown here because nothing else on the row says it. */}
+          {detail.direction === 'expense' && detail.pot && (
+            <div className="flex items-center justify-between rounded-xl bg-stone-50 p-3">
+              <span className="text-xs font-medium tracking-wide text-stone-400 uppercase">
+                Pays off
+              </span>
+              <span className="flex items-center gap-1.5 text-xs text-stone-600">
+                <CategoryIcon
+                  icon={detail.pot.icon}
+                  color={detail.pot.color}
+                  size={14}
+                />
+                {detail.pot.name}
+              </span>
+            </div>
+          )}
+
           {/* How it was funded — derived, so shown rather than edited. */}
           {detail.funding.length > 0 && (
             <div className="rounded-xl bg-stone-50 p-3">

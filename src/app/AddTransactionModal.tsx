@@ -37,7 +37,9 @@ const REPEATS: { id: Repeat; label: string }[] = [
 /**
  * The most important screen in the app: log an expense in a few seconds.
  * Amount-focused keypad, everything else defaulted (expense · primary account ·
- * today · you). Take from lets a pot fund the spend.
+ * today · you). Take from lets a pot fund the spend; Paying off marks an
+ * expense as an instalment against a loan, which is what makes the loan go
+ * down. The two are independent — an early repayment out of savings is both.
  *
  * Repeat turns the same form into a recurring rule. Saving with a repeat set
  * records BOTH: the transaction you just entered (it happened) and a rule
@@ -66,12 +68,17 @@ export function AddTransactionModal({
   const fundablePots = potBalances.filter(
     (p) => p.kind !== 'debt' && p.balance > 0,
   )
+  // A loan you have finished paying is not something you can pay again.
+  const loans = potBalances.filter((p) => p.kind === 'debt' && (p.owed ?? 0) > 0)
 
   const [direction, setDirection] = useState<Direction>('expense')
   const [amountStr, setAmountStr] = useState('')
   const [categoryId, setCategoryId] = useState<Id<'categories'> | null>(null)
   const [potId, setPotId] = useState<Id<'pots'> | null>(null)
   const [takeFrom, setTakeFrom] = useState<'income' | Id<'pots'>>('income')
+  // The loan this expense pays down, if it is one. Independent of takeFrom:
+  // paying a loan out of a fund is both a payment and a withdrawal.
+  const [paysOff, setPaysOff] = useState<Id<'pots'> | null>(null)
   const [occurredOn, setOccurredOn] = useState(todayISO())
   const [payee, setPayee] = useState('')
   const [accountId, setAccountId] = useState<Id<'accounts'> | null>(null)
@@ -92,6 +99,7 @@ export function AddTransactionModal({
     setAmountStr('')
     setPotId(null)
     setTakeFrom('income')
+    setPaysOff(null)
     setOccurredOn(todayISO())
     setPayee('')
     setAccountId(null)
@@ -165,7 +173,14 @@ export function AddTransactionModal({
         amount: amountPara,
         categoryId:
           direction === 'transfer' ? undefined : (categoryId ?? undefined),
-        potId: direction === 'transfer' ? (potId ?? undefined) : undefined,
+        // Destination fund for a transfer; the loan being paid down for an
+        // expense. The backend rejects anything else pointing at potId.
+        potId:
+          direction === 'transfer'
+            ? (potId ?? undefined)
+            : direction === 'expense'
+              ? (paysOff ?? undefined)
+              : undefined,
         payee: payee.trim() || undefined,
         accountId: accountId ?? undefined,
       }
@@ -290,6 +305,28 @@ export function AddTransactionModal({
                   onClick={() => setTakeFrom(p._id)}
                 >
                   <CategoryIcon icon={p.icon} size={16} color={p.color} /> {p.name} · {formatMoney(p.balance)}
+                </Chip>
+              ))}
+            </ChipRow>
+          </Field>
+        )}
+
+        {/* Paying off — an expense can name the loan it pays down. It is still
+            an ordinary expense; this only tells the loan about it. */}
+        {direction === 'expense' && loans.length > 0 && (
+          <Field label="Paying off">
+            <ChipRow>
+              <Chip active={paysOff === null} onClick={() => setPaysOff(null)}>
+                Nothing
+              </Chip>
+              {loans.map((l) => (
+                <Chip
+                  key={l._id}
+                  active={paysOff === l._id}
+                  onClick={() => setPaysOff(l._id)}
+                >
+                  <CategoryIcon icon={l.icon} size={16} color={l.color} /> {l.name} ·{' '}
+                  {formatMoney(l.owed ?? 0)} left
                 </Chip>
               ))}
             </ChipRow>

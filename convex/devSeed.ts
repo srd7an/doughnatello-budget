@@ -516,23 +516,19 @@ export const seedMonth = internalMutation({
       // Spread the paying member around when a household has more than one.
       const paidBy = members[created % members.length].userId;
 
-      const transactionId = await insertTransaction(ctx, members[0].userId, {
+      await insertTransaction(ctx, members[0].userId, {
         householdId,
         direction: s.direction,
         amount: s.amount,
         categoryId: s.direction === "transfer" ? undefined : categoryId,
-        potId: s.pot ? potId(s.pot) : undefined,
+        // Destination fund on a transfer; the loan it pays down on an expense.
+        potId: s.pot ? potId(s.pot) : s.loan ? potId(s.loan) : undefined,
         takeFromPotId: s.takeFrom ? potId(s.takeFrom) : undefined,
         occurredOn: `${month}-${String(s.day).padStart(2, "0")}`,
         payee: s.payee,
         note: s.note,
         paidBy,
       });
-
-      // A loan payment is an ordinary expense that also names the loan it pays
-      // down — the one field insertTransaction reserves for transfers, because
-      // no screen can set it yet.
-      if (s.loan) await ctx.db.patch(transactionId, { potId: potId(s.loan) });
       created++;
     }
     return created;
@@ -608,6 +604,7 @@ export const finish = internalMutation({
         amount: rsd(38_400),
         amountMode: "exact",
         categoryId: cat("Housing"),
+        potId: pot("homeLoan"), // the instalment pays the loan down
         payee: "Banca Intesa",
         note: "Home loan instalment",
         cadence: "monthly",
@@ -620,6 +617,7 @@ export const finish = internalMutation({
         amount: rsd(24_500),
         amountMode: "exact",
         categoryId: cat("Car"),
+        potId: pot("carLoan"),
         payee: "OTP banka",
         note: "Car loan instalment",
         cadence: "monthly",
@@ -719,7 +717,7 @@ export const finish = internalMutation({
         createdBy,
         direction: r.direction,
         categoryId: r.direction === "transfer" ? undefined : r.categoryId,
-        potId: r.direction === "transfer" ? r.potId : undefined,
+        potId: r.direction === "income" ? undefined : r.potId,
         accountId: account._id,
         amount: r.amount,
         amountMode: r.amountMode,

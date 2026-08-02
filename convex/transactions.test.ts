@@ -206,6 +206,162 @@ describe("validation", () => {
   });
 });
 
+/**
+ * Paying off a loan. The money side is deliberately unremarkable — an
+ * instalment is an ordinary expense — and the only thing `potId` adds is that
+ * the loan knows about it.
+ */
+describe("loan payments", () => {
+  async function withLoan() {
+    const ctx = await setup();
+    const loan = await asA(ctx.t).mutation(api.pots.create, {
+      householdId: ctx.householdId,
+      name: "Car loan",
+      kind: "debt",
+      icon: "car",
+      color: "#B45309",
+      originalAmount: 900_000_00,
+    });
+    return { ...ctx, loan };
+  }
+
+  test("an expense tagged with a loan pays it down", async () => {
+    const { t, householdId, groceryCat, loan } = await withLoan();
+    await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "expense",
+      amount: 24_500_00,
+      categoryId: groceryCat,
+      potId: loan,
+      occurredOn: "2026-07-12",
+    });
+
+    const pots = await asA(t).query(api.pots.balances, { householdId });
+    expect(pots.find((p) => p._id === loan)!.owed).toBe(875_500_00);
+  });
+
+  test("it is still an ordinary expense — it reduces left to spend", async () => {
+    const { t, householdId, incomeCat, groceryCat, loan } = await withLoan();
+    await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "income",
+      amount: 100_000_00,
+      categoryId: incomeCat,
+      occurredOn: "2026-07-01",
+    });
+    const txId = await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "expense",
+      amount: 24_500_00,
+      categoryId: groceryCat,
+      potId: loan,
+      occurredOn: "2026-07-12",
+    });
+
+    // One income-funded row, exactly as if the loan were never named.
+    const rows = await funding(t, txId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].potId).toBeUndefined();
+
+    const m = await asA(t).query(api.overview.month, {
+      householdId,
+      month: "2026-07",
+    });
+    expect(m.expense).toBe(24_500_00);
+    expect(m.leftToSpend).toBe(75_500_00);
+  });
+
+  test("paying a loan out of a fund is both a payment and a withdrawal", async () => {
+    const { t, householdId, groceryCat, loan } = await withLoan();
+    const fund = await asA(t).mutation(api.pots.create, {
+      householdId,
+      name: "Rainy day",
+      kind: "savings",
+      icon: "piggy",
+      color: "#1D9E75",
+    });
+    await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "transfer",
+      amount: 50_000_00,
+      potId: fund,
+      occurredOn: "2026-07-02",
+    });
+    await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "expense",
+      amount: 30_000_00,
+      categoryId: groceryCat,
+      potId: loan, // the loan it pays down
+      takeFromPotId: fund, // the money it comes out of
+      occurredOn: "2026-07-12",
+    });
+
+    const pots = await asA(t).query(api.pots.balances, { householdId });
+    expect(pots.find((p) => p._id === loan)!.owed).toBe(870_000_00);
+    expect(pots.find((p) => p._id === fund)!.balance).toBe(20_000_00);
+  });
+
+  test("a fund cannot be paid off — that is what Take from is for", async () => {
+    const { t, householdId, groceryCat } = await setup();
+    const fund = await asA(t).mutation(api.pots.create, {
+      householdId,
+      name: "Rainy day",
+      kind: "savings",
+      icon: "piggy",
+      color: "#1D9E75",
+    });
+    await expect(
+      asA(t).mutation(api.transactions.create, {
+        householdId,
+        direction: "expense",
+        amount: 1_000_00,
+        categoryId: groceryCat,
+        potId: fund,
+        occurredOn: "2026-07-01",
+      }),
+    ).rejects.toThrow(/fund, not a loan/);
+  });
+
+  test("income cannot pay off a loan", async () => {
+    const { t, householdId, incomeCat, loan } = await withLoan();
+    await expect(
+      asA(t).mutation(api.transactions.create, {
+        householdId,
+        direction: "income",
+        amount: 1_000_00,
+        categoryId: incomeCat,
+        potId: loan,
+        occurredOn: "2026-07-01",
+      }),
+    ).rejects.toThrow(/Only an expense can pay off a loan/);
+  });
+
+  test("a repeating instalment posts payments that keep paying it down", async () => {
+    const { t, householdId, groceryCat, loan } = await withLoan();
+    await asA(t).mutation(api.recurring.create, {
+      householdId,
+      direction: "expense",
+      amount: 24_500_00,
+      amountMode: "exact",
+      categoryId: groceryCat,
+      potId: loan,
+      payee: "OTP banka",
+      cadence: "monthly",
+      startOn: "2026-07-12",
+      autoPost: true,
+    });
+    await asA(t).mutation(api.recurring.sync, {
+      householdId,
+      through: "2026-09-30",
+    });
+
+    const pots = await asA(t).query(api.pots.balances, { householdId });
+    // Three instalments: July, August, September.
+    expect(pots.find((p) => p._id === loan)!.owed).toBe(826_500_00);
+  });
+});
+
 describe("isolation", () => {
   test("A cannot create a transaction in B's household", async () => {
     const { t } = await setup(); // t has user-a's household
