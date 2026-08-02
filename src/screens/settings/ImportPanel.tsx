@@ -8,6 +8,7 @@ import {
   decimalToPara,
   guessMapping,
   parseCsv,
+  parseDateInput,
   type ImportField,
 } from '../../lib/csv'
 import {
@@ -104,7 +105,7 @@ export function ImportPanel() {
               : 'income'
 
       return {
-        date: cell(r, 'date'),
+        date: parseDateInput(cell(r, 'date')) ?? cell(r, 'date'),
         direction,
         amount: Math.abs(para),
         category: cell(r, 'category') || undefined,
@@ -275,6 +276,14 @@ export function ImportPanel() {
             <Figure label="Already here" value={report.duplicates} />
             <Figure label="Unreadable" value={report.invalid} tone="debt" />
           </div>
+
+          {report.problems.length > 0 && (
+            <ul className="mt-3 space-y-1 text-xs text-debt">
+              {report.problems.map((p) => (
+                <li key={p}>{p}</li>
+              ))}
+            </ul>
+          )}
 
           {report.unknownCategories.length > 0 && (
             <p className="mt-3 text-xs text-stone-600">

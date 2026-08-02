@@ -35,25 +35,63 @@ export function toCsv(headers: string[], rows: string[][]): string {
 export function decimalToPara(value: string): number | null {
   const cleaned = value
     .trim()
-    // Serbian exports use "." for thousands and "," for decimals; plain machine
-    // exports use "." for decimals and no grouping. Decide by which separator
-    // comes LAST — that one is the decimal point.
     .replace(/\s/g, '')
     .replace(/[^\d.,+-]/g, '')
-  if (!cleaned) return null
+  if (!cleaned || !/\d/.test(cleaned)) return null
 
-  const lastComma = cleaned.lastIndexOf(',')
-  const lastDot = cleaned.lastIndexOf('.')
-  let normalised = cleaned
-  if (lastComma > lastDot) {
-    normalised = cleaned.replace(/\./g, '').replace(',', '.')
-  } else if (lastDot > lastComma) {
-    normalised = cleaned.replace(/,/g, '')
+  const dots = (cleaned.match(/\./g) ?? []).length
+  const commas = (cleaned.match(/,/g) ?? []).length
+
+  let normalised: string
+  if (dots > 0 && commas > 0) {
+    // Both present: the one further right is the decimal point.
+    const decimal = cleaned.lastIndexOf(',') > cleaned.lastIndexOf('.') ? ',' : '.'
+    const grouping = decimal === ',' ? '.' : ','
+    normalised = cleaned.split(grouping).join('').replace(decimal, '.')
+  } else if (dots + commas === 0) {
+    normalised = cleaned
+  } else {
+    const sep = dots > 0 ? '.' : ','
+    const after = cleaned.length - cleaned.lastIndexOf(sep) - 1
+    // Repeated, or exactly three digits behind it, means grouping.
+    normalised =
+      dots + commas > 1 || after === 3
+        ? cleaned.split(sep).join('')
+        : cleaned.replace(sep, '.')
   }
 
   const n = Number(normalised)
   if (!Number.isFinite(n)) return null
   return Math.round(n * 100)
+}
+
+/**
+ * A written date → YYYY-MM-DD, or null.
+ *
+ * Accepts ISO and day-first forms separated by "." "/" or "-", including the
+ * Serbian "01.07.2026." with its trailing dot. Day-first because that is what
+ * this app's users write — a US "07/01/2026" is therefore read as 7 January,
+ * which is one reason the preview shows you what will land before it lands.
+ */
+export function parseDateInput(value: string): string | null {
+  const t = value.trim().replace(/\.$/, '')
+  if (!t) return null
+
+  const iso = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
+  if (iso) return ymd(+iso[1], +iso[2], +iso[3])
+
+  const dayFirst = t.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/)
+  if (dayFirst) return ymd(+dayFirst[3], +dayFirst[2], +dayFirst[1])
+
+  return null
+}
+
+function ymd(y: number, m: number, d: number): string | null {
+  if (m < 1 || m > 12 || d < 1 || d > 31) return null
+  const date = new Date(Date.UTC(y, m - 1, d))
+  // Rejects 31 February rather than letting it roll silently into March.
+  if (date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) return null
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
 }
 
 /**
@@ -120,7 +158,7 @@ export function guessMapping(headers: string[]): Record<ImportField, number> {
   const find = (...names: string[]) =>
     norm.findIndex((h) => names.some((n) => h === n || h.includes(n)))
 
-  return {
+  const guess: Record<ImportField, number> = {
     date: find('date', 'datum'),
     direction: find('type', 'direction'),
     amount: find('amount', 'iznos', 'value'),
@@ -129,6 +167,14 @@ export function guessMapping(headers: string[]): Record<ImportField, number> {
     payee: find('payee', 'description', 'opis', 'merchant'),
     note: find('note', 'napomena', 'memo'),
   }
+
+  // A sheet with a Note column and no Payee: the note IS what the row is
+  // called, so use it as the name rather than leaving every row nameless.
+  if (guess.payee === -1 && guess.note !== -1) {
+    guess.payee = guess.note
+    guess.note = -1
+  }
+  return guess
 }
 
 /** Hand a generated file to the browser as a download. */

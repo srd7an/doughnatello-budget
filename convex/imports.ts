@@ -40,13 +40,16 @@ export const preview = mutation({
 
     const unknownCategories = new Set<string>();
     const unknownFunds = new Set<string>();
+    const problems: string[] = [];
     let duplicates = 0;
     let invalid = 0;
 
-    for (const r of rows) {
+    for (const [i, r] of rows.entries()) {
       const problem = validate(r);
       if (problem) {
         invalid += 1;
+        // A count alone leaves you guessing; a few examples name the cause.
+        if (problems.length < 5) problems.push(`Row ${i + 1}: ${problem}`);
         continue;
       }
       if (existing.has(fingerprint(r.date, r.amount, r.direction, r.payee))) {
@@ -65,6 +68,7 @@ export const preview = mutation({
       invalid,
       duplicates,
       importable: rows.length - invalid - duplicates,
+      problems,
       unknownCategories: [...unknownCategories],
       unknownFunds: [...unknownFunds],
     };

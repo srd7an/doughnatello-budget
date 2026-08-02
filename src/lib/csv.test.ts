@@ -5,6 +5,7 @@ import {
   guessMapping,
   paraToDecimal,
   parseCsv,
+  parseDateInput,
   toCsv,
 } from './csv'
 
@@ -137,5 +138,64 @@ describe('guessMapping', () => {
     expect(m.payee).toBe(1)
     expect(m.amount).toBe(2)
     expect(m.fund).toBe(-1)
+  })
+})
+
+describe('decimalToPara — grouping vs decimals', () => {
+  test('a lone comma with three digits is THOUSANDS, not a decimal', () => {
+    // The bug that would have imported 323,403 as 323.40.
+    expect(decimalToPara('323,403')).toBe(32_340_300)
+    expect(decimalToPara('-5,541')).toBe(-554_100)
+    expect(decimalToPara('-28,800')).toBe(-2_880_000)
+  })
+
+  test('a lone separator with one or two digits is a decimal', () => {
+    expect(decimalToPara('1,50')).toBe(150)
+    expect(decimalToPara('44413.00')).toBe(4_441_300)
+    expect(decimalToPara('0,5')).toBe(50)
+  })
+
+  test('repeated separators are grouping', () => {
+    expect(decimalToPara('1.234.567')).toBe(123_456_700)
+    expect(decimalToPara('1,234,567')).toBe(123_456_700)
+  })
+
+  test('both separators: the rightmost is the decimal', () => {
+    expect(decimalToPara('1.234,56')).toBe(123_456)
+    expect(decimalToPara('1,234.56')).toBe(123_456)
+  })
+
+  test('no separator at all', () => {
+    expect(decimalToPara('-586')).toBe(-58_600)
+  })
+})
+
+describe('parseDateInput', () => {
+  test('reads the Serbian form, trailing dot and all', () => {
+    expect(parseDateInput('01.07.2026.')).toBe('2026-07-01')
+    expect(parseDateInput('1.7.2026')).toBe('2026-07-01')
+    expect(parseDateInput('31.12.2026.')).toBe('2026-12-31')
+  })
+
+  test('reads ISO and slashed day-first', () => {
+    expect(parseDateInput('2026-07-01')).toBe('2026-07-01')
+    expect(parseDateInput('01/07/2026')).toBe('2026-07-01')
+  })
+
+  test('refuses a date that does not exist', () => {
+    expect(parseDateInput('31.02.2026')).toBeNull()
+    expect(parseDateInput('nope')).toBeNull()
+    expect(parseDateInput('')).toBeNull()
+  })
+})
+
+describe('guessMapping — a sheet with Note but no Payee', () => {
+  test('uses the note as the row name', () => {
+    const m = guessMapping(['Note', 'Amount', 'Date', 'Category'])
+    expect(m.date).toBe(2)
+    expect(m.amount).toBe(1)
+    expect(m.category).toBe(3)
+    expect(m.payee).toBe(0) // Note becomes the payee
+    expect(m.note).toBe(-1)
   })
 })
