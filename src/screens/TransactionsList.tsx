@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { useHousehold } from '../household/HouseholdContext'
@@ -5,6 +6,8 @@ import { usePeriod } from '../period/PeriodContext'
 import { formatMoney, initials } from '../lib/format'
 import { ArrowRightIcon, CategoryIcon } from '../ui/icons'
 import { dayLabel } from '../lib/dates'
+import type { Id } from '../../convex/_generated/dataModel'
+import { TransactionDetail } from './TransactionDetail'
 
 type Row = NonNullable<ReturnType<typeof useMonthRows>>[number]
 
@@ -20,6 +23,7 @@ function useMonthRows() {
 
 export function TransactionsList() {
   const rows = useMonthRows()
+  const [openId, setOpenId] = useState<Id<'transactions'> | null>(null)
 
   if (rows === undefined) {
     return <p className="py-8 text-center text-sm text-stone-400">Loading…</p>
@@ -52,62 +56,75 @@ export function TransactionsList() {
           </h3>
           <ul>
             {g.rows.map((row) => (
-              <TransactionRow key={row._id} row={row} />
+              <TransactionRow
+                key={row._id}
+                row={row}
+                onOpen={() => setOpenId(row._id)}
+              />
             ))}
           </ul>
         </section>
       ))}
+
+      <TransactionDetail
+        transactionId={openId}
+        onClose={() => setOpenId(null)}
+      />
     </div>
   )
 }
 
-function TransactionRow({ row }: { row: Row }) {
+function TransactionRow({ row, onOpen }: { row: Row; onOpen: () => void }) {
   const color = row.pot?.color ?? row.category?.color ?? '#a8a29e'
   const name = row.payee || row.category?.name || row.pot?.name || '—'
 
   return (
-    <li className="flex items-center gap-2 border-b border-dashed border-stone-300 px-3 py-1.5">
-      {/* A bare icon in the category's own colour. The design has no disc behind
+    <li className="border-b border-dashed border-stone-300">
+      <button
+        onClick={onOpen}
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-stone-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
+      >
+        {/* A bare icon in the category's own colour. The design has no disc behind
           it — the tinted circle it replaced added weight to every single row. */}
-      <CategoryIcon
-        icon={row.pot?.icon ?? row.category?.icon}
-        color={color}
-        className="shrink-0"
-      />
+        <CategoryIcon
+          icon={row.pot?.icon ?? row.category?.icon}
+          color={color}
+          className="shrink-0"
+        />
 
-      <span className="min-w-0 flex-1 truncate text-sm font-medium text-stone-800">
-        {name}
-      </span>
-
-      {row.pot && (
-        <span className="hidden shrink-0 items-center gap-1 rounded-md border border-stone-300 bg-white px-1.5 py-0.5 text-xs text-stone-800 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] sm:inline-flex">
-          {row.direction === 'transfer' && (
-            <ArrowRightIcon size={12} aria-hidden />
-          )}
-          {row.pot.name}
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-stone-800">
+          {name}
         </span>
-      )}
 
-      <span
-        aria-label={`Paid by ${row.paidByName}`}
-        title={row.paidByName}
-        className="grid size-5 shrink-0 place-items-center rounded-full bg-stone-200 text-[10px] font-medium text-stone-600"
-      >
-        {initials(row.paidByName)}
-      </span>
+        {row.pot && (
+          <span className="hidden shrink-0 items-center gap-1 rounded-md border border-stone-300 bg-white px-1.5 py-0.5 text-xs text-stone-800 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] sm:inline-flex">
+            {row.direction === 'transfer' && (
+              <ArrowRightIcon size={12} aria-hidden />
+            )}
+            {row.pot.name}
+          </span>
+        )}
 
-      {/* Only income is green. A transfer into a fund is money MOVING, not money
+        <span
+          aria-label={`Paid by ${row.paidByName}`}
+          title={row.paidByName}
+          className="grid size-5 shrink-0 place-items-center rounded-full bg-stone-200 text-[10px] font-medium text-stone-600"
+        >
+          {initials(row.paidByName)}
+        </span>
+
+        {/* Only income is green. A transfer into a fund is money MOVING, not money
           arriving — painting it as a gain was the old bug. */}
-      <span
-        data-money
-        className={`w-[100px] shrink-0 text-right text-sm ${
-          row.direction === 'income' ? 'text-gain' : 'text-stone-800'
-        }`}
-      >
-        {row.direction === 'expense' ? '−' : ''}
-        {formatMoney(row.amount)}
-      </span>
+        <span
+          data-money
+          className={`w-[100px] shrink-0 text-right text-sm ${
+            row.direction === 'income' ? 'text-gain' : 'text-stone-800'
+          }`}
+        >
+          {row.direction === 'expense' ? '−' : ''}
+          {formatMoney(row.amount)}
+        </span>
+      </button>
     </li>
   )
 }
-

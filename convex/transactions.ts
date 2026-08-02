@@ -136,45 +136,61 @@ export async function insertTransaction(
     createdAt: Date.now(),
   });
 
-  if (args.direction === "expense") {
-    if (args.takeFromPotId) {
-      const bal = await potBalance(ctx, args.householdId, args.takeFromPotId);
-      const fromPot = Math.min(Math.max(bal, 0), args.amount);
-      const fromIncome = args.amount - fromPot;
-      if (fromPot > 0) {
-        await ctx.db.insert("transactionFunding", {
-          householdId: args.householdId,
-          transactionId,
-          potId: args.takeFromPotId,
-          amount: fromPot,
-        });
-      }
-      if (fromIncome > 0) {
-        await ctx.db.insert("transactionFunding", {
-          householdId: args.householdId,
-          transactionId,
-          potId: undefined,
-          amount: fromIncome,
-        });
-      }
-    } else {
+  await writeFunding(ctx, transactionId, args);
+
+  return transactionId;
+}
+
+/**
+ * Write the funding rows for a transaction — the two counting rules, in the one
+ * place that knows them.
+ *
+ * Split out so `update` can re-derive them after an edit. It MUST run against a
+ * transaction whose old funding rows are already deleted: the pot-funded split
+ * reads the pot's balance, and a stale row of its own would make the pot look
+ * poorer than it is and push the remainder onto income.
+ */
+async function writeFunding(
+  ctx: MutationCtx,
+  transactionId: Id<"transactions">,
+  args: Pick<
+    TransactionInput,
+    "householdId" | "direction" | "amount" | "takeFromPotId"
+  >,
+) {
+  if (args.direction === "income") return; // income funds nothing
+
+  if (args.direction === "expense" && args.takeFromPotId) {
+    const bal = await potBalance(ctx, args.householdId, args.takeFromPotId);
+    const fromPot = Math.min(Math.max(bal, 0), args.amount);
+    const fromIncome = args.amount - fromPot;
+    if (fromPot > 0) {
+      await ctx.db.insert("transactionFunding", {
+        householdId: args.householdId,
+        transactionId,
+        potId: args.takeFromPotId,
+        amount: fromPot,
+      });
+    }
+    if (fromIncome > 0) {
       await ctx.db.insert("transactionFunding", {
         householdId: args.householdId,
         transactionId,
         potId: undefined,
-        amount: args.amount,
+        amount: fromIncome,
       });
     }
-  } else if (args.direction === "transfer") {
-    await ctx.db.insert("transactionFunding", {
-      householdId: args.householdId,
-      transactionId,
-      potId: undefined,
-      amount: args.amount,
-    });
+    return;
   }
 
-  return transactionId;
+  // An expense from this month, or a transfer setting money aside — both are
+  // income-funded outflows, so both reduce what is left to spend.
+  await ctx.db.insert("transactionFunding", {
+    householdId: args.householdId,
+    transactionId,
+    potId: undefined,
+    amount: args.amount,
+  });
 }
 
 async function assertPot(
@@ -312,5 +328,171 @@ export const remove = mutation({
       .collect();
     for (const f of funding) await ctx.db.delete(f._id);
     await ctx.db.delete(transactionId);
+  },
+});
+
+/**
+ * Edit a transaction.
+ *
+ * Funding rows are DELETED AND RE-DERIVED rather than patched, because the
+ * counting rules are not a function of the field you changed: raising an
+ * expense funded from a pot can push it past the pot's balance and split it
+ * across income, and switching direction changes the rules entirely. Re-running
+ * writeFunding on the merged result is the only version that cannot drift.
+ *
+ * Order matters — the old rows go first, so the pot balance the split reads is
+ * the balance without this transaction in it.
+ */
+export const update = mutation({
+  args: {
+    transactionId: v.id("transactions"),
+    direction: v.optional(direction),
+    amount: v.optional(v.number()),
+    categoryId: v.optional(v.id("categories")),
+    potId: v.optional(v.id("pots")),
+    takeFromPotId: v.optional(v.id("pots")),
+    clearPotFunding: v.optional(v.boolean()), // back to "from this month"
+    occurredOn: v.optional(v.string()),
+    payee: v.optional(v.string()),
+    note: v.optional(v.string()),
+    paidBy: v.optional(v.string()),
+    accountId: v.optional(v.id("accounts")),
+  },
+  handler: async (ctx, args) => {
+    const { doc } = await requireDoc(ctx, "transactions", args.transactionId);
+    const householdId = doc.householdId;
+
+    const existingFunding = await ctx.db
+      .query("transactionFunding")
+      .withIndex("by_transaction", (q) =>
+        q.eq("transactionId", args.transactionId),
+      )
+      .collect();
+
+    const nextDirection = args.direction ?? doc.direction;
+    const nextAmount = args.amount ?? doc.amount;
+    if (!Number.isInteger(nextAmount) || nextAmount <= 0) {
+      throw new Error("Amount must be a positive whole number of para");
+    }
+
+    // What funded it before, so an edit that does not mention funding keeps it.
+    const previousPotFunding = existingFunding.find((f) => f.potId)?.potId;
+    const nextTakeFrom = args.clearPotFunding
+      ? undefined
+      : (args.takeFromPotId ?? previousPotFunding);
+
+    let categoryId = args.categoryId ?? doc.categoryId;
+    let potId = args.potId ?? doc.potId;
+
+    if (nextDirection === "transfer") {
+      categoryId = undefined;
+      if (!potId) throw new Error("A transfer needs a destination pot");
+      await assertPot(ctx, householdId, potId);
+    } else {
+      potId = undefined;
+      if (!categoryId) throw new Error("A category is required");
+      const cat = await ctx.db.get(categoryId);
+      if (!cat || cat.householdId !== householdId) {
+        throw new Error("Category not found");
+      }
+    }
+
+    const takeFromPotId = nextDirection === "expense" ? nextTakeFrom : undefined;
+    if (takeFromPotId) await assertPot(ctx, householdId, takeFromPotId);
+
+    if (args.accountId) {
+      const account = await ctx.db.get(args.accountId);
+      if (!account || account.householdId !== householdId) {
+        throw new Error("Account not found");
+      }
+    }
+    if (args.paidBy) {
+      const member = await ctx.db
+        .query("householdMembers")
+        .withIndex("by_household_user", (q) =>
+          q.eq("householdId", householdId).eq("userId", args.paidBy!),
+        )
+        .unique();
+      if (!member) throw new Error("paidBy is not a member");
+    }
+
+    for (const f of existingFunding) await ctx.db.delete(f._id);
+
+    await ctx.db.patch(args.transactionId, {
+      direction: nextDirection,
+      amount: nextAmount,
+      categoryId,
+      potId,
+      occurredOn: args.occurredOn ?? doc.occurredOn,
+      payee: args.payee ?? doc.payee,
+      note: args.note ?? doc.note,
+      paidBy: args.paidBy ?? doc.paidBy,
+      accountId: args.accountId ?? doc.accountId,
+    });
+
+    await writeFunding(ctx, args.transactionId, {
+      householdId,
+      direction: nextDirection,
+      amount: nextAmount,
+      takeFromPotId,
+    });
+  },
+});
+
+/**
+ * One transaction, with everything the detail view shows: the names behind its
+ * ids, and how it was actually funded — the fact that decides whether it
+ * reduced this month's money or came out of a fund set aside earlier.
+ */
+export const detail = query({
+  args: { transactionId: v.id("transactions") },
+  handler: async (ctx, { transactionId }) => {
+    const { doc } = await requireDoc(ctx, "transactions", transactionId);
+
+    const [category, pot, account, members, funding] = await Promise.all([
+      doc.categoryId ? ctx.db.get(doc.categoryId) : null,
+      doc.potId ? ctx.db.get(doc.potId) : null,
+      ctx.db.get(doc.accountId),
+      ctx.db
+        .query("householdMembers")
+        .withIndex("by_household", (q) => q.eq("householdId", doc.householdId))
+        .collect(),
+      ctx.db
+        .query("transactionFunding")
+        .withIndex("by_transaction", (q) => q.eq("transactionId", transactionId))
+        .collect(),
+    ]);
+
+    const pots = await ctx.db
+      .query("pots")
+      .withIndex("by_household", (q) => q.eq("householdId", doc.householdId))
+      .collect();
+    const potById = new Map(pots.map((p) => [p._id, p]));
+    const nameByUser = new Map(members.map((m) => [m.userId, m.displayName]));
+
+    return {
+      _id: doc._id,
+      direction: doc.direction,
+      amount: doc.amount,
+      occurredOn: doc.occurredOn,
+      payee: doc.payee ?? null,
+      note: doc.note ?? null,
+      categoryId: doc.categoryId ?? null,
+      potId: doc.potId ?? null,
+      accountId: doc.accountId,
+      accountName: account?.name ?? "—",
+      paidBy: doc.paidBy,
+      paidByName: nameByUser.get(doc.paidBy) ?? "?",
+      createdAt: doc.createdAt,
+      category: category
+        ? { name: category.name, icon: category.icon, color: category.color }
+        : null,
+      pot: pot ? { name: pot.name, icon: pot.icon, color: pot.color } : null,
+      funding: funding.map((f) => ({
+        amount: f.amount,
+        potId: f.potId ?? null,
+        potName: f.potId ? (potById.get(f.potId)?.name ?? null) : null,
+      })),
+    };
   },
 });

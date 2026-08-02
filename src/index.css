@@ -65,6 +65,26 @@
     color: var(--color-stone-800);
   }
 
+  /* Tailwind v4's reset sets buttons to `cursor: default`. Anything you can
+     click should say so under the pointer — restored here once, rather than
+     remembered on every button in the app. Disabled controls keep the arrow,
+     which is the one case where "not clickable" is the honest signal. */
+  button:not(:disabled),
+  summary,
+  label[for],
+  [role='button']:not([aria-disabled='true']),
+  [role='tab'],
+  [role='switch'],
+  [role='menuitem'],
+  [role='menuitemradio'] {
+    cursor: pointer;
+  }
+
+  /* File inputs are clicked through their label. */
+  label:has(input[type='file']) {
+    cursor: pointer;
+  }
+
   /* The numbers are the interface: every figure is tabular so columns align.
 
      Deliberately Geist SANS, not Geist Mono. Geist Mono's only zero glyph is
