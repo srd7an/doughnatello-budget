@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { formatMoney, formatPercent } from '../lib/format'
-import { categoryEmoji } from '../lib/categoryIcon'
+import { CategoryIcon } from '../ui/icons'
 import { dayLabel } from '../lib/dates'
 
 export type CategoryRowData = {
@@ -232,7 +232,7 @@ function CategoryRow({
           onClick={() => toggle(cat.id)}
           leading={
             <span className="flex items-center gap-2">
-              <span aria-hidden>{categoryEmoji(cat.icon)}</span>
+              <CategoryIcon icon={cat.icon} color={cat.color} />
               <span className="font-medium">{cat.name}</span>
             </span>
           }

@@ -4,7 +4,7 @@ import { api } from '../../convex/_generated/api'
 import { useHousehold } from '../household/HouseholdContext'
 import { usePeriod } from '../period/PeriodContext'
 import { formatMoney, formatPercent } from '../lib/format'
-import { categoryEmoji } from '../lib/categoryIcon'
+import { CategoryIcon } from '../ui/icons'
 import { Swatch } from '../ui/Swatch'
 import { TransactionsList } from './TransactionsList'
 import { CategoriesList } from './CategoriesList'
@@ -179,7 +179,7 @@ function Metric({
               className="tnum flex justify-between text-xs text-stone-500"
             >
               <span>
-                {categoryEmoji(b.icon)} {b.name}
+                <CategoryIcon icon={b.icon} size={14} /> {b.name}
               </span>
               <span>{formatMoney(b.amount)}</span>
             </li>

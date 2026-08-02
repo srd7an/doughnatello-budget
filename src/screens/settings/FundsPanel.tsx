@@ -4,7 +4,7 @@ import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { useHousehold } from '../../household/HouseholdContext'
 import { formatMoney, formatPercent } from '../../lib/format'
-import { categoryEmoji } from '../../lib/categoryIcon'
+import { CategoryIcon } from '../../ui/icons'
 import {
   Card,
   ColorPicker,
@@ -134,9 +134,7 @@ function FundRow({
   return (
     <div className="p-4">
       <div className="flex items-center gap-3">
-        <span aria-hidden className="text-lg">
-          {categoryEmoji(fund.icon)}
-        </span>
+        <CategoryIcon icon={fund.icon} color={fund.color} />
         <span className="min-w-0 flex-1 truncate text-sm font-medium">
           {fund.name}
         </span>

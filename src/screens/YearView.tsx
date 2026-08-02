@@ -4,7 +4,7 @@ import { api } from '../../convex/_generated/api'
 import { useHousehold } from '../household/HouseholdContext'
 import { usePeriod } from '../period/PeriodContext'
 import { formatMoney } from '../lib/format'
-import { categoryEmoji } from '../lib/categoryIcon'
+import { CategoryIcon } from '../ui/icons'
 import { Swatch } from '../ui/Swatch'
 import { YearChart } from './YearChart'
 import { CategoriesList } from './CategoriesList'
@@ -152,7 +152,7 @@ function Accordion({
             className="flex items-center gap-2 border-t border-stone-100 py-2 pr-4 pl-9 text-sm"
           >
             <span className="flex-1 truncate text-stone-600">
-              {it.icon ? `${categoryEmoji(it.icon)} ` : ''}
+              {it.icon && <CategoryIcon icon={it.icon} size={16} color={it.color} />}
               {it.name}
             </span>
             <ChangeBalance

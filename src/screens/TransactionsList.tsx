@@ -3,7 +3,7 @@ import { api } from '../../convex/_generated/api'
 import { useHousehold } from '../household/HouseholdContext'
 import { usePeriod } from '../period/PeriodContext'
 import { formatMoney, initials } from '../lib/format'
-import { categoryEmoji } from '../lib/categoryIcon'
+import { CategoryIcon } from '../ui/icons'
 import { dayLabel } from '../lib/dates'
 
 type Row = NonNullable<ReturnType<typeof useMonthRows>>[number]
@@ -62,7 +62,6 @@ export function TransactionsList() {
 }
 
 function TransactionRow({ row }: { row: Row }) {
-  const glyph = categoryEmoji(row.pot?.icon ?? row.category?.icon)
   const color = row.pot?.color ?? row.category?.color ?? '#a8a29e'
   const name = row.payee || row.category?.name || row.pot?.name || '—'
 
@@ -73,7 +72,7 @@ function TransactionRow({ row }: { row: Row }) {
         className="grid size-8 shrink-0 place-items-center rounded-full text-sm"
         style={{ backgroundColor: `${color}1a` }}
       >
-        {glyph}
+        <CategoryIcon icon={row.pot?.icon ?? row.category?.icon} />
       </span>
 
       <span className="min-w-0 flex-1 truncate font-medium text-stone-800">

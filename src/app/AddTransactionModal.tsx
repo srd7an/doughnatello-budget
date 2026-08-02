@@ -5,7 +5,7 @@ import type { Id } from '../../convex/_generated/dataModel'
 import { useHousehold } from '../household/HouseholdContext'
 import { Modal } from '../ui/Modal'
 import { formatMoney, toPara } from '../lib/format'
-import { categoryEmoji } from '../lib/categoryIcon'
+import { CategoryIcon } from '../ui/icons'
 // The one implementation of the recurrence calendar, shared with the backend so
 // the date the modal promises is the date the rule generates.
 import { nextDue, parseISO } from '../../convex/lib/recurrence'
@@ -223,7 +223,7 @@ export function AddTransactionModal({
                     color={p.color}
                     onClick={() => setPotId(p._id)}
                   >
-                    {categoryEmoji(p.icon)} {p.name}
+                    <CategoryIcon icon={p.icon} size={16} /> {p.name}
                   </Chip>
                 ))}
               </ChipRow>
@@ -239,7 +239,7 @@ export function AddTransactionModal({
                   color={c.color}
                   onClick={() => setCategoryId(c._id)}
                 >
-                  {categoryEmoji(c.icon)} {c.name}
+                  <CategoryIcon icon={c.icon} size={16} /> {c.name}
                 </Chip>
               ))}
             </ChipRow>
@@ -263,7 +263,7 @@ export function AddTransactionModal({
                   color={p.color}
                   onClick={() => setTakeFrom(p._id)}
                 >
-                  {categoryEmoji(p.icon)} {p.name} · {formatMoney(p.balance)}
+                  <CategoryIcon icon={p.icon} size={16} /> {p.name} · {formatMoney(p.balance)}
                 </Chip>
               ))}
             </ChipRow>

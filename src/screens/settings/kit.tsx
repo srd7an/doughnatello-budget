@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { formatMoney, toPara } from '../../lib/format'
-import { categoryEmoji } from '../../lib/categoryIcon'
+import { CategoryIcon, ICON_KEYS } from '../../ui/icons'
 
 /**
  * Shared furniture for the Settings detail panels.
@@ -216,10 +216,6 @@ export function ConfirmButton({
   )
 }
 
-export const ICONS = [
-  'wallet', 'basket', 'bulb', 'home', 'car', 'fuel', 'flower',
-  'dumbbell', 'paw', 'utensils', 'plane', 'gift', 'star', 'bank', 'piggy',
-]
 
 // Identity colours for categories and funds. Deliberately NOT the composition
 // or status tokens — those carry meaning that a user-chosen colour must not
@@ -238,7 +234,7 @@ export function IconPicker({
 }) {
   return (
     <div className="flex flex-wrap gap-1.5">
-      {ICONS.map((i) => (
+      {ICON_KEYS.map((i) => (
         <button
           key={i}
           type="button"
@@ -251,7 +247,7 @@ export function IconPicker({
               : 'border-stone-200 hover:bg-stone-50'
           }`}
         >
-          {categoryEmoji(i)}
+          <CategoryIcon icon={i} />
         </button>
       ))}
     </div>

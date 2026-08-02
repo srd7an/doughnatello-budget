@@ -15,6 +15,7 @@
   "dependencies": {
     "@auth/core": "^0.41.3",
     "@convex-dev/auth": "^0.0.94",
+    "@phosphor-icons/react": "^2.1.10",
     "convex": "^1.17.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

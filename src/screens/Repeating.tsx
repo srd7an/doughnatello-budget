@@ -2,7 +2,7 @@ import { useMutation, useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { useHousehold } from '../household/HouseholdContext'
 import { formatMoney } from '../lib/format'
-import { categoryEmoji } from '../lib/categoryIcon'
+import { CategoryIcon, RepeatIcon } from '../ui/icons'
 import { localISO } from '../lib/dates'
 import { cadenceLabel, dueLabel } from '../lib/recurrence'
 import {
@@ -54,9 +54,11 @@ export function Repeating() {
                   className="border-b border-stone-100 p-4 last:border-b-0"
                 >
                   <div className="flex items-start gap-3">
-                    <span aria-hidden className="text-lg">
-                      {icon ? categoryEmoji(icon) : '🔁'}
-                    </span>
+                    {icon ? (
+                      <CategoryIcon icon={icon} />
+                    ) : (
+                      <RepeatIcon size={20} aria-hidden />
+                    )}
                     <div className="min-w-0 flex-1">
                       <p className="flex items-center gap-2 text-sm font-medium">
                         <span className="truncate">{label}</span>

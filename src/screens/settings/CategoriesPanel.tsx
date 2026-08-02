@@ -3,7 +3,7 @@ import { useMutation, useQuery } from 'convex/react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { useHousehold } from '../../household/HouseholdContext'
-import { categoryEmoji } from '../../lib/categoryIcon'
+import { CategoryIcon } from '../../ui/icons'
 import {
   Card,
   ColorPicker,
@@ -97,9 +97,7 @@ export function CategoriesPanel() {
                     />
                   ) : (
                     <div className="flex items-center gap-3 p-4">
-                      <span aria-hidden className="text-lg">
-                        {categoryEmoji(c.icon)}
-                      </span>
+                      <CategoryIcon icon={c.icon} color={c.color} />
                       <span
                         aria-hidden
                         className="size-2.5 rounded-full"
@@ -163,8 +161,8 @@ export function CategoriesPanel() {
                 key={c._id}
                 className="flex items-center gap-3 border-b border-stone-100 p-4 last:border-b-0"
               >
-                <span aria-hidden className="text-lg opacity-50">
-                  {categoryEmoji(c.icon)}
+                <span className="opacity-50">
+                  <CategoryIcon icon={c.icon} />
                 </span>
                 <span className="min-w-0 flex-1 truncate text-sm text-stone-500">
                   {c.name}

@@ -4,7 +4,7 @@ import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { useHousehold } from '../household/HouseholdContext'
 import { formatMoney, toPara } from '../lib/format'
-import { categoryEmoji } from '../lib/categoryIcon'
+import { CategoryIcon, RepeatIcon } from '../ui/icons'
 import { localISO } from '../lib/dates'
 import { dueLabel } from '../lib/recurrence'
 
@@ -107,9 +107,7 @@ function DueRow({
   return (
     <li className="border-t border-stone-100 px-4 py-3">
       <div className="flex items-center gap-3">
-        <span aria-hidden className="text-lg">
-          {icon ? categoryEmoji(icon) : '🔁'}
-        </span>
+        {icon ? <CategoryIcon icon={icon} /> : <RepeatIcon size={20} aria-hidden />}
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{label}</p>
           <p className={`text-xs ${late ? 'text-debt' : 'text-stone-400'}`}>

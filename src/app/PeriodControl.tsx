@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { usePeriod } from '../period/PeriodContext'
 import {
-  CalendarIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
+  CalendarDotsIcon,
+  CaretLeftIcon,
+  CaretRightIcon,
 } from '../ui/icons'
 
 /**
@@ -35,11 +35,11 @@ export function PeriodControl() {
     <div className="relative flex items-center" ref={ref}>
       <div className="flex items-center rounded-full border border-stone-200 bg-white">
         <Step label="Previous period" onClick={() => step(-1)}>
-          <ChevronLeftIcon className="size-4" />
+          <CaretLeftIcon size={20} aria-hidden />
         </Step>
         <span className="h-6 w-px bg-stone-200" />
         <Step label="Next period" onClick={() => step(1)}>
-          <ChevronRightIcon className="size-4" />
+          <CaretRightIcon size={20} aria-hidden />
         </Step>
         <span className="h-6 w-px bg-stone-200" />
         <button
@@ -48,7 +48,7 @@ export function PeriodControl() {
           aria-expanded={menuOpen}
           className="flex min-h-11 items-center gap-2 rounded-r-full px-3 text-sm font-medium text-stone-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
         >
-          <CalendarIcon className="size-4 text-stone-500" />
+          <CalendarDotsIcon size={20} className="text-stone-500" aria-hidden />
           <span aria-live="polite">{label}</span>
         </button>
       </div>
