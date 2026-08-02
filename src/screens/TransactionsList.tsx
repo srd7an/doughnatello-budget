@@ -3,7 +3,7 @@ import { api } from '../../convex/_generated/api'
 import { useHousehold } from '../household/HouseholdContext'
 import { usePeriod } from '../period/PeriodContext'
 import { formatMoney, initials } from '../lib/format'
-import { CategoryIcon } from '../ui/icons'
+import { ArrowRightIcon, CategoryIcon } from '../ui/icons'
 import { dayLabel } from '../lib/dates'
 
 type Row = NonNullable<ReturnType<typeof useMonthRows>>[number]
@@ -47,7 +47,7 @@ export function TransactionsList() {
     <div className="space-y-6">
       {groups.map((g) => (
         <section key={g.day}>
-          <h3 className="mb-1 text-xs font-medium tracking-wide text-stone-400 uppercase">
+          <h3 className="mb-1 text-xs tracking-[0.24px] text-stone-600 uppercase">
             {dayLabel(g.day)}
           </h3>
           <ul>
@@ -66,22 +66,24 @@ function TransactionRow({ row }: { row: Row }) {
   const name = row.payee || row.category?.name || row.pot?.name || '—'
 
   return (
-    <li className="flex items-center gap-3 border-b border-stone-100 py-2.5 last:border-b-0">
-      <span
-        aria-hidden
-        className="grid size-8 shrink-0 place-items-center rounded-full text-sm"
-        style={{ backgroundColor: `${color}1a` }}
-      >
-        <CategoryIcon icon={row.pot?.icon ?? row.category?.icon} />
-      </span>
+    <li className="flex items-center gap-2 border-b border-dashed border-stone-300 px-3 py-1.5">
+      {/* A bare icon in the category's own colour. The design has no disc behind
+          it — the tinted circle it replaced added weight to every single row. */}
+      <CategoryIcon
+        icon={row.pot?.icon ?? row.category?.icon}
+        color={color}
+        className="shrink-0"
+      />
 
-      <span className="min-w-0 flex-1 truncate font-medium text-stone-800">
+      <span className="min-w-0 flex-1 truncate text-sm font-medium text-stone-800">
         {name}
       </span>
 
       {row.pot && (
-        <span className="hidden shrink-0 rounded-md border border-stone-200 px-2 py-0.5 text-xs text-stone-500 sm:inline">
-          {row.direction === 'transfer' ? '→ ' : ''}
+        <span className="hidden shrink-0 items-center gap-1 rounded-md border border-stone-300 bg-white px-1.5 py-0.5 text-xs text-stone-800 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] sm:inline-flex">
+          {row.direction === 'transfer' && (
+            <ArrowRightIcon size={12} aria-hidden />
+          )}
           {row.pot.name}
         </span>
       )}
@@ -89,15 +91,17 @@ function TransactionRow({ row }: { row: Row }) {
       <span
         aria-label={`Paid by ${row.paidByName}`}
         title={row.paidByName}
-        className="grid size-6 shrink-0 place-items-center rounded-full bg-stone-200 text-[10px] font-semibold text-stone-600"
+        className="grid size-5 shrink-0 place-items-center rounded-full bg-stone-200 text-[10px] font-medium text-stone-600"
       >
         {initials(row.paidByName)}
       </span>
 
+      {/* Only income is green. A transfer into a fund is money MOVING, not money
+          arriving — painting it as a gain was the old bug. */}
       <span
         data-money
-        className={`w-24 shrink-0 text-right font-medium ${
-          row.direction === 'expense' ? 'text-stone-900' : 'text-saved'
+        className={`w-[100px] shrink-0 text-right text-sm ${
+          row.direction === 'income' ? 'text-gain' : 'text-stone-800'
         }`}
       >
         {row.direction === 'expense' ? '−' : ''}

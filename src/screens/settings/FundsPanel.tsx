@@ -56,7 +56,7 @@ export function FundsPanel() {
         <Card>
           <div className="flex items-baseline justify-between border-b border-stone-100 px-4 py-3">
             <span className="text-sm text-stone-500">Set aside in total</span>
-            <span data-money className="font-semibold text-saved">
+            <span data-money className="font-semibold text-gain">
               {formatMoney(total)}
             </span>
           </div>

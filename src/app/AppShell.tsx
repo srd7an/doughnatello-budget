@@ -33,9 +33,9 @@ export function AppShell() {
   }, [sync, household._id])
 
   return (
-    <div className="min-h-svh bg-stone-50 text-stone-900">
-      <header className="sticky top-0 z-30 bg-stone-50/90 px-4 pt-3 pb-2 backdrop-blur">
-        <div className="mx-auto max-w-5xl">
+    <div className="min-h-svh bg-white text-stone-800">
+      <header className="sticky top-0 z-30 bg-white/90 px-4 pt-3 pb-2 backdrop-blur">
+        <div className="mx-auto max-w-[800px]">
           {/* Row 1: brand + account */}
           <div className="flex items-center justify-between">
             <BrandMark />
@@ -48,7 +48,7 @@ export function AppShell() {
               <PeriodControl />
               <button
                 onClick={() => setAddOpen(true)}
-                className="hidden items-center gap-1.5 rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:flex"
+                className="hidden items-center gap-1.5 rounded-full border border-violet-800 bg-brand px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:flex"
               >
                 Add transaction
               </button>
@@ -57,7 +57,7 @@ export function AppShell() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 pb-28 pt-4 sm:pb-12">
+      <main className="mx-auto max-w-[800px] px-4 pb-28 pt-4 sm:pb-12">
         <Outlet />
       </main>
 
@@ -88,7 +88,7 @@ function BrandMark() {
     <Link
       to="/"
       aria-label="doughnatello — home"
-      className="block h-6 w-11 rounded-full border-[3px] border-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+      className="block h-6 w-8 rounded-full border-[6px] border-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
     />
   )
 }

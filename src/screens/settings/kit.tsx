@@ -301,7 +301,7 @@ export function Stat({
       <p
         data-money
         className={`mt-0.5 font-semibold ${
-          tone === 'saved' ? 'text-saved' : tone === 'debt' ? 'text-debt' : ''
+          tone === 'saved' ? 'text-gain' : tone === 'debt' ? 'text-debt' : ''
         }`}
       >
         {formatMoney(amount)}

@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Geist + Geist Mono, self-hosted (no CDN, no external request at runtime).
+   The design sets every FIGURE in Geist Mono; body text is Geist. */
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+
 /**
  * doughnatello design tokens (Tailwind v4, CSS-first).
  *
@@ -13,41 +18,57 @@
  * hairline borders only where needed.
  */
 @theme {
+  /* Type. Geist for text, Geist Mono for every figure — matching the design,
+     where the numbers are visibly a different family, not just tabular. */
+  --font-sans: "Geist Variable", system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+
   /* Brand / primary actions */
   --color-brand: #7c3aed;
 
   /* Composition palette.
    * Top-level composition is 3 segments — Leftover · Expense · Savings.
    * needs/wants exist only inside the grouped Categories view. */
-  --color-expense: #7c3aed; /* merged expense — vivid purple */
+  --color-expense: #7c3aed; /* merged expense — violet-600 */
   --color-needs: #534ab7; /* committed — dark purple (grouped view only) */
   --color-wants: #afa9ec; /* discretionary — light purple (grouped view only) */
-  --color-saved: #1d9e75; /* set aside — green */
-  --color-leftover: #c4b5fd; /* free — light purple */
+  --color-saved: #6ee7b7; /* set aside — emerald-300. A FILL colour only. */
+  --color-leftover: #c4b5fd; /* free — violet-300 */
   --color-debt: #d85a30; /* coral, not red — a loan on schedule is not an error */
 
+  /* Money that came IN, as text. Deliberately separate from --color-saved:
+     emerald-300 is a fill you put behind things and is far too pale to read as
+     a figure, green-700 is a figure and far too heavy to read as a bar. Using
+     one for both is what the first build got wrong. */
+  --color-gain: #15803d;
+
   /* Status palette (distinct from composition) */
-  --color-status-under: #1d9e75;
+  --color-status-under: #15803d;
   --color-status-near: #d0971a;
   --color-status-over: #d85a30;
 }
 
 @layer base {
   html {
-    /* Serbian-friendly, flat system stack. */
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-family: var(--font-sans);
     color-scheme: light;
   }
 
   body {
     margin: 0;
-    background: var(--color-stone-50);
-    color: var(--color-stone-900);
+    /* White, not stone-50: in the design the page is white and rows get their
+       shape from stone-100 fills. Tinting the page inverts that relationship. */
+    background: white;
+    color: var(--color-stone-800);
   }
 
-  /* The numbers are the interface — align every figure. */
+  /* The numbers are the interface. Geist Mono with stylistic set 9, which is
+     what the design specifies on every figure — it is the alternate digit set,
+     so without it the numerals are subtly the wrong shapes. */
   .tnum,
   [data-money] {
+    font-family: var(--font-mono);
+    font-feature-settings: "ss09" 1;
     font-variant-numeric: tabular-nums;
   }
 

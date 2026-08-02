@@ -80,7 +80,7 @@ export function Repeating() {
                     <span
                       data-money
                       className={`text-sm font-semibold ${
-                        r.direction === 'income' ? 'text-saved' : ''
+                        r.direction === 'income' ? 'text-gain' : ''
                       }`}
                     >
                       {r.direction === 'income' ? '+' : ''}

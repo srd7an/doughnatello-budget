@@ -7,7 +7,7 @@ import { formatMoney } from '../lib/format'
 import { CategoryIcon } from '../ui/icons'
 import { Swatch } from '../ui/Swatch'
 import { YearChart } from './YearChart'
-import { CategoriesList } from './CategoriesList'
+import { CategoriesList, Toggle } from './CategoriesList'
 
 // Year zoom: FLOW over twelve months. Hero is net worth (a stock, deliberately
 // the one exception on this flow screen), with the year's change beside it. The
@@ -16,6 +16,7 @@ export function YearView() {
   const { household } = useHousehold()
   const { year } = usePeriod()
   const yearKey = String(year)
+  const [grouped, setGrouped] = useState(false)
 
   const data = useQuery(api.overview.year, {
     householdId: household._id,
@@ -41,12 +42,12 @@ export function YearView() {
       <section>
         <p className="text-sm text-stone-500">Net worth</p>
         <p className="tnum flex items-baseline gap-2">
-          <span className="text-4xl font-semibold tracking-tight">
+          <span className="text-[32px] leading-none text-stone-800">
             {formatMoney(data.netWorth)}
           </span>
           {change !== 0 && (
             <span
-              className={`text-sm ${change > 0 ? 'text-saved' : 'text-debt'}`}
+              className={`text-sm ${change > 0 ? 'text-gain' : 'text-debt'}`}
             >
               {formatMoney(change, { signed: true })} this year
             </span>
@@ -54,7 +55,7 @@ export function YearView() {
         </p>
 
         {/* Metric row keyed to the chart legend */}
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mt-4 flex flex-wrap gap-8">
           <Metric label="Income" swatch={<Swatch className="border-stone-400" outline />} amount={data.totals.income} />
           <Metric label="Expense" swatch={<Swatch className="bg-expense" />} amount={data.totals.expense} />
           <Metric label="Savings" swatch={<Swatch className="bg-saved" />} amount={data.totals.savings} />
@@ -72,10 +73,23 @@ export function YearView() {
       </div>
 
       <section>
-        <h2 className="mb-3 text-lg font-semibold tracking-tight">Categories</h2>
+        <div className="mb-3 flex items-center gap-3">
+          <h2 className="text-base font-medium tracking-[-0.16px] text-stone-800">
+            Categories
+          </h2>
+          <div className="ml-auto">
+            <Toggle
+              on={grouped}
+              onChange={setGrouped}
+              label="Group by needs and wants"
+            />
+          </div>
+        </div>
         <CategoriesList
           rows={rows ?? []}
           paidFromFunds={data.totals.paidFromFunds}
+          grouped={grouped}
+          onGroupedChange={setGrouped}
         />
       </section>
     </div>
@@ -92,12 +106,12 @@ function Metric({
   amount: number
 }) {
   return (
-    <div className="rounded-xl border border-stone-200 bg-white p-3">
+    <div>
       <div className="flex items-center gap-1.5 text-sm text-stone-500">
-        {swatch}
         {label}
+        {swatch}
       </div>
-      <p data-money className="mt-1 text-lg font-semibold">
+      <p data-money className="mt-0.5 text-sm text-stone-800">
         {formatMoney(amount)}
       </p>
     </div>
@@ -179,7 +193,7 @@ function ChangeBalance({
     <span className="tnum flex items-center gap-4">
       <span
         className={`text-sm ${
-          change > 0 ? 'text-saved' : change < 0 ? 'text-debt' : 'text-stone-400'
+          change > 0 ? 'text-gain' : change < 0 ? 'text-debt' : 'text-stone-400'
         }`}
       >
         {change === 0

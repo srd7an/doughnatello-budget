@@ -33,11 +33,20 @@ type CatAgg = {
 export function CategoriesList({
   rows,
   paidFromFunds,
+  grouped: groupedProp,
+  onGroupedChange,
 }: {
   rows: CategoryRowData[]
   paidFromFunds: number
+  /** Lift the grouping toggle out when the parent renders it (the design puts
+   *  it in the lens-tab row, shared by both tabs). Uncontrolled otherwise. */
+  grouped?: boolean
+  onGroupedChange?: (v: boolean) => void
 }) {
-  const [grouped, setGrouped] = useState(false)
+  const [ownGrouped, setOwnGrouped] = useState(false)
+  const controlled = groupedProp !== undefined && onGroupedChange !== undefined
+  const grouped = controlled ? groupedProp : ownGrouped
+  const setGrouped = controlled ? onGroupedChange : setOwnGrouped
   const [open, setOpen] = useState<Set<string>>(new Set())
   const toggle = (k: string) =>
     setOpen((prev) => {
@@ -97,13 +106,15 @@ export function CategoriesList({
 
   return (
     <div>
-      <div className="mb-3 flex items-center justify-end">
-        <Toggle
-          on={grouped}
-          onChange={setGrouped}
-          label="Group by needs and wants"
-        />
-      </div>
+      {!controlled && (
+        <div className="mb-3 flex items-center justify-end">
+          <Toggle
+            on={grouped}
+            onChange={setGrouped}
+            label="Group by needs and wants"
+          />
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-2xl border border-stone-200">
         {/* Income */}
@@ -330,7 +341,7 @@ function TxnList({ txns }: { txns: Txn[] }) {
   )
 }
 
-function Toggle({
+export function Toggle({
   on,
   onChange,
   label,
