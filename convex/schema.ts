@@ -139,7 +139,19 @@ export default defineSchema({
     occurredOn: v.string(), // YYYY-MM-DD
     payee: v.optional(v.string()),
     note: v.optional(v.string()),
-    potId: v.optional(v.id("pots")), // set on transfers
+    // On a transfer: the destination fund. On an expense: the debt pot this
+    // payment pays down. Never set on income.
+    potId: v.optional(v.id("pots")),
+    // Transfers only: where the money came FROM. Unset means this month's
+    // income — the ordinary "set some aside". Set means the money was already
+    // set aside once and is only being relabelled: fund → fund when potId is
+    // also set, or fund → back to the general balance when it is not.
+    //
+    // A move's source is charged through an ordinary transactionFunding row
+    // pointing at it, exactly as spending from that fund would be, which is why
+    // pot balances need no special case for it. No index: nothing queries by
+    // source — balances read the funding rows.
+    fromPotId: v.optional(v.id("pots")),
     paidBy: v.string(), // userId
     createdBy: v.string(), // userId
     createdAt: v.number(),

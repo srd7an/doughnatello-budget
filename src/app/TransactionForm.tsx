@@ -93,6 +93,9 @@ export function TransactionForm({
   const [categoryId, setCategoryId] = useState<Id<'categories'> | null>(null)
   const [potId, setPotId] = useState<Id<'pots'> | null>(null)
   const [takeFrom, setTakeFrom] = useState<'income' | Id<'pots'>>('income')
+  // Transfers: where the money comes from. 'income' is the ordinary "set some
+  // aside"; a fund makes it a move of money that was already set aside once.
+  const [from, setFrom] = useState<'income' | Id<'pots'>>('income')
   // The loan this expense pays down, if it is one. Independent of takeFrom:
   // paying a loan out of a fund is both a payment and a withdrawal.
   const [paysOff, setPaysOff] = useState<Id<'pots'> | null>(null)
@@ -120,7 +123,13 @@ export function TransactionForm({
     setCategoryId(detail.categoryId)
     setPotId(detail.direction === 'transfer' ? detail.potId : null)
     setPaysOff(detail.direction === 'expense' ? detail.potId : null)
-    setTakeFrom(detail.funding.find((f) => f.potId)?.potId ?? 'income')
+    setFrom(detail.fromPotId ?? 'income')
+    // On a move the pot-funded row is the source, not a spend it came out of.
+    setTakeFrom(
+      detail.direction === 'transfer'
+        ? 'income'
+        : (detail.funding.find((f) => f.potId)?.potId ?? 'income'),
+    )
     setOccurredOn(detail.occurredOn)
     setPayee(detail.payee ?? '')
     setNote(detail.note ?? '')
@@ -158,8 +167,19 @@ export function TransactionForm({
     (p) => p.kind !== 'debt' && (p.balance > 0 || p._id === takeFrom),
   )
 
+  // Funds a transfer can come out of — the ones holding something, plus the
+  // one it already comes out of when editing.
+  const sourceFunds = potBalances.filter(
+    (p) => p.kind !== 'debt' && (p.balance > 0 || p._id === from),
+  )
+  // A fund cannot move money to itself, so the chosen source leaves the list.
+  const destinations = transferTargets.filter((p) => p._id !== from)
+
+  // A transfer needs at least one end: into a fund (saving or a move), or out
+  // of one (releasing it back to the balance).
   const valid =
-    amountPara > 0 && (direction === 'transfer' ? !!potId : !!categoryId)
+    amountPara > 0 &&
+    (direction === 'transfer' ? !!potId || from !== 'income' : !!categoryId)
 
   // What the form would save, flattened — compared against the same shape read
   // back off the transaction, so Save is dead until something really changed.
@@ -168,6 +188,7 @@ export function TransactionForm({
     amountPara,
     categoryId ?? '',
     direction === 'transfer' ? (potId ?? '') : '',
+    direction === 'transfer' ? from : 'income',
     direction === 'expense' ? takeFrom : 'income',
     direction === 'expense' ? (paysOff ?? '') : '',
     occurredOn,
@@ -181,6 +202,7 @@ export function TransactionForm({
         detail.amount,
         detail.categoryId ?? '',
         detail.direction === 'transfer' ? (detail.potId ?? '') : '',
+        detail.direction === 'transfer' ? (detail.fromPotId ?? 'income') : 'income',
         detail.direction === 'expense'
           ? (detail.funding.find((f) => f.potId)?.potId ?? 'income')
           : 'income',
@@ -242,6 +264,8 @@ export function TransactionForm({
       }
       const takeFromPotId =
         direction === 'expense' && takeFrom !== 'income' ? takeFrom : undefined
+      const fromPotId =
+        direction === 'transfer' && from !== 'income' ? from : undefined
 
       if (transactionId) {
         // The clear flags say "no longer any", which an absent field cannot:
@@ -252,8 +276,11 @@ export function TransactionForm({
           ...shared,
           occurredOn,
           takeFromPotId,
+          fromPotId,
           clearPotFunding: !takeFromPotId,
           clearLoan: !shared.potId || direction !== 'expense',
+          clearFromPot: !fromPotId,
+          clearDestination: direction === 'transfer' && !shared.potId,
           // Empty means empty here — the field was cleared on purpose.
           payee: payee.trim(),
           note: note.trim(),
@@ -268,6 +295,7 @@ export function TransactionForm({
           ...shared,
           ...text,
           takeFromPotId,
+          fromPotId,
           occurredOn,
         })
         if (repeat !== 'once' && ruleStartsOn) {
@@ -343,26 +371,67 @@ export function TransactionForm({
       {/* Contextual fields */}
       <div className="mt-5 space-y-4">
         {direction === 'transfer' ? (
-          <Field label="Into fund">
-            {transferTargets.length === 0 ? (
+          transferTargets.length === 0 ? (
+            <Field label="Into fund">
               <p className="text-sm text-stone-400">
                 Create a fund first (in Settings) to transfer into it.
               </p>
-            ) : (
-              <ChipRow>
-                {transferTargets.map((p) => (
-                  <Chip
-                    key={p._id}
-                    active={potId === p._id}
-                    onClick={() => setPotId(p._id)}
-                  >
-                    <CategoryIcon icon={p.icon} size={16} color={p.color} />{' '}
-                    {p.name}
-                  </Chip>
-                ))}
-              </ChipRow>
-            )}
-          </Field>
+            </Field>
+          ) : (
+            <>
+              {/* Where it comes from. This month is saving; a fund is moving
+                  money that was set aside once already — which is why moving it
+                  again does not come off this month a second time. */}
+              {sourceFunds.length > 0 && (
+                <Field label="From">
+                  <ChipRow>
+                    <Chip
+                      active={from === 'income'}
+                      onClick={() => setFrom('income')}
+                    >
+                      This month
+                    </Chip>
+                    {sourceFunds.map((p) => (
+                      <Chip
+                        key={p._id}
+                        active={from === p._id}
+                        onClick={() => {
+                          setFrom(p._id)
+                          // Cannot land where it started.
+                          if (potId === p._id) setPotId(null)
+                        }}
+                      >
+                        <CategoryIcon icon={p.icon} size={16} color={p.color} />{' '}
+                        {p.name} · {formatMoney(p.balance)}
+                      </Chip>
+                    ))}
+                  </ChipRow>
+                </Field>
+              )}
+
+              <Field label="Into">
+                <ChipRow>
+                  {destinations.map((p) => (
+                    <Chip
+                      key={p._id}
+                      active={potId === p._id}
+                      onClick={() => setPotId(p._id)}
+                    >
+                      <CategoryIcon icon={p.icon} size={16} color={p.color} />{' '}
+                      {p.name}
+                    </Chip>
+                  ))}
+                  {/* Only reachable out of a fund: taking the label off money
+                      rather than putting one on. */}
+                  {from !== 'income' && (
+                    <Chip active={potId === null} onClick={() => setPotId(null)}>
+                      Nothing — free it up
+                    </Chip>
+                  )}
+                </ChipRow>
+              </Field>
+            </>
+          )
         ) : (
           <Field label="Category">
             <ChipRow>

@@ -35,6 +35,7 @@ export const create = mutation({
     amount: v.number(), // para, positive
     categoryId: v.optional(v.id("categories")), // income/expense only
     potId: v.optional(v.id("pots")), // transfer destination, or loan paid down
+    fromPotId: v.optional(v.id("pots")), // transfer: move out of this fund
     takeFromPotId: v.optional(v.id("pots")), // expense: fund from this pot
     occurredOn: v.string(), // YYYY-MM-DD
     payee: v.optional(v.string()),
@@ -54,6 +55,7 @@ export type TransactionInput = {
   amount: number;
   categoryId?: Id<"categories">;
   potId?: Id<"pots">;
+  fromPotId?: Id<"pots">;
   takeFromPotId?: Id<"pots">;
   occurredOn: string;
   payee?: string;
@@ -95,9 +97,9 @@ export async function insertTransaction(
   // Category: required for income/expense, forbidden for transfer.
   if (args.direction === "transfer") {
     if (args.categoryId) throw new Error("Transfers are uncategorised");
-    if (!args.potId) throw new Error("A transfer needs a destination pot");
-    await assertPot(ctx, args.householdId, args.potId);
+    await assertMove(ctx, args);
   } else {
+    if (args.fromPotId) throw new Error("Only a transfer moves money out of a fund");
     if (!args.categoryId) throw new Error("A category is required");
     const cat = await ctx.db.get(args.categoryId);
     if (!cat || cat.householdId !== args.householdId) {
@@ -138,6 +140,7 @@ export async function insertTransaction(
     note: args.note,
     // Transfer: the destination fund. Expense: the loan it pays down.
     potId: args.direction === "income" ? undefined : args.potId,
+    fromPotId: args.direction === "transfer" ? args.fromPotId : undefined,
     paidBy,
     createdBy: userId,
     createdAt: Date.now(),
@@ -162,10 +165,25 @@ async function writeFunding(
   transactionId: Id<"transactions">,
   args: Pick<
     TransactionInput,
-    "householdId" | "direction" | "amount" | "takeFromPotId"
+    "householdId" | "direction" | "amount" | "takeFromPotId" | "fromPotId"
   >,
 ) {
   if (args.direction === "income") return; // income funds nothing
+
+  // Money moving out of a fund — to another fund, or back to the general
+  // balance. It is charged to the source exactly as spending from that fund
+  // would be, which is what makes pot balances need no special case for it.
+  // Nothing is charged to income: these were set aside once already, and
+  // counting them again would take the same money off the month twice.
+  if (args.direction === "transfer" && args.fromPotId) {
+    await ctx.db.insert("transactionFunding", {
+      householdId: args.householdId,
+      transactionId,
+      potId: args.fromPotId,
+      amount: args.amount,
+    });
+    return;
+  }
 
   if (args.direction === "expense" && args.takeFromPotId) {
     const bal = await potBalance(ctx, args.householdId, args.takeFromPotId);
@@ -208,6 +226,46 @@ async function assertPot(
   const pot = await ctx.db.get(potId);
   if (!pot || pot.householdId !== householdId) throw new Error("Pot not found");
   return pot;
+}
+
+/**
+ * A transfer is one of three things, decided by which ends it has:
+ *
+ *   into a fund              — set money aside out of this month's income
+ *   fund → fund              — move it; it was already set aside once
+ *   fund → (nothing)         — release it back to the general balance
+ *
+ * The last two are RELABELLING, not saving, which is why neither may name a
+ * debt pot: you do not park money inside a loan, you pay the loan off (an
+ * expense — see assertLoan). And a move cannot exceed what its source holds:
+ * splitting it across income the way a pot-funded expense does would quietly
+ * turn "move 100" into "move 40 and save 60", which is not what anyone asked
+ * for. Refusing is the honest answer.
+ */
+async function assertMove(
+  ctx: MutationCtx,
+  args: Pick<TransactionInput, "householdId" | "potId" | "fromPotId" | "amount">,
+) {
+  const { householdId, potId, fromPotId, amount } = args;
+  if (!potId && !fromPotId) {
+    throw new Error("A transfer needs a destination pot");
+  }
+  if (potId && fromPotId && potId === fromPotId) {
+    throw new Error("A fund cannot move money to itself");
+  }
+  for (const id of [potId, fromPotId]) {
+    if (!id) continue;
+    const pot = await assertPot(ctx, householdId, id);
+    if (pot.kind === "debt") {
+      throw new Error("A loan is paid off, not moved into — record it as an expense");
+    }
+  }
+  if (fromPotId) {
+    const available = await potBalance(ctx, householdId, fromPotId);
+    if (amount > available) {
+      throw new Error("That fund does not hold that much");
+    }
+  }
 }
 
 /**
@@ -271,6 +329,7 @@ async function enrichRows(
 
       // Determine the pot pill: the destination fund of a transfer, the loan an
       // expense pays down, or failing that the fund an expense was funded from.
+      const fromPot = t.fromPotId ? potById.get(t.fromPotId) : undefined;
       let pot: (typeof pots)[number] | undefined;
       if (t.potId) {
         pot = potById.get(t.potId);
@@ -292,6 +351,7 @@ async function enrichRows(
         note: t.note ?? null,
         categoryId: t.categoryId ?? null,
         potId: t.potId ?? null,
+        fromPotId: t.fromPotId ?? null,
         category: category
           ? {
               name: category.name,
@@ -301,6 +361,10 @@ async function enrichRows(
             }
           : null,
         pot: pot ? { name: pot.name, icon: pot.icon, color: pot.color } : null,
+        // Only a move has both ends. The pill reads "from → into" then.
+        fromPot: fromPot
+          ? { name: fromPot.name, icon: fromPot.icon, color: fromPot.color }
+          : null,
         paidByName: nameByUser.get(t.paidBy) ?? "?",
       };
     }),
@@ -385,9 +449,12 @@ export const update = mutation({
     amount: v.optional(v.number()),
     categoryId: v.optional(v.id("categories")),
     potId: v.optional(v.id("pots")),
+    fromPotId: v.optional(v.id("pots")),
     takeFromPotId: v.optional(v.id("pots")),
     clearPotFunding: v.optional(v.boolean()), // back to "from this month"
     clearLoan: v.optional(v.boolean()), // no longer pays off a loan
+    clearFromPot: v.optional(v.boolean()), // a move becomes plain saving
+    clearDestination: v.optional(v.boolean()), // a move becomes a release
     occurredOn: v.optional(v.string()),
     payee: v.optional(v.string()),
     note: v.optional(v.string()),
@@ -412,18 +479,30 @@ export const update = mutation({
     }
 
     // What funded it before, so an edit that does not mention funding keeps it.
-    const previousPotFunding = existingFunding.find((f) => f.potId)?.potId;
+    // On a move the pot-funded row is its source, not a spend, so it is only
+    // read back as "take from" when this is (or becomes) an expense.
+    const previousPotFunding =
+      doc.direction === "transfer" && doc.fromPotId
+        ? undefined
+        : existingFunding.find((f) => f.potId)?.potId;
     const nextTakeFrom = args.clearPotFunding
       ? undefined
       : (args.takeFromPotId ?? previousPotFunding);
 
     let categoryId = args.categoryId ?? doc.categoryId;
     let potId = args.clearLoan ? undefined : (args.potId ?? doc.potId);
+    if (args.clearDestination) potId = undefined;
+    const fromPotId =
+      nextDirection === "transfer" && !args.clearFromPot
+        ? (args.fromPotId ?? doc.fromPotId)
+        : undefined;
 
     if (nextDirection === "transfer") {
       categoryId = undefined;
-      if (!potId) throw new Error("A transfer needs a destination pot");
-      await assertPot(ctx, householdId, potId);
+      // The ends of a transfer are checked below, once the old funding rows are
+      // gone and the doc has been patched: a move's own charge against its
+      // source would otherwise make the fund look too poor to afford its own
+      // edit.
     } else {
       if (!categoryId) throw new Error("A category is required");
       const cat = await ctx.db.get(categoryId);
@@ -467,6 +546,7 @@ export const update = mutation({
       amount: nextAmount,
       categoryId,
       potId,
+      fromPotId,
       occurredOn: args.occurredOn ?? doc.occurredOn,
       // An omitted field keeps what is there; an EMPTY one clears it. Without
       // the distinction, deleting a payee in the form silently put it back.
@@ -476,11 +556,24 @@ export const update = mutation({
       accountId: args.accountId ?? doc.accountId,
     });
 
+    // Now that the row reads as it will be saved — old funding gone, ends
+    // patched — the source has its real balance and can be checked against.
+    // Throwing here still rolls the whole edit back; Convex mutations are ACID.
+    if (nextDirection === "transfer") {
+      await assertMove(ctx, {
+        householdId,
+        potId,
+        fromPotId,
+        amount: nextAmount,
+      });
+    }
+
     await writeFunding(ctx, args.transactionId, {
       householdId,
       direction: nextDirection,
       amount: nextAmount,
       takeFromPotId,
+      fromPotId,
     });
   },
 });
@@ -525,6 +618,7 @@ export const detail = query({
       note: doc.note ?? null,
       categoryId: doc.categoryId ?? null,
       potId: doc.potId ?? null,
+      fromPotId: doc.fromPotId ?? null,
       accountId: doc.accountId,
       accountName: account?.name ?? "—",
       paidBy: doc.paidBy,
@@ -534,6 +628,10 @@ export const detail = query({
         ? { name: category.name, icon: category.icon, color: category.color }
         : null,
       pot: pot ? { name: pot.name, icon: pot.icon, color: pot.color } : null,
+      fromPot: (() => {
+        const p = doc.fromPotId ? potById.get(doc.fromPotId) : undefined;
+        return p ? { name: p.name, icon: p.icon, color: p.color } : null;
+      })(),
       funding: funding.map((f) => ({
         amount: f.amount,
         potId: f.potId ?? null,

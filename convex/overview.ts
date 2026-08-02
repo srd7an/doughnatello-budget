@@ -254,6 +254,18 @@ export const year = query({
             t.potId,
             (transfersInYear.get(t.potId) ?? 0) + t.amount,
           );
+        // Money moved OUT of a fund — to another fund, or released back to the
+        // balance. It leaves the source exactly as spending it would, so the
+        // source's change for the year has to see it. It is NOT paidFromFunds:
+        // nothing was bought.
+        for (const f of funding) {
+          if (f.potId) {
+            spentFromPotYear.set(
+              f.potId,
+              (spentFromPotYear.get(f.potId) ?? 0) + f.amount,
+            );
+          }
+        }
       } else {
         bucket.expense += fromIncome;
         for (const f of funding) {

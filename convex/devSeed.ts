@@ -155,6 +155,7 @@ type Spec = {
   amount: number;
   category?: string; // category name
   pot?: PotKey; // transfer destination
+  fromPot?: PotKey; // transfer source — a move, not new saving
   takeFrom?: PotKey; // expense funded from this fund
   loan?: PotKey; // expense that pays down this loan
   payee?: string;
@@ -335,13 +336,39 @@ function monthPlan(month: string, lastDay: number): Spec[] {
       note: mi === 4 ? "Summer tyres + service" : "Winter tyres",
     });
   }
+  // One of each kind of move, pinned to a month so they are always there to
+  // look at: money changing its mind about which fund it is for, and money
+  // being let go of entirely. Both are relabelling — neither touches the month.
+  // Sourced from the rainy-day fund rather than the holiday one: by September
+  // the holiday fund has just paid for a holiday and is empty, and a move may
+  // not overdraw its source.
+  if (month === "2025-09") {
+    add({
+      day: 15,
+      direction: "transfer",
+      amount: rsd(25_000),
+      fromPot: "rainy",
+      pot: "repairs",
+      note: "Boiler first",
+    });
+  }
+  if (month === "2026-03") {
+    add({
+      day: 20,
+      direction: "transfer",
+      amount: rsd(8_000),
+      fromPot: "rainy",
+      note: "Freed up",
+    });
+  }
+
   // Deliberately more than the fund holds by November: the overspill is funded
   // from the month's income, which is the split-funding path made visible.
   if (mi === 11) {
     add({
       day: 22,
       direction: "expense",
-      amount: rsd(75_000),
+      amount: rsd(95_000),
       category: "Housing",
       takeFrom: "repairs",
       payee: "Majstor",
@@ -523,6 +550,7 @@ export const seedMonth = internalMutation({
         categoryId: s.direction === "transfer" ? undefined : categoryId,
         // Destination fund on a transfer; the loan it pays down on an expense.
         potId: s.pot ? potId(s.pot) : s.loan ? potId(s.loan) : undefined,
+        fromPotId: s.fromPot ? potId(s.fromPot) : undefined,
         takeFromPotId: s.takeFrom ? potId(s.takeFrom) : undefined,
         occurredOn: `${month}-${String(s.day).padStart(2, "0")}`,
         payee: s.payee,

@@ -80,9 +80,11 @@ function TransactionRow({ row, onOpen }: { row: Row; onOpen: () => void }) {
   // beside the name; letting it take the icon meant picking Grocery and being
   // shown a piggy bank. Only a transfer, which has no category, falls back to
   // the fund. Same order as DueSoon and Repeating.
-  const glyph = row.category ?? row.pot
+  const glyph = row.category ?? row.pot ?? row.fromPot
   const color = glyph?.color ?? '#a8a29e'
-  const name = row.payee || row.category?.name || row.pot?.name || '—'
+  // A release has no destination, so the fund it left is what names it.
+  const name =
+    row.payee || row.category?.name || row.pot?.name || row.fromPot?.name || '—'
 
   return (
     <li className="border-b border-dashed border-stone-300">
@@ -98,12 +100,16 @@ function TransactionRow({ row, onOpen }: { row: Row; onOpen: () => void }) {
           {name}
         </span>
 
-        {row.pot && (
+        {/* Which fund or loan this touched. A move has both ends, and reads as
+            one: "Holiday → Repairs", or "Holiday →" when the money is simply
+            let go of. */}
+        {(row.pot || row.fromPot) && (
           <span className="hidden shrink-0 items-center gap-1 rounded-md border border-stone-300 bg-white px-1.5 py-0.5 text-xs text-stone-800 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] sm:inline-flex">
+            {row.fromPot && <span>{row.fromPot.name}</span>}
             {row.direction === 'transfer' && (
               <ArrowRightIcon size={12} aria-hidden />
             )}
-            {row.pot.name}
+            {row.pot?.name}
           </span>
         )}
 
