@@ -47,7 +47,15 @@ export function Settings() {
   return (
     <div className="space-y-6">
       <section>
-        <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
+        {/* Settings is a dead end without this — the period control that
+            normally navigates is hidden here. */}
+        <Link
+          to="/"
+          className="text-sm text-stone-500 hover:text-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        >
+          ← Home
+        </Link>
+        <h1 className="mt-1 text-xl font-semibold tracking-tight">Settings</h1>
         <p className="mt-1 text-sm text-stone-500">
           {household.name} · you are {household.role === 'admin' ? 'an admin' : 'a member'}
         </p>
