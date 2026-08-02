@@ -91,6 +91,17 @@ import { HandbagIcon } from '@phosphor-icons/react/dist/csr/Handbag'
 import { NewspaperIcon } from '@phosphor-icons/react/dist/csr/Newspaper'
 import { BroomIcon } from '@phosphor-icons/react/dist/csr/Broom'
 import { ConfettiIcon } from '@phosphor-icons/react/dist/csr/Confetti'
+import { TreePalmIcon } from '@phosphor-icons/react/dist/csr/TreePalm'
+import { MoneyWavyIcon } from '@phosphor-icons/react/dist/csr/MoneyWavy'
+import { HandCoinsIcon } from '@phosphor-icons/react/dist/csr/HandCoins'
+import { HandshakeIcon } from '@phosphor-icons/react/dist/csr/Handshake'
+import { ScalesIcon } from '@phosphor-icons/react/dist/csr/Scales'
+import { PercentIcon } from '@phosphor-icons/react/dist/csr/Percent'
+import { CalendarCheckIcon } from '@phosphor-icons/react/dist/csr/CalendarCheck'
+import { InvoiceIcon } from '@phosphor-icons/react/dist/csr/Invoice'
+import { BuildingsIcon } from '@phosphor-icons/react/dist/csr/Buildings'
+import { VaultIcon } from '@phosphor-icons/react/dist/csr/Vault'
+import { TrendDownIcon } from '@phosphor-icons/react/dist/csr/TrendDown'
 
 type PhosphorIcon = ComponentType<{
   size?: number | string
@@ -168,6 +179,20 @@ const CATEGORY_ICONS: Record<string, PhosphorIcon> = {
   news: NewspaperIcon,
   cleaning: BroomIcon,
   party: ConfettiIcon,
+  palm: TreePalmIcon,
+  // Money you owe, and the paperwork around it. Keys say what the icon is FOR,
+  // not what it draws, so a loan keeps its icon if Phosphor redraws the glyph.
+  money: MoneyWavyIcon,
+  loan: HandCoinsIcon,
+  handshake: HandshakeIcon,
+  balance: ScalesIcon,
+  interest: PercentIcon,
+  schedule: CalendarCheckIcon,
+  invoice: InvoiceIcon,
+  property: BuildingsIcon,
+  vault: VaultIcon,
+  // The counterpart to `invest` (TrendUp): a balance on its way down.
+  paydown: TrendDownIcon,
 }
 
 /** Every selectable icon key, for the pickers. */
