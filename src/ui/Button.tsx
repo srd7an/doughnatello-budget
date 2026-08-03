@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes } from 'react'
+import { twMerge } from 'tailwind-merge'
 
 /**
  * Every button in the app, in four kinds.
@@ -44,7 +45,16 @@ export function Button({
   return (
     <button
       {...rest}
-      className={`${BASE} ${VARIANTS[variant]} ${full ? 'w-full' : ''} ${className}`}
+      // twMerge, not concatenation: a caller's `hidden` has to beat the base
+      // `inline-flex`, and with two display utilities in one class list the
+      // winner is whichever Tailwind happened to emit last. That is how a
+      // phone ended up with two Add transaction buttons.
+      className={twMerge(
+        BASE,
+        VARIANTS[variant],
+        full && 'w-full',
+        className,
+      )}
     />
   )
 }

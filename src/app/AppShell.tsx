@@ -92,13 +92,16 @@ export function AppShell() {
           {/* Row 2: period control (the nav) + add */}
           <div className="relative mt-2 flex items-center justify-between gap-2">
             {onPage ? <BackLink /> : <PeriodControl />}
-            <Button
-              variant="primary"
-              onClick={() => navigate('/add')}
-              className="hidden sm:inline-flex"
-            >
-              Add transaction
-            </Button>
+            {/* One Add per screen, and it is a different one on each: the
+                labelled button up here where there is room for words, the FAB
+                down there where a thumb is. Rendered, not hidden — two of them
+                existing and one being display:none is how they both showed up
+                on a phone. */}
+            {isDesktop && (
+              <Button variant="primary" onClick={() => navigate('/add')}>
+                Add transaction
+              </Button>
+            )}
             {addOpen && isDesktop && <AddTransactionPopover onClose={close} />}
           </div>
         </div>
@@ -108,14 +111,15 @@ export function AppShell() {
         <Outlet />
       </main>
 
-      {/* Mobile: Add FAB for thumb reach */}
-      <button
-        onClick={() => navigate('/add')}
-        aria-label="Add transaction"
-        className="fixed bottom-6 right-4 z-30 grid size-14 place-items-center rounded-full bg-brand text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:hidden"
-      >
-        <PlusIcon className="size-6" />
-      </button>
+      {!isDesktop && (
+        <button
+          onClick={() => navigate('/add')}
+          aria-label="Add transaction"
+          className="fixed right-4 bottom-6 z-30 grid size-14 place-items-center rounded-full bg-brand text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        >
+          <PlusIcon className="size-6" />
+        </button>
+      )}
 
       {addOpen && !isDesktop && <AddTransactionSheet onClose={close} />}
 
