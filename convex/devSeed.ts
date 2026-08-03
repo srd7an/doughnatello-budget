@@ -22,6 +22,7 @@ import { addDays, daysInMonth, firstDue, toISO } from "./lib/recurrence";
  *
  *   npx convex run devSeed:fill '{}'                     # newest household
  *   npx convex run devSeed:fill '{"householdName":"Home"}'
+ *   npx convex run devSeed:fill '{"householdId":"kh74..."}'   # no ambiguity
  *   npx convex run devSeed:fill '{"fromMonth":"2025-01"}'
  *
  * It is destructive by design and re-runnable: it wipes the household's
@@ -405,15 +406,44 @@ function assertSeedable() {
   }
 }
 
-async function resolveHousehold(ctx: MutationCtx, name?: string) {
+/**
+ * Which household gets wiped and rebuilt. Three ways to say it, in order of
+ * how sure you are:
+ *
+ *   householdId   — exactly this one. The only form with no ambiguity.
+ *   householdName — the first with this name, which is a problem the moment
+ *                   two share one. Two households called "Home" on the same
+ *                   deployment is not hypothetical; it is what a second person
+ *                   signing up produces, since that is the default name.
+ *   neither       — the newest. Convenient on a dev deployment where the one
+ *                   you just made is the one you mean, and exactly why this
+ *                   must never be pointed at production.
+ */
+async function resolveHousehold(
+  ctx: MutationCtx,
+  name?: string,
+  id?: Id<"households">,
+) {
   assertSeedable();
+  if (id) {
+    const byId = await ctx.db.get(id);
+    if (!byId) throw new Error(`No household with id ${id}`);
+    return byId;
+  }
   const households = await ctx.db.query("households").collect();
   if (households.length === 0) throw new Error("No households — sign in and create one first");
-  const household = name
-    ? households.find((h) => h.name === name)
-    : households.sort((a, b) => b.createdAt - a.createdAt)[0];
-  if (!household) throw new Error(`No household named "${name}"`);
-  return household;
+  if (name) {
+    const matches = households.filter((h) => h.name === name);
+    if (matches.length === 0) throw new Error(`No household named "${name}"`);
+    if (matches.length > 1) {
+      throw new Error(
+        `${matches.length} households are named "${name}" — pass householdId instead. ` +
+          matches.map((h) => `${h._id} (created ${new Date(h.createdAt).toISOString().slice(0, 10)})`).join(", "),
+      );
+    }
+    return matches[0];
+  }
+  return households.sort((a, b) => b.createdAt - a.createdAt)[0];
 }
 
 /**
@@ -424,9 +454,17 @@ async function resolveHousehold(ctx: MutationCtx, name?: string) {
  * transactions they hang off, so nothing is ever orphaned mid-delete.
  */
 export const prepare = internalMutation({
-  args: { householdName: v.optional(v.string()), reset: v.optional(v.boolean()) },
+  args: {
+    householdName: v.optional(v.string()),
+    householdId: v.optional(v.id("households")),
+    reset: v.optional(v.boolean()),
+  },
   handler: async (ctx, args) => {
-    const household = await resolveHousehold(ctx, args.householdName);
+    const household = await resolveHousehold(
+      ctx,
+      args.householdName,
+      args.householdId,
+    );
     const householdId = household._id;
 
     const members = await ctx.db
@@ -822,6 +860,7 @@ export const finish = internalMutation({
 export const fill = internalAction({
   args: {
     householdName: v.optional(v.string()),
+    householdId: v.optional(v.id("households")),
     fromMonth: v.optional(v.string()), // YYYY-MM, default 19 months back
     reset: v.optional(v.boolean()), // default true
   },
@@ -844,6 +883,7 @@ export const fill = internalAction({
 
     const { householdId, householdName } = await ctx.runMutation(internal.devSeed.prepare, {
       householdName: args.householdName,
+      householdId: args.householdId,
       reset: args.reset ?? true,
     });
 
@@ -881,12 +921,17 @@ export const fill = internalAction({
  *   npx convex run devSeed:check '{"householdName":"Home"}'
  */
 export const check = internalQuery({
-  args: { householdName: v.optional(v.string()) },
-  handler: async (ctx, { householdName }) => {
+  args: {
+    householdName: v.optional(v.string()),
+    householdId: v.optional(v.id("households")),
+  },
+  handler: async (ctx, args) => {
     const households = await ctx.db.query("households").collect();
-    const household = householdName
-      ? households.find((h) => h.name === householdName)
-      : households.sort((a, b) => b.createdAt - a.createdAt)[0];
+    const household = args.householdId
+      ? households.find((h) => h._id === args.householdId)
+      : args.householdName
+        ? households.find((h) => h.name === args.householdName)
+        : households.sort((a, b) => b.createdAt - a.createdAt)[0];
     if (!household) throw new Error("No such household");
     const householdId = household._id;
 
