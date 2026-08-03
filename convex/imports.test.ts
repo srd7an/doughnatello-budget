@@ -233,3 +233,113 @@ describe("cross-household isolation for import", () => {
     ).rejects.toThrow(/Not a member/);
   });
 });
+
+/**
+ * The three columns a CSV could not say until now: what a spend came out of,
+ * what an instalment pays down, and which fund a move left.
+ */
+describe("pay from, paying off, and moving between funds", () => {
+  async function withPots() {
+    const ctx = await setup();
+    const fund = await asA(ctx.t).mutation(api.pots.create, {
+      householdId: ctx.householdId,
+      name: "Rainy day",
+      kind: "savings",
+      icon: "piggy",
+      color: "#1D9E75",
+    });
+    const other = await asA(ctx.t).mutation(api.pots.create, {
+      householdId: ctx.householdId,
+      name: "Repairs",
+      kind: "sinking",
+      icon: "repair",
+      color: "#7C3AED",
+    });
+    const loan = await asA(ctx.t).mutation(api.pots.create, {
+      householdId: ctx.householdId,
+      name: "Car loan",
+      kind: "debt",
+      icon: "car",
+      color: "#B45309",
+      originalAmount: 900_000_00,
+    });
+    return { ...ctx, fund, other, loan };
+  }
+
+  test("an expense can be paid out of a fund", async () => {
+    const { t, householdId, fund } = await withPots();
+    await asA(t).mutation(api.imports.commit, {
+      householdId,
+      rows: [
+        { date: "2026-07-01", direction: "transfer", amount: 50_000_00, fund: "Rainy day" },
+        { ...grocery("2026-07-05", 20_000_00, "Maxi"), payFrom: "Rainy day" },
+      ],
+    });
+
+    const pots = await asA(t).query(api.pots.balances, { householdId });
+    expect(pots.find((p) => p._id === fund)!.balance).toBe(30_000_00);
+    // Spent from a fund, so it does NOT come off the month: setting the money
+    // aside was the outflow, and it was counted then.
+    const m = await asA(t).query(api.overview.month, { householdId, month: "2026-07" });
+    expect(m.savings).toBe(50_000_00);
+    expect(m.expense).toBe(0);
+    expect(m.paidFromFunds).toBe(20_000_00);
+  });
+
+  test("an instalment can name the loan it pays down", async () => {
+    const { t, householdId, loan } = await withPots();
+    await asA(t).mutation(api.imports.commit, {
+      householdId,
+      rows: [
+        { ...grocery("2026-07-12", 24_500_00, "OTP banka"), paysOff: "Car loan" },
+      ],
+    });
+
+    const pots = await asA(t).query(api.pots.balances, { householdId });
+    expect(pots.find((p) => p._id === loan)!.owed).toBe(875_500_00);
+  });
+
+  test("a transfer can move between funds, and can release one", async () => {
+    const { t, householdId, fund, other } = await withPots();
+    await asA(t).mutation(api.imports.commit, {
+      householdId,
+      rows: [
+        { date: "2026-07-01", direction: "transfer", amount: 50_000_00, fund: "Rainy day" },
+        {
+          date: "2026-07-10",
+          direction: "transfer",
+          amount: 20_000_00,
+          fund: "Repairs",
+          payFrom: "Rainy day",
+        },
+        // No destination: money let go of, which is a row with a source only.
+        { date: "2026-07-11", direction: "transfer", amount: 5_000_00, payFrom: "Rainy day" },
+      ],
+    });
+
+    const pots = await asA(t).query(api.pots.balances, { householdId });
+    expect(pots.find((p) => p._id === fund)!.balance).toBe(25_000_00);
+    expect(pots.find((p) => p._id === other)!.balance).toBe(20_000_00);
+  });
+
+  test("a fund named as a loan is refused, with the row that did it", async () => {
+    const { t, householdId } = await withPots();
+    const result = await asA(t).mutation(api.imports.commit, {
+      householdId,
+      rows: [{ ...grocery("2026-07-05", 1_000_00, "Maxi"), paysOff: "Rainy day" }],
+    });
+
+    expect(result.imported).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(result.errors[0]).toMatch(/Row 1.*fund, not a loan/);
+  });
+
+  test("an unknown fund is named in the preview before anything is written", async () => {
+    const { t, householdId } = await withPots();
+    const p = await asA(t).mutation(api.imports.preview, {
+      householdId,
+      rows: [{ ...grocery("2026-07-05", 1_000_00), payFrom: "Holiday" }],
+    });
+    expect(p.unknownFunds).toContain("Holiday");
+  });
+});

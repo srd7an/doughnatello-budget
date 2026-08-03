@@ -28,6 +28,13 @@ const row = v.object({
   amount: v.number(), // para, positive
   category: v.optional(v.string()), // matched by name
   fund: v.optional(v.string()), // transfer destination, matched by name
+  // What the money came OUT of, matched by name: a fund an expense was paid
+  // from, or the source fund of a move. Same column, read by direction —
+  // exactly as the form's one "Pay from" row does.
+  payFrom: v.optional(v.string()),
+  // The loan an expense pays down. Only a debt pot qualifies; the server
+  // refuses anything else, so a mistyped name cannot quietly spend a fund.
+  paysOff: v.optional(v.string()),
   payee: v.optional(v.string()),
   note: v.optional(v.string()),
 });
@@ -58,8 +65,8 @@ export const preview = mutation({
       if (r.category && !categories.has(r.category.toLowerCase())) {
         unknownCategories.add(r.category);
       }
-      if (r.fund && !pots.has(r.fund.toLowerCase())) {
-        unknownFunds.add(r.fund);
+      for (const name of [r.fund, r.payFrom, r.paysOff]) {
+        if (name && !pots.has(name.toLowerCase())) unknownFunds.add(name);
       }
     }
 
@@ -146,27 +153,61 @@ export const commit = mutation({
         }
       }
 
-      let potId: Id<"pots"> | undefined;
-      if (r.direction === "transfer") {
-        potId = r.fund ? pots.get(r.fund.toLowerCase()) : undefined;
-        if (!potId) {
-          errors.push(`Row ${i + 1}: no fund "${r.fund ?? ""}" to transfer into`);
+      // Where it came OUT of. One column, read by direction — a fund an
+      // expense was paid from, or the source fund of a move.
+      let payFrom: Id<"pots"> | undefined;
+      if (r.payFrom) {
+        payFrom = pots.get(r.payFrom.toLowerCase());
+        if (!payFrom) {
+          errors.push(`Row ${i + 1}: no fund "${r.payFrom}" to pay from`);
           skipped += 1;
           continue;
         }
       }
 
-      await insertTransaction(ctx, userId, {
-        householdId: args.householdId,
-        accountId: args.accountId,
-        direction: r.direction,
-        amount: r.amount,
-        categoryId,
-        potId,
-        occurredOn: r.date,
-        payee: r.payee,
-        note: r.note,
-      });
+      // A transfer's destination, or the loan an expense pays down. Both live
+      // in potId, which is why they cannot both be set on one row.
+      let potId: Id<"pots"> | undefined;
+      if (r.direction === "transfer") {
+        potId = r.fund ? pots.get(r.fund.toLowerCase()) : undefined;
+        // A move out of a fund may land nowhere — that is releasing it back to
+        // the balance, and it is only a mistake when there is no source either.
+        if (!potId && !payFrom) {
+          errors.push(`Row ${i + 1}: no fund "${r.fund ?? ""}" to transfer into`);
+          skipped += 1;
+          continue;
+        }
+      } else if (r.paysOff) {
+        potId = pots.get(r.paysOff.toLowerCase());
+        if (!potId) {
+          errors.push(`Row ${i + 1}: no loan "${r.paysOff}"`);
+          skipped += 1;
+          continue;
+        }
+      }
+
+      try {
+        await insertTransaction(ctx, userId, {
+          householdId: args.householdId,
+          accountId: args.accountId,
+          direction: r.direction,
+          amount: r.amount,
+          categoryId,
+          potId,
+          fromPotId: r.direction === "transfer" ? payFrom : undefined,
+          takeFromPotId: r.direction === "expense" ? payFrom : undefined,
+          occurredOn: r.date,
+          payee: r.payee,
+          note: r.note,
+        });
+      } catch (e) {
+        // The server's own rules — a fund named as a loan, a move bigger than
+        // its source — reported against the row that broke them rather than
+        // taking the whole file down.
+        errors.push(`Row ${i + 1}: ${e instanceof Error ? e.message : "refused"}`);
+        skipped += 1;
+        continue;
+      }
       existing.add(print);
       imported += 1;
     }

@@ -122,8 +122,14 @@ export const IMPORT_FIELDS = [
   'direction',
   'amount',
   'category',
-  'fund',
   'payee',
+  // The three the form has and a CSV had no way to say. `fund` is the
+  // destination a transfer lands in; `payFrom` is what a spend came OUT of —
+  // a fund for an expense, the source fund for a move — and `paysOff` names
+  // the loan an instalment pays down.
+  'fund',
+  'payFrom',
+  'paysOff',
   'note',
 ] as const
 export type ImportField = (typeof IMPORT_FIELDS)[number]
@@ -142,7 +148,9 @@ export function guessMapping(headers: string[]): Record<ImportField, number> {
     direction: find('type', 'direction'),
     amount: find('amount', 'iznos', 'value'),
     category: find('category', 'kategorija'),
-    fund: find('fund'),
+    fund: find('into', 'fund'),
+    payFrom: find('pay from', 'payfrom', 'iz fonda'),
+    paysOff: find('paying off', 'paysoff', 'pays off', 'loan', 'kredit'),
     payee: find('payee', 'description', 'opis', 'merchant'),
     note: find('note', 'napomena', 'memo'),
   }
