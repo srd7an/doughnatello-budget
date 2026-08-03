@@ -70,7 +70,7 @@ export function YearView() {
       />
 
       {/* Stock accordions — path is the chart, endpoints are these rows */}
-      <div className="overflow-hidden rounded-2xl border border-stone-200">
+      <div className="flex flex-col gap-1">
         <Accordion label="Funds" group={data.funds} />
         <Accordion label="Assets" group={data.assets} />
         <Accordion label="Loans" group={data.loans} paidLabel />
@@ -135,12 +135,12 @@ function Accordion({
   const empty = group.items.length === 0
 
   return (
-    <div className="border-b border-stone-100 last:border-b-0">
+    <div>
       <button
         onClick={() => !empty && setOpen((o) => !o)}
         aria-expanded={open}
         disabled={empty}
-        className="flex min-h-12 w-full items-center gap-2 px-4 text-sm focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
+        className="flex min-h-11 w-full items-center gap-2 rounded-lg bg-stone-100 px-4 text-sm hover:bg-stone-200 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
       >
         <span className="grid w-3 shrink-0 place-items-center" aria-hidden>
           {!empty && (
@@ -161,16 +161,15 @@ function Accordion({
         group.items.map((it) => (
           <div
             key={it._id}
-            className="flex items-center gap-2 border-t border-stone-100 py-2 pr-4 pl-9 text-sm"
+            className="mt-1 flex min-h-11 items-center gap-2 border-b border-dashed border-stone-300 py-2 pr-4 pl-9 text-sm"
           >
             {/* The icon is a flex sibling of the name, not a child of it:
                 preflight renders an svg as a block, so inside the text it
                 dropped onto its own line above the label. */}
-            <span className="flex min-w-0 flex-1 items-center gap-1.5 text-stone-600">
+            <span className="flex min-w-0 flex-1 items-center gap-2 text-stone-600">
               {it.icon && (
                 <CategoryIcon
                   icon={it.icon}
-                  size={16}
                   color={it.color}
                   className="shrink-0"
                 />
