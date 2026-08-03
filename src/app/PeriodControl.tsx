@@ -34,10 +34,15 @@ export function PeriodControl() {
 
   return (
     <div className="relative flex items-center" ref={ref}>
-      {/* h-8 is the whole control, border included — box-sizing is border-box —
-          and the segments stretch into it rather than setting a height of their
-          own, so the dividers and the hover fills reach both edges. */}
-      <div className="flex h-8 items-stretch overflow-hidden rounded-full border border-stone-200 bg-white">
+      {/* The height is the whole control, border included — box-sizing is
+          border-box — and the segments stretch into it rather than setting a
+          height of their own, so the dividers and the hover fills reach both
+          edges.
+
+          44px on a phone, 32px from sm up: a thumb needs the target, a pointer
+          does not, and this is the primary navigation so it is the one control
+          that cannot be a near miss. */}
+      <div className="flex h-11 items-stretch overflow-hidden rounded-full border border-stone-200 bg-white sm:h-8">
         <Step label="Previous period" onClick={() => step(-1)}>
           <CaretLeftIcon size={16} aria-hidden />
         </Step>
@@ -101,7 +106,7 @@ function Step({
     <button
       onClick={onClick}
       aria-label={label}
-      className="grid w-8 place-items-center text-stone-600 hover:bg-stone-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
+      className="grid w-11 place-items-center text-stone-600 hover:bg-stone-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:w-8"
     >
       {children}
     </button>
