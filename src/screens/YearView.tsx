@@ -163,9 +163,19 @@ function Accordion({
             key={it._id}
             className="flex items-center gap-2 border-t border-stone-100 py-2 pr-4 pl-9 text-sm"
           >
-            <span className="flex-1 truncate text-stone-600">
-              {it.icon && <CategoryIcon icon={it.icon} size={16} color={it.color} />}
-              {it.name}
+            {/* The icon is a flex sibling of the name, not a child of it:
+                preflight renders an svg as a block, so inside the text it
+                dropped onto its own line above the label. */}
+            <span className="flex min-w-0 flex-1 items-center gap-1.5 text-stone-600">
+              {it.icon && (
+                <CategoryIcon
+                  icon={it.icon}
+                  size={16}
+                  color={it.color}
+                  className="shrink-0"
+                />
+              )}
+              <span className="truncate">{it.name}</span>
             </span>
             <ChangeBalance
               change={it.change}
