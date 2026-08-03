@@ -9,12 +9,14 @@ import {
   paraToInput,
   sanitizeMoneyInput,
 } from '../lib/format'
-import { CategoryIcon } from '../ui/icons'
+import { formatDayMonthYear } from '../lib/dates'
+import { CalendarDotsIcon, RepeatIcon, XIcon } from '../ui/icons'
+import { Popover } from '../ui/Popover'
+import { PickerRow, PILL, Row, TextRow } from './TransactionRows'
 // The one implementation of the recurrence calendar, shared with the backend so
 // the date the modal promises is the date the rule generates.
 import { nextDue, parseISO } from '../../convex/lib/recurrence'
 import { cadenceLabel, untilDateForCount } from '../lib/recurrence'
-import { ConfirmButton } from '../screens/settings/kit'
 
 type Direction = 'expense' | 'income' | 'transfer'
 
@@ -116,6 +118,7 @@ export function TransactionForm({
   const [endOn, setEndOn] = useState('')
   const [times, setTimes] = useState('12')
   const [saving, setSaving] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const amountRef = useRef<HTMLInputElement>(null)
 
@@ -326,324 +329,363 @@ export function TransactionForm({
   }
 
   if (isEdit && detail === undefined) {
-    return <p className="py-8 text-center text-sm text-stone-400">Loading…</p>
+    return <p className="p-8 text-center text-sm text-stone-400">Loading…</p>
   }
 
-  return (
-    <>
-      {/* Direction */}
-      <div className="flex rounded-xl bg-stone-100 p-1" role="tablist">
-        {SEGMENTS.map((s) => (
-          <button
-            key={s.id}
-            role="tab"
-            aria-selected={direction === s.id}
-            onClick={() => setDirection(s.id)}
-            className={`h-11 sm:h-10 flex-1 rounded-lg text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
-              direction === s.id
-                ? 'bg-white text-stone-900'
-                : 'text-stone-500 hover:text-stone-700'
-            }`}
-          >
-            {s.label}
-          </button>
-        ))}
-      </div>
+  const catOptions = (direction === 'income' ? incomeCats : expenseCats).map(
+    (c) => ({ key: c._id, icon: c.icon, color: c.color, text: c.name, value: c._id }),
+  )
+  const chosenCat = categories.find((c) => c._id === categoryId)
+  const chosenTakeFrom = potBalances.find((p) => p._id === takeFrom)
+  const chosenFrom = potBalances.find((p) => p._id === from)
+  const chosenInto = potBalances.find((p) => p._id === potId)
+  const chosenLoan = potBalances.find((p) => p._id === paysOff)
+  const repeatLabel = REPEATS.find((r) => r.id === repeat)!.label
 
-      {/* Amount. Looks like the figure it is, but you type straight into it —
-          a borderless input rather than a keypad, which was a lot of chrome for
-          something every keyboard already does. */}
-      <label className="mt-6 block">
-        <span className="sr-only">Amount</span>
-        <span className="flex items-baseline justify-center gap-1">
+  return (
+    <div className="flex flex-col">
+      <div className="flex flex-col gap-6 px-6 py-5">
+        {/* Direction. Plain words, not a segmented control: there are three of
+            them, they are always visible, and the chosen one is simply the
+            one that is dark. */}
+        <div className="flex items-center gap-3">
+          <div
+            className="flex min-w-0 flex-1 items-center gap-3 text-base font-medium tracking-[-0.16px]"
+            role="tablist"
+          >
+            {SEGMENTS.map((s) => (
+              <button
+                key={s.id}
+                role="tab"
+                aria-selected={direction === s.id}
+                onClick={() => setDirection(s.id)}
+                className={`rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
+                  direction === s.id
+                    ? 'text-stone-800'
+                    : 'text-stone-500 hover:text-stone-700'
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={onDone}
+            aria-label="Close"
+            className="grid size-11 shrink-0 place-items-center rounded-full text-stone-600 hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:size-8"
+          >
+            <XIcon size={20} aria-hidden />
+          </button>
+        </div>
+
+        {/* Date sits above the amount and carries no label — it is when this
+            happened, which is part of the headline, not one of the fields. */}
+        <div className="flex">
+          <label className={`${PILL} relative cursor-pointer`}>
+            <CalendarDotsIcon size={16} aria-hidden />
+            {formatDayMonthYear(occurredOn)}
+            <input
+              type="date"
+              value={occurredOn}
+              aria-label="Date"
+              onChange={(e) => setOccurredOn(e.target.value || occurredOn)}
+              onClick={(e) => e.currentTarget.showPicker?.()}
+              className="absolute inset-0 cursor-pointer opacity-0"
+            />
+          </label>
+        </div>
+
+        {/* The amount is the headline: you type straight into it. */}
+        <label className="flex items-baseline gap-1">
+          <span className="sr-only">Amount</span>
           <input
             ref={amountRef}
             inputMode="decimal"
             value={amountStr}
             onChange={(e) => setAmountStr(sanitizeMoneyInput(e.target.value))}
             placeholder="0"
-            aria-label="Amount"
-            // Width follows the content so the figure stays centred as it grows.
-            size={Math.max(amountStr.length || 1, 1)}
-            className="tnum w-auto min-w-[2ch] border-0 bg-transparent p-0 text-center text-[40px] leading-none text-stone-800 outline-none placeholder:text-stone-300"
+            data-money
+            className="min-w-px flex-1 border-0 bg-transparent p-0 text-[40px] leading-8 tracking-[-0.8px] text-stone-900 outline-none placeholder:text-stone-400"
           />
-          <span className="text-sm text-stone-500">
+          <span className="shrink-0 text-sm text-stone-600">
             {household.baseCurrency}
           </span>
-        </span>
-      </label>
+        </label>
 
-      {/* Contextual fields */}
-      <div className="mt-5 space-y-4">
-        {direction === 'transfer' ? (
-          transferTargets.length === 0 ? (
-            <Field label="Into fund">
-              <p className="text-sm text-stone-400">
-                Create a fund first (in Settings) to transfer into it.
-              </p>
-            </Field>
-          ) : (
-            <>
-              {/* Where it comes from. This month is saving; a fund is moving
-                  money that was set aside once already — which is why moving it
-                  again does not come off this month a second time. */}
-              {sourceFunds.length > 0 && (
-                <Field label="From">
-                  <ChipRow>
-                    <Chip
-                      active={from === 'income'}
-                      onClick={() => setFrom('income')}
-                    >
-                      This month
-                    </Chip>
-                    {sourceFunds.map((p) => (
-                      <Chip
-                        key={p._id}
-                        active={from === p._id}
-                        onClick={() => {
-                          setFrom(p._id)
-                          // Cannot land where it started.
-                          if (potId === p._id) setPotId(null)
-                        }}
-                      >
-                        <CategoryIcon icon={p.icon} size={16} color={p.color} />{' '}
-                        {p.name} · {formatMoney(p.balance)}
-                      </Chip>
-                    ))}
-                  </ChipRow>
-                </Field>
-              )}
+        <div className="flex flex-col">
+          {direction !== 'transfer' && (
+            <PickerRow
+              first
+              label="Category"
+              value={
+                chosenCat
+                  ? { icon: chosenCat.icon, color: chosenCat.color, text: chosenCat.name }
+                  : null
+              }
+              options={catOptions}
+              onPick={setCategoryId}
+            />
+          )}
 
-              <Field label="Into">
-                <ChipRow>
-                  {destinations.map((p) => (
-                    <Chip
-                      key={p._id}
-                      active={potId === p._id}
-                      onClick={() => setPotId(p._id)}
-                    >
-                      <CategoryIcon icon={p.icon} size={16} color={p.color} />{' '}
-                      {p.name}
-                    </Chip>
-                  ))}
-                  {/* Only reachable out of a fund: taking the label off money
-                      rather than putting one on. */}
-                  {from !== 'income' && (
-                    <Chip active={potId === null} onClick={() => setPotId(null)}>
-                      Nothing — free it up
-                    </Chip>
-                  )}
-                </ChipRow>
-              </Field>
-            </>
-          )
-        ) : (
-          <Field label="Category">
-            <ChipRow>
-              {(direction === 'income' ? incomeCats : expenseCats).map((c) => (
-                <Chip
-                  key={c._id}
-                  active={categoryId === c._id}
-                  onClick={() => setCategoryId(c._id)}
-                >
-                  <CategoryIcon icon={c.icon} size={16} color={c.color} />{' '}
-                  {c.name}
-                </Chip>
-              ))}
-            </ChipRow>
-          </Field>
-        )}
+          <TextRow
+            first={direction === 'transfer'}
+            label="Payee"
+            value={payee}
+            onChange={setPayee}
+            placeholder="Enter payee"
+          />
 
-        {/* Take from — only for expenses, only when a pot has money */}
-        {direction === 'expense' && fundablePots.length > 0 && (
-          <Field label="Take from">
-            <ChipRow>
-              <Chip
-                active={takeFrom === 'income'}
-                onClick={() => setTakeFrom('income')}
+          {/* Where the money comes from. On an expense it is a fund it is
+              spent out of; on a transfer, a fund it is moved out of. Both
+              default to this month. */}
+          {direction === 'expense' && fundablePots.length > 0 && (
+            <PickerRow
+              label="Pay from"
+              value={{
+                icon: chosenTakeFrom?.icon,
+                color: chosenTakeFrom?.color,
+                text: chosenTakeFrom?.name ?? "Month's income",
+              }}
+              options={[
+                { key: 'income', text: "Month's income", value: 'income' as const },
+                ...fundablePots.map((p) => ({
+                  key: p._id,
+                  icon: p.icon,
+                  color: p.color,
+                  text: p.name,
+                  hint: formatMoney(p.balance),
+                  value: p._id,
+                })),
+              ]}
+              onPick={setTakeFrom}
+            />
+          )}
+
+          {direction === 'transfer' && sourceFunds.length > 0 && (
+            <PickerRow
+              label="Pay from"
+              value={{
+                icon: chosenFrom?.icon,
+                color: chosenFrom?.color,
+                text: chosenFrom?.name ?? "Month's income",
+              }}
+              options={[
+                { key: 'income', text: "Month's income", value: 'income' as const },
+                ...sourceFunds.map((p) => ({
+                  key: p._id,
+                  icon: p.icon,
+                  color: p.color,
+                  text: p.name,
+                  hint: formatMoney(p.balance),
+                  value: p._id,
+                })),
+              ]}
+              onPick={(v: 'income' | Id<'pots'>) => {
+                setFrom(v)
+                if (potId === v) setPotId(null)
+              }}
+            />
+          )}
+
+          {direction === 'transfer' && (
+            <PickerRow
+              label="Into"
+              value={
+                chosenInto
+                  ? { icon: chosenInto.icon, color: chosenInto.color, text: chosenInto.name }
+                  : from !== 'income'
+                    ? { text: 'Nothing — free it up' }
+                    : null
+              }
+              emptyAction="Fund"
+              options={[
+                ...destinations.map((p) => ({
+                  key: p._id,
+                  icon: p.icon,
+                  color: p.color,
+                  text: p.name,
+                  value: p._id as Id<'pots'> | null,
+                })),
+                ...(from !== 'income'
+                  ? [{ key: 'none', text: 'Nothing — free it up', value: null }]
+                  : []),
+              ]}
+              onPick={setPotId}
+            />
+          )}
+
+          {/* A loan this expense pays down. Unset it is an action, not an
+              empty field — there is nothing to show, only something to do. */}
+          {direction === 'expense' && loans.length > 0 && (
+            <PickerRow
+              label="Paying off"
+              value={
+                chosenLoan
+                  ? { icon: chosenLoan.icon, color: chosenLoan.color, text: chosenLoan.name }
+                  : null
+              }
+              emptyAction="Loan"
+              options={[
+                { key: 'none', text: 'Nothing', value: null },
+                ...loans.map((l) => ({
+                  key: l._id,
+                  icon: l.icon,
+                  color: l.color,
+                  text: l.name,
+                  hint: formatMoney(l.owed ?? 0),
+                  value: l._id as Id<'pots'> | null,
+                })),
+              ]}
+              onPick={setPaysOff}
+            />
+          )}
+
+          {/* Repeat is one row and a whole panel: the cadence, when it ends,
+              and whether the amount is a guess. All of it belongs to the same
+              decision, so all of it lives behind the same pill. */}
+          {!isEdit && (
+            <Row label="Repeat">
+              <Popover
+                label="Repeat"
+                align="right"
+                triggerClassName={PILL}
+                trigger={
+                  <>
+                    <RepeatIcon size={16} aria-hidden />
+                    {repeatLabel}
+                  </>
+                }
               >
-                This month
-              </Chip>
-              {fundablePots.map((p) => (
-                <Chip
-                  key={p._id}
-                  active={takeFrom === p._id}
-                  onClick={() => setTakeFrom(p._id)}
-                >
-                  <CategoryIcon icon={p.icon} size={16} color={p.color} />{' '}
-                  {p.name} · {formatMoney(p.balance)}
-                </Chip>
-              ))}
-            </ChipRow>
-          </Field>
-        )}
+                {() => (
+                  <div className="w-64 p-1">
+                    <ul>
+                      {REPEATS.map((r) => (
+                        <li key={r.id}>
+                          <button
+                            type="button"
+                            onClick={() => setRepeat(r.id)}
+                            aria-pressed={repeat === r.id}
+                            className={`flex min-h-11 w-full items-center rounded-lg px-2 text-left text-sm hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:min-h-9 ${
+                              repeat === r.id ? 'text-stone-900' : 'text-stone-600'
+                            }`}
+                          >
+                            {r.label}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
 
-        {/* Paying off — an expense can name the loan it pays down. It is still
-            an ordinary expense; this only tells the loan about it. */}
-        {direction === 'expense' && loans.length > 0 && (
-          <Field label="Paying off">
-            <ChipRow>
-              <Chip active={paysOff === null} onClick={() => setPaysOff(null)}>
-                Nothing
-              </Chip>
-              {loans.map((l) => (
-                <Chip
-                  key={l._id}
-                  active={paysOff === l._id}
-                  onClick={() => setPaysOff(l._id)}
-                >
-                  <CategoryIcon icon={l.icon} size={16} color={l.color} />{' '}
-                  {l.name} · {formatMoney(l.owed ?? 0)} left
-                </Chip>
-              ))}
-            </ChipRow>
-          </Field>
-        )}
+                    {repeat !== 'once' && ruleStartsOn && (
+                      <div className="mt-2 border-t border-stone-100 pt-2">
+                        <p className="px-2 text-xs text-stone-500">
+                          {cadenceLabel(repeat, 1, anchorDay, ruleStartsOn)} · next
+                          on {ruleStartsOn}. This one is saved now.
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2 px-2">
+                          <span className="text-xs text-stone-500">Ends</span>
+                          {(
+                            [
+                              ['forever', 'Never'],
+                              ['after', 'After'],
+                              ['on', 'On'],
+                            ] as const
+                          ).map(([mode, label]) => (
+                            <button
+                              key={mode}
+                              type="button"
+                              onClick={() => setEndMode(mode)}
+                              aria-pressed={endMode === mode}
+                              className={`min-h-11 rounded-full border px-2.5 text-xs sm:min-h-8 ${
+                                endMode === mode
+                                  ? 'border-brand bg-violet-50 text-stone-900'
+                                  : 'border-stone-200 text-stone-600 hover:bg-stone-50'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                          {endMode === 'after' && (
+                            <span className="flex items-center gap-1.5">
+                              <input
+                                inputMode="numeric"
+                                value={times}
+                                onChange={(e) =>
+                                  setTimes(
+                                    e.target.value.replace(/[^\d]/g, '').slice(0, 3),
+                                  )
+                                }
+                                aria-label="Number of times"
+                                data-money
+                                className="w-14 rounded-lg border border-stone-200 bg-white px-2 py-1 text-right text-xs outline-none focus-visible:border-brand"
+                              />
+                              <span className="text-xs text-stone-500">times</span>
+                            </span>
+                          )}
+                          {endMode === 'on' && (
+                            <input
+                              type="date"
+                              value={endOn}
+                              min={ruleStartsOn}
+                              onChange={(e) => setEndOn(e.target.value)}
+                              aria-label="Repeat until"
+                              className="rounded-lg border border-stone-200 bg-white px-2 py-1 text-xs outline-none focus-visible:border-brand"
+                            />
+                          )}
+                        </div>
+                        {untilDate && (
+                          <p className="mt-1.5 px-2 text-xs text-stone-500">
+                            Last one on {untilDate}.
+                          </p>
+                        )}
+                        <label className="mt-2 flex items-center gap-2 px-2 text-xs text-stone-600">
+                          <input
+                            type="checkbox"
+                            checked={estimate}
+                            onChange={(e) => setEstimate(e.target.checked)}
+                            className="size-4 accent-brand"
+                          />
+                          The amount varies — ask me to confirm it each time
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Popover>
+            </Row>
+          )}
 
-        <div className="flex gap-3">
-          <Field label="Payee" className="flex-1">
-            <input
-              value={payee}
-              onChange={(e) => setPayee(e.target.value)}
-              placeholder="Optional"
-              className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-violet-200"
+          <TextRow
+            label="Note"
+            value={note}
+            onChange={setNote}
+            placeholder="Enter note"
+          />
+
+          {/* Accounts only when there is more than one, so the common case
+              stays one fewer row. */}
+          {accounts.length > 1 && (
+            <PickerRow
+              label="Account"
+              value={{
+                text:
+                  accounts.find((a) => a._id === accountId)?.name ??
+                  accounts.find((a) => a.isPrimary)?.name ??
+                  '—',
+              }}
+              options={accounts.map((a) => ({
+                key: a._id,
+                text: a.name,
+                value: a._id,
+              }))}
+              onPick={setAccountId}
             />
-          </Field>
-          <Field label="Date">
-            <input
-              type="date"
-              value={occurredOn}
-              onChange={(e) => setOccurredOn(e.target.value)}
-              className="rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-violet-200"
-            />
-          </Field>
+          )}
         </div>
 
-        <Field label="Note">
-          <input
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Optional"
-            className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-violet-200"
-          />
-        </Field>
-
-        {/* Account — only when there is more than one, so the common case
-            stays a single tap. */}
-        {accounts.length > 1 && (
-          <Field label="Account">
-            <ChipRow>
-              {accounts.map((a) => (
-                <Chip
-                  key={a._id}
-                  active={accountId === a._id || (!accountId && a.isPrimary)}
-                  onClick={() => setAccountId(a._id)}
-                >
-                  {a.name}
-                </Chip>
-              ))}
-            </ChipRow>
-          </Field>
-        )}
-
-        {/* Repeat — off by default; most transactions happen once. Adding only:
-            an existing transaction has already happened, and the rule it may
-            have come from is edited in Repeating. */}
-        {!isEdit && (
-          <Field label="Repeat">
-            <ChipRow>
-              {REPEATS.map((r) => (
-                <Chip
-                  key={r.id}
-                  active={repeat === r.id}
-                  onClick={() => setRepeat(r.id)}
-                >
-                  {r.label}
-                </Chip>
-              ))}
-            </ChipRow>
-          </Field>
-        )}
-
-        {!isEdit && repeat !== 'once' && ruleStartsOn && (
-          <div className="rounded-xl bg-stone-50 p-3">
-            <p className="text-xs text-stone-500">
-              {cadenceLabel(repeat, 1, anchorDay, ruleStartsOn)} · next on{' '}
-              {ruleStartsOn}. This one is saved now.
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span className="text-xs text-stone-500">Ends</span>
-              {(
-                [
-                  ['forever', 'Never'],
-                  ['after', 'After'],
-                  ['on', 'On'],
-                ] as const
-              ).map(([mode, label]) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setEndMode(mode)}
-                  aria-pressed={endMode === mode}
-                  className={`min-h-11 sm:min-h-8 rounded-full border px-2.5 text-xs ${
-                    endMode === mode
-                      ? 'border-brand bg-violet-50 text-stone-900'
-                      : 'border-stone-200 text-stone-600 hover:bg-white'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-
-              {endMode === 'after' && (
-                <span className="flex items-center gap-1.5">
-                  <input
-                    inputMode="numeric"
-                    value={times}
-                    onChange={(e) =>
-                      setTimes(e.target.value.replace(/[^\d]/g, '').slice(0, 3))
-                    }
-                    aria-label="Number of times"
-                    className="tnum w-14 rounded-lg border border-stone-200 bg-white px-2 py-1 text-right text-xs outline-none focus-visible:border-brand"
-                  />
-                  <span className="text-xs text-stone-500">times in total</span>
-                </span>
-              )}
-
-              {endMode === 'on' && (
-                <input
-                  type="date"
-                  value={endOn}
-                  min={ruleStartsOn}
-                  onChange={(e) => setEndOn(e.target.value)}
-                  aria-label="Repeat until"
-                  className="rounded-lg border border-stone-200 bg-white px-2 py-1 text-xs outline-none focus-visible:border-brand"
-                />
-              )}
-            </div>
-
-            {untilDate && (
-              <p className="mt-1.5 text-xs text-stone-500">
-                Last one on {untilDate}.
-              </p>
-            )}
-
-            <label className="mt-2 flex items-center gap-2 text-xs text-stone-600">
-              <input
-                type="checkbox"
-                checked={estimate}
-                onChange={(e) => setEstimate(e.target.checked)}
-                className="size-4 accent-brand"
-              />
-              The amount varies — ask me to confirm it each time
-            </label>
-          </div>
-        )}
-
-        {/* How it was actually funded. Derived from the amount and the fund at
-            the moment it was recorded, so it is reported, never typed — and it
-            is the only place the split across two sources is visible. */}
-        {detail && detail.funding.length > 0 && (
+        {/* How it was actually funded. Derived at the moment it was recorded,
+            so it is reported, never typed — and the only place a split across
+            two sources is visible. */}
+        {detail && detail.funding.length > 1 && (
           <div className="rounded-xl bg-stone-50 p-3">
             <p className="text-xs font-medium tracking-wide text-stone-400 uppercase">
               Paid from
@@ -652,100 +694,52 @@ export function TransactionForm({
               {detail.funding.map((f, i) => (
                 <li
                   key={i}
-                  className="tnum flex justify-between text-xs text-stone-600"
+                  className="flex justify-between text-xs text-stone-600"
                 >
                   <span>{f.potName ?? 'This month'}</span>
-                  <span>{formatMoney(f.amount)}</span>
+                  <span data-money>{formatMoney(f.amount)}</span>
                 </li>
               ))}
             </ul>
-            {detail.funding.some((f) => f.potId) && (
-              <p className="mt-1.5 text-xs text-stone-400">
-                Money taken from a fund does not reduce what is left to spend —
-                it was already set aside.
-              </p>
-            )}
           </div>
         )}
+
+        {error && <p className="text-sm text-debt">{error}</p>}
       </div>
 
-      {error && <p className="mt-4 text-sm text-debt">{error}</p>}
+      <div className="flex flex-col gap-2 px-4 pb-4">
+        <button
+          onClick={save}
+          disabled={!canSave}
+          className="min-h-11 w-full rounded-full border border-violet-800 bg-brand px-2 py-2.5 text-sm font-medium text-white shadow-[0px_1px_1px_#ddd6fe] hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40"
+        >
+          {saving ? 'Saving…' : 'Save'}
+        </button>
 
-      <button
-        onClick={save}
-        disabled={!canSave}
-        className="mt-6 h-12 w-full rounded-xl bg-brand text-sm font-semibold text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40"
-      >
-        {saving ? 'Saving…' : 'Save'}
-      </button>
-
-      {transactionId && (
-        <div className="mt-3 flex justify-end">
-          <ConfirmButton
-            label="Delete"
-            confirmLabel="Delete it"
-            onConfirm={async () => {
+        {transactionId && (
+          <button
+            onClick={async () => {
+              if (!confirmDelete) {
+                setConfirmDelete(true)
+                return
+              }
               setDeleting(true)
               try {
                 await remove({ transactionId })
                 onDone()
               } catch (e) {
                 setDeleting(false)
+                setConfirmDelete(false)
                 setError(e instanceof Error ? e.message : 'Could not delete')
               }
             }}
-          />
-        </div>
-      )}
-    </>
-  )
-}
-
-function Field({
-  label,
-  className,
-  children,
-}: {
-  label: string
-  className?: string
-  children: React.ReactNode
-}) {
-  return (
-    <label className={`block ${className ?? ''}`}>
-      <span className="mb-1.5 block text-xs font-medium text-stone-400 uppercase tracking-wide">
-        {label}
-      </span>
-      {children}
-    </label>
-  )
-}
-
-function ChipRow({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">{children}</div>
-  )
-}
-
-// Colour lives on the category's icon now, not on a separate dot beside it.
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex min-h-11 sm:min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
-        active
-          ? 'border-brand bg-violet-50 text-stone-900'
-          : 'border-stone-200 text-stone-600 hover:bg-stone-50'
-      }`}
-    >
-      {children}
-    </button>
+            onBlur={() => setConfirmDelete(false)}
+            className="min-h-11 w-full rounded-full px-2 py-2.5 text-sm font-medium text-debt hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+          >
+            {confirmDelete ? 'Delete it' : 'Delete'}
+          </button>
+        )}
+      </div>
+    </div>
   )
 }

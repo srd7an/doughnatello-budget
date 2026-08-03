@@ -3,13 +3,12 @@ import { TransactionForm } from '../app/TransactionForm'
 import { Modal } from '../ui/Modal'
 
 /**
- * One transaction, opened from the list.
+ * One transaction, opened from a list.
  *
- * Reading and editing are the same view rather than two: there is little here
- * to read, and the thing you want after looking at a transaction is almost
- * always to correct it. It is also the same view as adding one — the same form
- * component, prefilled — because "what can I change afterwards" should never be
- * a shorter list than "what could I set".
+ * The same form as adding one, prefilled — because "what can I change
+ * afterwards" should never be a shorter list than "what could I set". It stays
+ * a centred sheet rather than a popover: it is opened from a row somewhere down
+ * a list, and there is no button for it to hang off.
  */
 export function TransactionDetail({
   transactionId,
@@ -21,7 +20,7 @@ export function TransactionDetail({
   if (!transactionId) return null
 
   return (
-    <Modal open onClose={onClose} title="Edit transaction">
+    <Modal open bare onClose={onClose} title="Edit transaction">
       <TransactionForm transactionId={transactionId} onDone={onClose} />
     </Modal>
   )

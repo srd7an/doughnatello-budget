@@ -83,7 +83,7 @@ export function AppShell() {
           </div>
 
           {/* Row 2: period control (the nav) + add */}
-          <div className="mt-2 flex items-center justify-between gap-2">
+          <div className="relative mt-2 flex items-center justify-between gap-2">
             {onPage ? <BackLink /> : <PeriodControl />}
             <button
               onClick={() => navigate('/add')}
@@ -91,6 +91,7 @@ export function AppShell() {
             >
               Add transaction
             </button>
+            <AddTransactionModal open={addOpen} onClose={close} />
           </div>
         </div>
       </header>
@@ -108,7 +109,6 @@ export function AppShell() {
         <PlusIcon className="size-6" />
       </button>
 
-      <AddTransactionModal open={addOpen} onClose={close} />
       <TransactionDetail
         transactionId={
           (txMatch?.params.transactionId as Id<'transactions'>) ?? null

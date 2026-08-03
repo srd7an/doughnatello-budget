@@ -11,11 +11,16 @@ export function Modal({
   onClose,
   title,
   children,
+  bare = false,
 }: {
   open: boolean
   onClose: () => void
   title: string
   children: ReactNode
+  /** The child draws its own header and padding — used by the transaction
+   *  form, which is one designed card and cannot have a second title bar
+   *  bolted above it. */
+  bare?: boolean
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
   const restoreTo = useRef<HTMLElement | null>(null)
@@ -53,8 +58,11 @@ export function Modal({
         // Tall content scrolls inside the panel rather than off the screen —
         // the transaction form runs past a phone's viewport once a repeat or
         // the funding breakdown is showing.
-        className="max-h-[90svh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-5 outline-none sm:max-h-[85svh] sm:rounded-2xl sm:border sm:border-stone-200"
+        className={`max-h-[90svh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white outline-none sm:max-h-[85svh] sm:rounded-2xl sm:border sm:border-stone-200 ${
+          bare ? '' : 'p-5'
+        }`}
       >
+        {!bare && (
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
           {/* Same close control as the settings modal — one shape for "dismiss
@@ -67,6 +75,7 @@ export function Modal({
             <XIcon size={20} aria-hidden />
           </button>
         </div>
+        )}
         {children}
       </div>
     </div>

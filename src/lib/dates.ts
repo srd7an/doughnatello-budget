@@ -15,3 +15,12 @@ export function dayLabel(iso: string): string {
     month: 'long',
   }).format(new Date(y, m - 1, d))
 }
+
+/**
+ * "25.07.2026." — the Serbian way round, which is how the date pill in the
+ * transaction form reads it. Distinct from dayLabel, which says Today.
+ */
+export function formatDayMonthYear(iso: string): string {
+  const [y, m, d] = iso.split('-')
+  return `${d}.${m}.${y}.`
+}

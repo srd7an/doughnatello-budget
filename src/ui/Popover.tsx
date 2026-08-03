@@ -15,6 +15,7 @@ export function Popover({
   label,
   children,
   align = 'left',
+  triggerClassName,
 }: {
   /** Rendered inside the trigger button. */
   trigger: ReactNode
@@ -23,6 +24,9 @@ export function Popover({
   /** Receives a `close` callback so a choice can dismiss the panel. */
   children: (close: () => void) => ReactNode
   align?: 'left' | 'right'
+  /** Replaces the default trigger styling — the transaction form's rows want
+   *  a pill, and its "+ Loan" wants no chrome at all. */
+  triggerClassName?: string
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -54,7 +58,10 @@ export function Popover({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={label}
-        className="flex min-h-11 sm:min-h-9 items-center gap-2 rounded-lg border border-stone-300 bg-white px-2 py-1.5 text-sm text-stone-800 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        className={
+          triggerClassName ??
+          'flex min-h-11 items-center gap-2 rounded-lg border border-stone-300 bg-white px-2 py-1.5 text-sm text-stone-800 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-9'
+        }
       >
         {trigger}
       </button>
