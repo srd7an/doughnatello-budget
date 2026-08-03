@@ -237,10 +237,20 @@ async function assertPot(
  *
  * The last two are RELABELLING, not saving, which is why neither may name a
  * debt pot: you do not park money inside a loan, you pay the loan off (an
- * expense — see assertLoan). And a move cannot exceed what its source holds:
- * splitting it across income the way a pot-funded expense does would quietly
- * turn "move 100" into "move 40 and save 60", which is not what anyone asked
- * for. Refusing is the honest answer.
+ * expense — see assertLoan).
+ *
+ * A move MAY take more than its source holds, and the source goes negative.
+ * That is not an overdraft, it is a promise: moving 100 out of a fund holding
+ * 40 leaves −60 in one and +100 in the other, and the two still add to 40. Set
+ * aside, free and net worth are all unchanged, because a move charges nothing
+ * to income either way — the arithmetic survives, and a fund you spent from
+ * and mean to top up later is an ordinary thing to want.
+ *
+ * Spending is the case where a shortfall must NOT go negative, and it does not:
+ * writeFunding splits it, taking what the fund has and charging the rest to the
+ * month. That is what keeps left-to-spend honest — a pot allowed to go
+ * arbitrarily negative through spending would let money leave the account
+ * without ever coming off the month.
  */
 async function assertMove(
   ctx: MutationCtx,
@@ -258,12 +268,6 @@ async function assertMove(
     const pot = await assertPot(ctx, householdId, id);
     if (pot.kind === "debt") {
       throw new Error("A loan is paid off, not moved into — record it as an expense");
-    }
-  }
-  if (fromPotId) {
-    const available = await potBalance(ctx, householdId, fromPotId);
-    if (amount > available) {
-      throw new Error("That fund does not hold that much");
     }
   }
 }

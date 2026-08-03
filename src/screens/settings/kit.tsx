@@ -65,8 +65,25 @@ export function Loading() {
   return <p className="py-8 text-center text-sm text-stone-400">Loading…</p>
 }
 
-export function Note({ children }: { children: ReactNode }) {
-  return <p className="px-1 text-xs text-stone-400">{children}</p>
+export function Note({
+  children,
+  tone = 'quiet',
+}: {
+  children: ReactNode
+  /** `warn` for something that will go wrong if you carry on. */
+  tone?: 'quiet' | 'warn'
+}) {
+  return (
+    <p
+      className={
+        tone === 'warn'
+          ? 'rounded-lg bg-orange-50 px-3 py-2 text-xs text-status-near'
+          : 'px-1 text-xs text-stone-400'
+      }
+    >
+      {children}
+    </p>
+  )
 }
 
 export function Field({

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from 'convex/react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
@@ -95,6 +95,8 @@ export function ImportPanel() {
       const rawDirection = cell(r, 'direction').toLowerCase()
 
       // A bank export has no "type" column — the sign carries it instead.
+      // When neither is available this is a GUESS, and guessed rows are
+      // counted below so the preview can say so out loud.
       const direction: Row['direction'] =
         rawDirection === 'income' || rawDirection === 'transfer'
           ? rawDirection
@@ -110,11 +112,31 @@ export function ImportPanel() {
         amount: Math.abs(para),
         category: cell(r, 'category') || undefined,
         fund: cell(r, 'fund') || undefined,
+        payFrom: cell(r, 'payFrom') || undefined,
+        paysOff: cell(r, 'paysOff') || undefined,
         payee: cell(r, 'payee') || undefined,
         note: cell(r, 'note') || undefined,
       }
     })
   }
+
+  /**
+   * How many rows had their direction GUESSED from the sign of the amount
+   * rather than read from a column.
+   *
+   * This is the mistake that cost a month: a sheet whose amounts were all
+   * positive and whose direction column was not mapped imported sixty-seven
+   * expenses as income, and nothing anywhere said a guess had been made.
+   */
+  const guessed = useMemo(() => {
+    if (!mapping || body.length === 0) return 0
+    const col = mapping.direction
+    if (col < 0) return body.length
+    return body.filter((r: string[]) => {
+      const v = (r[col] ?? '').trim().toLowerCase()
+      return v !== 'income' && v !== 'expense' && v !== 'transfer'
+    }).length
+  }, [mapping, body])
 
   const runPreview = async () => {
     setBusy(true)
@@ -254,6 +276,17 @@ export function ImportPanel() {
             />
             Create categories that don't exist yet
           </label>
+
+          {guessed > 0 && (
+            <Note tone="warn">
+              {guessed === body.length
+                ? 'No Direction column is mapped'
+                : `${guessed} row${guessed === 1 ? ' has' : 's have'} no readable Direction`}
+              . Those are read from the sign of the amount, so a positive one
+              becomes income. Map a column whose values are exactly
+              “Income”, “Expense” or “Transfer”.
+            </Note>
+          )}
 
           <div className="flex gap-2">
             <PrimaryButton onClick={runPreview} disabled={busy}>

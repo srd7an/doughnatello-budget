@@ -143,18 +143,29 @@ describe("moving money between funds", () => {
     expect(year.totals.savings).toBe(50_000_00); // only the original set-aside
   });
 
-  test("a fund cannot give more than it holds", async () => {
-    const { t, householdId, holiday, repairs } = await setup();
-    await expect(
-      asA(t).mutation(api.transactions.create, {
-        householdId,
-        direction: "transfer",
-        amount: 60_000_00,
-        fromPotId: holiday,
-        potId: repairs,
-        occurredOn: `${MONTH}-10`,
-      }),
-    ).rejects.toThrow(/does not hold that much/);
+  test("a fund may give more than it holds, and owes the difference", async () => {
+    const { t, householdId, holiday, repairs, balances, month } = await setup();
+    const before = await month();
+
+    await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "transfer",
+      amount: 60_000_00,
+      fromPotId: holiday,
+      potId: repairs,
+      occurredOn: `${MONTH}-10`,
+    });
+
+    // Holiday held 50.000 and gave 60.000, so it is owed 10.000 back. The two
+    // still come to the 50.000 that was actually set aside.
+    const pots = await balances();
+    expect(pots.find((p) => p._id === holiday)!.balance).toBe(-10_000_00);
+    expect(pots.find((p) => p._id === repairs)!.balance).toBe(60_000_00);
+
+    const b = await asA(t).query(api.overview.balances, { householdId });
+    expect(b.setAside).toBe(50_000_00);
+    // And nothing about the month moved: a move is relabelling, not spending.
+    expect(await month()).toEqual(before);
   });
 
   test("a fund cannot move money to itself", async () => {
@@ -244,22 +255,26 @@ describe("editing a move", () => {
     expect(pots.find((p) => p._id === repairs)!.balance).toBe(45_000_00);
   });
 
-  test("raising it past what the fund holds is still refused", async () => {
-    const { t, householdId, holiday, repairs } = await setup();
-    const id = await asA(t).mutation(api.transactions.create, {
+  test("spending from a fund still splits rather than going negative", async () => {
+    const { t, householdId, holiday, groceryCat, month } = await setup();
+
+    // 70.000 out of a fund holding 50.000: the fund pays what it has and the
+    // month pays the rest. Left-to-spend has to see that 20.000, or money
+    // leaves the account without ever coming off the month.
+    await asA(t).mutation(api.transactions.create, {
       householdId,
-      direction: "transfer",
-      amount: 30_000_00,
-      fromPotId: holiday,
-      potId: repairs,
-      occurredOn: `${MONTH}-10`,
+      direction: "expense",
+      amount: 70_000_00,
+      categoryId: groceryCat,
+      takeFromPotId: holiday,
+      occurredOn: `${MONTH}-12`,
     });
-    await expect(
-      asA(t).mutation(api.transactions.update, {
-        transactionId: id,
-        amount: 60_000_00,
-      }),
-    ).rejects.toThrow(/does not hold that much/);
+
+    const pots = await asA(t).query(api.pots.balances, { householdId });
+    expect(pots.find((p) => p._id === holiday)!.balance).toBe(0);
+    const m = await month();
+    expect(m.paidFromFunds).toBe(50_000_00);
+    expect(m.expense).toBe(20_000_00);
   });
 
   test("dropping the source turns a move back into saving", async () => {

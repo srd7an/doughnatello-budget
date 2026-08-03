@@ -202,11 +202,9 @@ export function TransactionForm({
     (p) => p.kind !== 'debt' && (p.balance > 0 || p._id === takeFrom),
   )
 
-  // Funds a transfer can come out of — the ones holding something, plus the
-  // one it already comes out of when editing.
-  const sourceFunds = potBalances.filter(
-    (p) => p.kind !== 'debt' && (p.balance > 0 || p._id === from),
-  )
+  // Every fund can be moved out of, empty or not: a move may leave a fund
+  // owed, which is how "I spent it and will put it back" is written down.
+  const sourceFunds = potBalances.filter((p) => p.kind !== 'debt')
   // A fund cannot move money to itself, so the chosen source leaves the list.
   const destinations = transferTargets.filter((p) => p._id !== from)
 
