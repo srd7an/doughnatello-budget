@@ -91,13 +91,25 @@ export function YearChart({
         style={{ height: HEIGHT }}
         onPointerLeave={() => setHover(null)}
       >
-        {/* Average income line */}
+        {/* The average line, and what it IS. An unexplained dashed rule
+            across a chart is a question mark: it was drawn as an aid and read
+            as a mystery, so it now says which number it is and what that
+            number means. Months with no income are left out of the average —
+            a year still being lived would otherwise average itself down
+            towards zero as it goes. */}
         {avg > 0 && (
           <div
             aria-hidden
             className="pointer-events-none absolute inset-x-0 border-t border-dashed border-stone-300"
             style={{ bottom: avgBottom }}
-          />
+          >
+            <p className="tnum absolute right-0 bottom-1 bg-white px-1 text-xs text-stone-400">
+              Average income{' '}
+              <span data-money className="text-stone-500">
+                {formatMoney(avg)}
+              </span>
+            </p>
+          </div>
         )}
 
         {months.map((m, i) => {
@@ -148,6 +160,10 @@ export function YearChart({
           )
         })}
       </div>
+
+      {/* The baseline the columns stand on. Without it they float, and the
+          labels below read as a separate row rather than as their feet. */}
+      <div aria-hidden className="border-t border-stone-200" />
 
       {/* Month labels */}
       <div className="mt-2 flex gap-2">

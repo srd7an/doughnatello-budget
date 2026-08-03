@@ -13,7 +13,13 @@ import { formatDayMonthYear } from '../lib/dates'
 import { CalendarDotsIcon, RepeatIcon, XIcon } from '../ui/icons'
 import { Button } from '../ui/Button'
 import { Popover } from '../ui/Popover'
-import { PickerRow, PILL, Row, TextRow } from './TransactionRows'
+import {
+  PickerRow,
+  PILL,
+  Row,
+  SkeletonRow,
+  TextRow,
+} from './TransactionRows'
 // The one implementation of the recurrence calendar, shared with the backend so
 // the date the modal promises is the date the rule generates.
 import { nextDue, parseISO } from '../../convex/lib/recurrence'
@@ -34,6 +40,15 @@ function todayISO(): string {
 }
 
 type Repeat = 'once' | 'weekly' | 'monthly' | 'yearly'
+
+/** What each direction's rows are called, for the placeholder that stands in
+ *  for them. Only the count and the labels matter — the values are what is
+ *  still arriving. */
+const SKELETON: Record<Direction, string[]> = {
+  expense: ['Category', 'Payee', 'Pay from', 'Paying off', 'Repeat', 'Note'],
+  income: ['Category', 'Payee', 'Repeat', 'Note'],
+  transfer: ['Payee', 'Pay from', 'Into', 'Repeat', 'Note'],
+}
 
 const REPEATS: { id: Repeat; label: string }[] = [
   { id: 'once', label: 'Once' },
@@ -79,9 +94,20 @@ export function TransactionForm({
     api.transactions.detail,
     transactionId && !deleting ? { transactionId } : 'skip',
   )
-  const categories = useQuery(api.categories.list, { householdId }) ?? []
-  const potBalances = useQuery(api.pots.balances, { householdId }) ?? []
-  const accounts = useQuery(api.accounts.list, { householdId }) ?? []
+  const categoryList = useQuery(api.categories.list, { householdId })
+  const potList = useQuery(api.pots.balances, { householdId })
+  const accountList = useQuery(api.accounts.list, { householdId })
+  const categories = categoryList ?? []
+  const potBalances = potList ?? []
+  const accounts = accountList ?? []
+  // Everything the ROWS need. The header, the date and the amount need none of
+  // it, so they are drawn straight away — the amount is the first thing anyone
+  // types, and making it wait on a query for a list of funds would be absurd.
+  const ready =
+    categoryList !== undefined &&
+    potList !== undefined &&
+    accountList !== undefined &&
+    (!isEdit || detail !== undefined)
   const create = useMutation(api.transactions.create)
   const update = useMutation(api.transactions.update)
   const remove = useMutation(api.transactions.remove)
@@ -224,7 +250,7 @@ export function TransactionForm({
     : null
   const dirty = !isEdit || shape !== savedShape
 
-  const canSave = valid && dirty && !saving
+  const canSave = ready && valid && dirty && !saving
 
   // The rule starts at the NEXT occurrence: the transaction being saved right
   // now covers this one, so generating an occurrence for it too would double it.
@@ -329,10 +355,6 @@ export function TransactionForm({
     }
   }
 
-  if (isEdit && detail === undefined) {
-    return <p className="p-8 text-center text-sm text-stone-400">Loading…</p>
-  }
-
   const catOptions = (direction === 'income' ? incomeCats : expenseCats).map(
     (c) => ({ key: c._id, icon: c.icon, color: c.color, text: c.name, value: c._id }),
   )
@@ -414,6 +436,14 @@ export function TransactionForm({
         </label>
 
         <div className="flex flex-col">
+          {!ready ? (
+            // As many rows as this direction will end up with, so the card is
+            // already the height it is about to be.
+            SKELETON[direction].map((label, i) => (
+              <SkeletonRow key={label} label={label} first={i === 0} />
+            ))
+          ) : (
+            <>
           {direction !== 'transfer' && (
             <PickerRow
               first
@@ -680,6 +710,8 @@ export function TransactionForm({
               }))}
               onPick={setAccountId}
             />
+          )}
+            </>
           )}
         </div>
 

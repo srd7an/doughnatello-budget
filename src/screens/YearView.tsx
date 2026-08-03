@@ -55,21 +55,23 @@ export function YearView() {
         </p>
       </section>
 
-      {/* The twelve columns are navigation: click one to zoom into it. */}
       <div>
-        <YearChart
-          months={data.months}
-          currentMonthIndex={currentMonthIndex}
-          onOpenMonth={(i) => openMonth(year, i + 1)}
-        />
-        {/* The key sits under the picture it explains, as it does on the
-            month — headline, chart, legend, on both screens. */}
-        <div className="mt-4 flex flex-wrap gap-8">
+        {/* The key reads before the picture here: four series stacked in a
+            column are worth knowing the names of BEFORE you try to read one,
+            where the month's three-part bar explains itself. */}
+        <div className="mb-4 flex flex-wrap gap-8">
           <Metric label="Income" swatch={<Swatch className="border-stone-400" outline orient="column" />} amount={data.totals.income} />
           <Metric label="Expense" swatch={<Swatch className="bg-expense" orient="column" />} amount={data.totals.expense} />
           <Metric label="Savings" swatch={<Swatch className="bg-saved" orient="column" />} amount={data.totals.savings} />
           <Metric label="Leftover" swatch={<Swatch className="bg-leftover" orient="column" />} amount={data.totals.leftToSpend} />
         </div>
+
+        {/* The twelve columns are navigation: click one to zoom into it. */}
+        <YearChart
+          months={data.months}
+          currentMonthIndex={currentMonthIndex}
+          onOpenMonth={(i) => openMonth(year, i + 1)}
+        />
       </div>
 
       {/* Stock accordions — path is the chart, endpoints are these rows */}

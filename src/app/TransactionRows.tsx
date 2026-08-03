@@ -141,6 +141,26 @@ export function PickerRow<T>({
   )
 }
 
+/**
+ * A row that is not ready yet.
+ *
+ * It exists to hold the layout still. The form's rows depend on queries — how
+ * many there are depends on whether you have funds and loans at all — so
+ * rendering it against empty data drew a short card that grew a row at a time
+ * as the answers arrived. This is the same box at the same height with nothing
+ * in it, so when the real row replaces it, nothing moves.
+ */
+export function SkeletonRow({ label, first }: { label: string; first?: boolean }) {
+  return (
+    <Row label={label} first={first}>
+      <span
+        aria-hidden
+        className={`${CONTROL} w-24 border-transparent bg-stone-100`}
+      />
+    </Row>
+  )
+}
+
 /** A row you type into. No pill: there is nothing to open. */
 export function TextRow({
   label,
