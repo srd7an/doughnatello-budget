@@ -254,9 +254,9 @@ async function assertPot(
  */
 async function assertMove(
   ctx: MutationCtx,
-  args: Pick<TransactionInput, "householdId" | "potId" | "fromPotId" | "amount">,
+  args: Pick<TransactionInput, "householdId" | "potId" | "fromPotId">,
 ) {
-  const { householdId, potId, fromPotId, amount } = args;
+  const { householdId, potId, fromPotId } = args;
   if (!potId && !fromPotId) {
     throw new Error("A transfer needs a destination pot");
   }
@@ -567,16 +567,9 @@ export const update = mutation({
       accountId: args.accountId ?? doc.accountId,
     });
 
-    // Now that the row reads as it will be saved — old funding gone, ends
-    // patched — the source has its real balance and can be checked against.
-    // Throwing here still rolls the whole edit back; Convex mutations are ACID.
+    // After the patch, so the ends being checked are the ones being saved.
     if (nextDirection === "transfer") {
-      await assertMove(ctx, {
-        householdId,
-        potId,
-        fromPotId,
-        amount: nextAmount,
-      });
+      await assertMove(ctx, { householdId, potId, fromPotId });
     }
 
     await writeFunding(ctx, args.transactionId, {
