@@ -343,3 +343,46 @@ describe("pay from, paying off, and moving between funds", () => {
     expect(p.unknownFunds).toContain("Holiday");
   });
 });
+
+describe("a row with no category", () => {
+  test("lands in Uncategorised rather than being refused", async () => {
+    const { t, householdId } = await setup();
+    const result = await asA(t).mutation(api.imports.commit, {
+      householdId,
+      rows: [
+        { date: "2026-07-01", direction: "expense", amount: 2_000_00, payee: "Idea" },
+      ],
+    });
+
+    expect(result.imported).toBe(1);
+    const cats = await asA(t).query(api.categories.list, { householdId });
+    expect(cats.map((c) => c.name)).toContain("Uncategorised");
+  });
+
+  test("all of them share the one category, not one each", async () => {
+    const { t, householdId } = await setup();
+    await asA(t).mutation(api.imports.commit, {
+      householdId,
+      rows: [
+        { date: "2026-07-01", direction: "expense", amount: 1_000_00, payee: "A" },
+        { date: "2026-07-02", direction: "expense", amount: 2_000_00, payee: "B" },
+      ],
+    });
+
+    const cats = await asA(t).query(api.categories.list, { householdId });
+    expect(cats.filter((c) => c.name === "Uncategorised")).toHaveLength(1);
+  });
+
+  test("the preview counts them before anything is written", async () => {
+    const { t, householdId } = await setup();
+    const p = await asA(t).mutation(api.imports.preview, {
+      householdId,
+      rows: [
+        { date: "2026-07-01", direction: "expense", amount: 1_000_00 },
+        { ...grocery("2026-07-02", 2_000_00) },
+      ],
+    });
+    expect(p.uncategorised).toBe(1);
+    expect(p.unknownCategories).not.toContain("");
+  });
+});

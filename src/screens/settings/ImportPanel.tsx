@@ -318,6 +318,14 @@ export function ImportPanel() {
             </ul>
           )}
 
+          {report.uncategorised > 0 && (
+            <p className="mt-3 text-xs text-stone-600">
+              <strong>{report.uncategorised}</strong> row
+              {report.uncategorised === 1 ? '' : 's'} with no category will go
+              into <strong>Uncategorised</strong>. Nothing is lost — file them
+              from the Categories view afterwards.
+            </p>
+          )}
           {report.unknownCategories.length > 0 && (
             <p className="mt-3 text-xs text-stone-600">
               Categories not in this household:{' '}

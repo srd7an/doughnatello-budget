@@ -18,6 +18,9 @@ import { insertTransaction } from "./transactions";
  * are invisible to left-to-spend.
  */
 
+/** Where a row with no category of its own goes. */
+const UNCATEGORISED = "Uncategorised";
+
 const row = v.object({
   date: v.string(), // YYYY-MM-DD
   direction: v.union(
@@ -46,6 +49,7 @@ export const preview = mutation({
     const [categories, pots, existing] = await lookups(ctx, householdId);
 
     const unknownCategories = new Set<string>();
+    let uncategorised = 0;
     const unknownFunds = new Set<string>();
     const problems: string[] = [];
     let duplicates = 0;
@@ -62,7 +66,9 @@ export const preview = mutation({
       if (existing.has(fingerprint(r.date, r.amount, r.direction, r.payee))) {
         duplicates += 1;
       }
-      if (r.category && !categories.has(r.category.toLowerCase())) {
+      if (r.direction !== "transfer" && !r.category?.trim()) {
+        uncategorised += 1;
+      } else if (r.category && !categories.has(r.category.toLowerCase())) {
         unknownCategories.add(r.category);
       }
       for (const name of [r.fund, r.payFrom, r.paysOff]) {
@@ -74,6 +80,7 @@ export const preview = mutation({
       total: rows.length,
       invalid,
       duplicates,
+      uncategorised,
       importable: rows.length - invalid - duplicates,
       problems,
       unknownCategories: [...unknownCategories],
@@ -131,17 +138,22 @@ export const commit = mutation({
 
       let categoryId: Id<"categories"> | undefined
       if (r.direction !== "transfer") {
-        const key = (r.category ?? "").toLowerCase();
+        // A blank category is not a broken row — a bank export has no such
+        // column at all. It goes somewhere named for what it is, so the
+        // history lands intact and can be filed afterwards, which is far
+        // easier than re-importing.
+        const name = r.category?.trim() || UNCATEGORISED;
+        const key = name.toLowerCase();
         categoryId = categories.get(key);
         if (!categoryId) {
-          if (!args.createMissingCategories || !r.category) {
+          if (!args.createMissingCategories && name !== UNCATEGORISED) {
             errors.push(`Row ${i + 1}: no category "${r.category ?? ""}"`);
             skipped += 1;
             continue;
           }
           categoryId = await ctx.db.insert("categories", {
             householdId: args.householdId,
-            name: r.category,
+            name,
             kind: r.direction === "income" ? "income" : "committed",
             icon: "star",
             color: "#78716C",
