@@ -5,6 +5,7 @@ import {
   paraToInput,
   sanitizeMoneyInput,
 } from '../../lib/format'
+import { Button } from '../../ui/Button'
 import { CaretRightIcon, CategoryIcon, ICON_KEYS } from '../../ui/icons'
 import { Popover } from '../../ui/Popover'
 
@@ -130,32 +131,16 @@ export function MoneyInput({
   )
 }
 
-export function PrimaryButton({
-  children,
-  ...rest
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
-    <button
-      {...rest}
-      className={`min-h-11 sm:min-h-9 rounded-full bg-brand px-4 text-sm font-semibold text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40 ${rest.className ?? ''}`}
-    >
-      {children}
-    </button>
-  )
+export function PrimaryButton(
+  props: React.ButtonHTMLAttributes<HTMLButtonElement>,
+) {
+  return <Button variant="primary" {...props} />
 }
 
-export function GhostButton({
-  children,
-  ...rest
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
-    <button
-      {...rest}
-      className={`min-h-11 sm:min-h-9 rounded-full border border-stone-200 px-3 text-sm text-stone-600 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40 ${rest.className ?? ''}`}
-    >
-      {children}
-    </button>
-  )
+export function GhostButton(
+  props: React.ButtonHTMLAttributes<HTMLButtonElement>,
+) {
+  return <Button variant="secondary" {...props} />
 }
 
 /**
@@ -178,17 +163,18 @@ export function ConfirmButton({
 
   if (!armed) {
     return (
-      <button
+      <Button
+        variant="ghost"
         onClick={() => setArmed(true)}
-        className={`min-h-11 sm:min-h-9 rounded-full px-3 text-sm text-stone-500 hover:bg-stone-50 hover:text-debt focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${className}`}
+        className={`hover:text-debt ${className}`}
       >
         {label}
-      </button>
+      </Button>
     )
   }
   return (
     <span className="flex items-center gap-1">
-      <button
+      <Button
         disabled={busy}
         onClick={async () => {
           setBusy(true)
@@ -199,16 +185,13 @@ export function ConfirmButton({
             setArmed(false)
           }
         }}
-        className="min-h-11 sm:min-h-9 rounded-full bg-debt px-3 text-sm font-semibold text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40"
+        className="border-transparent bg-debt text-white hover:opacity-90"
       >
         {confirmLabel}
-      </button>
-      <button
-        onClick={() => setArmed(false)}
-        className="min-h-11 sm:min-h-9 px-2 text-sm text-stone-500 hover:text-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-      >
+      </Button>
+      <Button variant="ghost" onClick={() => setArmed(false)}>
         Cancel
-      </button>
+      </Button>
     </span>
   )
 }

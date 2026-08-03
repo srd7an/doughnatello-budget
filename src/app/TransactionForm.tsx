@@ -11,6 +11,7 @@ import {
 } from '../lib/format'
 import { formatDayMonthYear } from '../lib/dates'
 import { CalendarDotsIcon, RepeatIcon, XIcon } from '../ui/icons'
+import { Button } from '../ui/Button'
 import { Popover } from '../ui/Popover'
 import { PickerRow, PILL, Row, TextRow } from './TransactionRows'
 // The one implementation of the recurrence calendar, shared with the backend so
@@ -708,16 +709,14 @@ export function TransactionForm({
       </div>
 
       <div className="flex flex-col gap-2 px-4 pb-4">
-        <button
-          onClick={save}
-          disabled={!canSave}
-          className="min-h-11 w-full rounded-full border border-violet-800 bg-brand px-2 py-2.5 text-sm font-medium text-white shadow-[0px_1px_1px_#ddd6fe] hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40"
-        >
+        <Button variant="primary" full onClick={save} disabled={!canSave}>
           {saving ? 'Saving…' : 'Save'}
-        </button>
+        </Button>
 
         {transactionId && (
-          <button
+          <Button
+            variant="danger"
+            full
             onClick={async () => {
               if (!confirmDelete) {
                 setConfirmDelete(true)
@@ -734,10 +733,9 @@ export function TransactionForm({
               }
             }}
             onBlur={() => setConfirmDelete(false)}
-            className="min-h-11 w-full rounded-full px-2 py-2.5 text-sm font-medium text-debt hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
           >
             {confirmDelete ? 'Delete it' : 'Delete'}
-          </button>
+          </Button>
         )}
       </div>
     </div>

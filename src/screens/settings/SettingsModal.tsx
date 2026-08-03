@@ -8,6 +8,7 @@ import {
 } from 'react'
 import { useAuthActions } from '@convex-dev/auth/react'
 import { useNavigate } from 'react-router-dom'
+import { Button } from '../../ui/Button'
 import { SignOutIcon, XIcon } from '../../ui/icons'
 import { AccountsPanel } from './AccountsPanel'
 import { FundsPanel } from './FundsPanel'
@@ -229,20 +230,21 @@ export function SettingsModal({
 
           {footer?.dirty && (
             <div className="flex shrink-0 items-center gap-2.5 border-t border-stone-200 bg-stone-50 px-6 py-3">
-              <button
+              <Button
+                variant="primary"
                 onClick={() => void footer.onSave()}
                 disabled={footer.saving}
-                className="min-h-11 sm:min-h-9 w-20 rounded-full border border-violet-800 bg-brand text-sm font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40"
+                className="w-20"
               >
                 {footer.saving ? '…' : 'Save'}
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={footer.onDiscard}
                 disabled={footer.saving}
-                className="min-h-11 sm:min-h-9 w-20 rounded-full border border-violet-300 bg-white text-sm font-medium text-brand hover:bg-violet-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40"
+                className="w-20 border-violet-300 text-brand hover:bg-violet-50"
               >
                 Discard
-              </button>
+              </Button>
             </div>
           )}
         </div>

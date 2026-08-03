@@ -8,11 +8,16 @@ import {
 } from 'react-router-dom'
 import { useMutation } from 'convex/react'
 import { api } from '../../convex/_generated/api'
+import { Button } from '../ui/Button'
+import { SM, useMediaQuery } from '../lib/useMediaQuery'
 import { PlusIcon } from '../ui/icons'
 import { useHousehold } from '../household/HouseholdContext'
 import { AvatarMenu } from './AvatarMenu'
 import { PeriodControl } from './PeriodControl'
-import { AddTransactionModal } from './AddTransactionModal'
+import {
+  AddTransactionPopover,
+  AddTransactionSheet,
+} from './AddTransactionModal'
 import { TransactionDetail } from '../screens/TransactionDetail'
 import { SettingsModal } from '../screens/settings/SettingsModal'
 import { CaretLeftIcon } from '../ui/icons'
@@ -59,6 +64,8 @@ export function AppShell() {
   const settingsMatch = settingsItem ?? settingsSection ?? settingsRoot
   const onPage = !!potMatch || !!assetMatch
 
+  const isDesktop = useMediaQuery(SM)
+
   const close = () => {
     if (location.key === 'default') navigate('/', { replace: true })
     else navigate(-1)
@@ -85,13 +92,14 @@ export function AppShell() {
           {/* Row 2: period control (the nav) + add */}
           <div className="relative mt-2 flex items-center justify-between gap-2">
             {onPage ? <BackLink /> : <PeriodControl />}
-            <button
+            <Button
+              variant="primary"
               onClick={() => navigate('/add')}
-              className="hidden h-8 items-center gap-1.5 rounded-full border border-violet-800 bg-brand px-3 text-sm text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:flex"
+              className="hidden sm:inline-flex"
             >
               Add transaction
-            </button>
-            <AddTransactionModal open={addOpen} onClose={close} />
+            </Button>
+            {addOpen && isDesktop && <AddTransactionPopover onClose={close} />}
           </div>
         </div>
       </header>
@@ -108,6 +116,8 @@ export function AppShell() {
       >
         <PlusIcon className="size-6" />
       </button>
+
+      {addOpen && !isDesktop && <AddTransactionSheet onClose={close} />}
 
       <TransactionDetail
         transactionId={

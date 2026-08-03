@@ -47,7 +47,7 @@ export class ErrorBoundary extends Component<
               // here is exactly what should not be kept.
               window.location.href = '/'
             }}
-            className="mt-6 min-h-11 rounded-full bg-brand px-4 text-sm font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            className="mt-6 min-h-11 rounded-full border border-violet-800 bg-brand px-4 text-sm text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
           >
             Back to the overview
           </button>

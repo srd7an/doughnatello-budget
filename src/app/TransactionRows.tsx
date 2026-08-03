@@ -18,11 +18,19 @@ import { CategoryIcon } from '../ui/icons'
  * pill: nothing is chosen, so there is nothing to show — only something to do.
  */
 
-const PILL =
-  'flex min-h-11 items-center gap-1.5 rounded-full border border-stone-300 bg-white px-3 py-1.5 text-sm text-stone-800 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-8'
+/**
+ * Every control on the right of a row is the SAME BOX — same height, same
+ * padding, same border width. A transparent border on the ones that do not
+ * show one is not a trick, it is the point: without it the row is 2px shorter
+ * when nothing is chosen, and the whole form jumps a line every time you pick
+ * something.
+ */
+const CONTROL =
+  'flex h-11 items-center gap-1.5 rounded-full border px-3 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:h-8'
 
-const ACTION =
-  'flex min-h-11 items-center gap-0.5 rounded-full px-2 py-1.5 text-sm font-medium text-brand hover:bg-violet-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-8'
+const PILL = `${CONTROL} border-stone-300 bg-white text-stone-800 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] hover:bg-stone-50`
+
+const ACTION = `${CONTROL} border-transparent text-brand hover:bg-violet-50`
 
 /** One field. `first` drops the rule, because a rule above the first row is a
  *  line under the amount, which is not what it means. */
@@ -154,7 +162,7 @@ export function TextRow({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         aria-label={label}
-        className="min-h-11 w-[55%] rounded-full px-3 py-1.5 text-right text-sm text-stone-800 outline-none placeholder:text-stone-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-8"
+        className={`${CONTROL} w-[55%] justify-end border-transparent text-right text-stone-800 outline-none placeholder:text-stone-500`}
       />
     </Row>
   )
