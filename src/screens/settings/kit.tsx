@@ -151,7 +151,7 @@ export function GhostButton({
   return (
     <button
       {...rest}
-      className={`min-h-9 rounded-full border border-stone-200 px-3 text-sm text-stone-600 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40 ${rest.className ?? ''}`}
+      className={`min-h-11 rounded-full border border-stone-200 px-3 text-sm text-stone-600 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40 ${rest.className ?? ''}`}
     >
       {children}
     </button>
@@ -180,7 +180,7 @@ export function ConfirmButton({
     return (
       <button
         onClick={() => setArmed(true)}
-        className={`min-h-9 rounded-full px-3 text-sm text-stone-500 hover:bg-stone-50 hover:text-debt focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${className}`}
+        className={`min-h-11 rounded-full px-3 text-sm text-stone-500 hover:bg-stone-50 hover:text-debt focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${className}`}
       >
         {label}
       </button>
@@ -199,13 +199,13 @@ export function ConfirmButton({
             setArmed(false)
           }
         }}
-        className="min-h-9 rounded-full bg-debt px-3 text-sm font-semibold text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40"
+        className="min-h-11 rounded-full bg-debt px-3 text-sm font-semibold text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40"
       >
         {confirmLabel}
       </button>
       <button
         onClick={() => setArmed(false)}
-        className="min-h-9 px-2 text-sm text-stone-500 hover:text-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        className="min-h-11 px-2 text-sm text-stone-500 hover:text-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
       >
         Cancel
       </button>

@@ -64,7 +64,7 @@ export function TransactionsList({
   const chip = filter && (
     <button
       onClick={onClearFilter}
-      className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-brand bg-violet-50 px-3 py-1 text-sm text-stone-900 hover:bg-violet-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+      className="mb-3 inline-flex min-h-11 items-center gap-1.5 rounded-full border border-brand bg-violet-50 px-3 text-sm text-stone-900 hover:bg-violet-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
     >
       {filter.label}
       <XIcon size={14} aria-hidden />
@@ -142,7 +142,7 @@ function TransactionRow({ row, onOpen }: { row: Row; onOpen: () => void }) {
     <li className="border-b border-dashed border-stone-300">
       <button
         onClick={onOpen}
-        className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-stone-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
+        className="flex min-h-11 w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-stone-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
       >
         {/* A bare icon in the category's own colour. The design has no disc behind
           it — the tinted circle it replaced added weight to every single row. */}

@@ -334,7 +334,7 @@ export function TransactionForm({
             role="tab"
             aria-selected={direction === s.id}
             onClick={() => setDirection(s.id)}
-            className={`h-10 flex-1 rounded-lg text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
+            className={`h-11 flex-1 rounded-lg text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
               direction === s.id
                 ? 'bg-white text-stone-900'
                 : 'text-stone-500 hover:text-stone-700'
@@ -580,7 +580,7 @@ export function TransactionForm({
                   type="button"
                   onClick={() => setEndMode(mode)}
                   aria-pressed={endMode === mode}
-                  className={`min-h-8 rounded-full border px-2.5 text-xs ${
+                  className={`min-h-11 rounded-full border px-2.5 text-xs ${
                     endMode === mode
                       ? 'border-brand bg-violet-50 text-stone-900'
                       : 'border-stone-200 text-stone-600 hover:bg-white'
@@ -728,7 +728,7 @@ function Chip({
   return (
     <button
       onClick={onClick}
-      className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-2 text-sm whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
+      className={`flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
         active
           ? 'border-brand bg-violet-50 text-stone-900'
           : 'border-stone-200 text-stone-600 hover:bg-stone-50'

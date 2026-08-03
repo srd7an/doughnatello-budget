@@ -7,7 +7,7 @@ import { formatMoney } from '../lib/format'
 import { CaretRightIcon, CategoryIcon } from '../ui/icons'
 import { Swatch } from '../ui/Swatch'
 import { YearChart } from './YearChart'
-import { CategoriesList, Toggle } from './CategoriesList'
+import { CategoriesList } from './CategoriesList'
 
 // Year zoom: FLOW over twelve months. Hero is net worth (a stock, deliberately
 // the one exception on this flow screen), with the year's change beside it. The
@@ -16,7 +16,6 @@ export function YearView() {
   const { household } = useHousehold()
   const { year, openMonth } = usePeriod()
   const yearKey = String(year)
-  const [grouped, setGrouped] = useState(false)
 
   const data = useQuery(api.overview.year, {
     householdId: household._id,
@@ -78,23 +77,12 @@ export function YearView() {
       </div>
 
       <section>
-        <div className="mb-3 flex items-center gap-3">
-          <h2 className="text-base font-medium tracking-[-0.16px] text-stone-800">
-            Categories
-          </h2>
-          <div className="ml-auto">
-            <Toggle
-              on={grouped}
-              onChange={setGrouped}
-              label="Group by needs and wants"
-            />
-          </div>
-        </div>
+        <h2 className="mb-3 text-base font-medium tracking-[-0.16px] text-stone-800">
+          Categories
+        </h2>
         <CategoriesList
           rows={rows ?? []}
           paidFromFunds={data.totals.paidFromFunds}
-          grouped={grouped}
-          onGroupedChange={setGrouped}
         />
       </section>
     </div>

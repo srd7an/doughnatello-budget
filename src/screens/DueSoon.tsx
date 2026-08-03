@@ -148,14 +148,14 @@ function DueRow({
         <button
           onClick={() => run(() => onConfirm(confirmAmount))}
           disabled={busy || !canConfirm}
-          className="min-h-9 rounded-full bg-brand px-4 text-sm font-semibold text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40"
+          className="min-h-11 rounded-full bg-brand px-4 text-sm font-semibold text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40"
         >
           Confirm
         </button>
         <button
           onClick={() => run(onSkip)}
           disabled={busy}
-          className="min-h-9 rounded-full border border-stone-200 px-4 text-sm text-stone-600 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40"
+          className="min-h-11 rounded-full border border-stone-200 px-4 text-sm text-stone-600 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40"
         >
           Skip
         </button>
@@ -165,7 +165,7 @@ function DueRow({
               setEditing(false)
               setDraft(paraToInput(item.amount))
             }}
-            className="min-h-9 px-2 text-sm text-stone-500 hover:text-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            className="min-h-11 px-2 text-sm text-stone-500 hover:text-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
           >
             Cancel
           </button>

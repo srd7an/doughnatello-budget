@@ -9,7 +9,7 @@ import { CaretRightIcon, CategoryIcon } from '../ui/icons'
 import { Swatch } from '../ui/Swatch'
 import { ChartTooltip, SERIES } from '../ui/ChartTooltip'
 import { TransactionsList, type TxFilter } from './TransactionsList'
-import { CategoriesList, Toggle } from './CategoriesList'
+import { CategoriesList } from './CategoriesList'
 import { DueSoon } from './DueSoon'
 
 type Lens = 'transactions' | 'categories'
@@ -40,7 +40,6 @@ export function MonthView() {
   })
 
   const [lens, setLens] = useState<Lens>('transactions')
-  const [grouped, setGrouped] = useState(false)
   const [hover, setHover] = useState<Hover | null>(null)
   const [filter, setFilter] = useState<TxFilter | null>(null)
 
@@ -169,8 +168,7 @@ export function MonthView() {
         </div>
       </section>
 
-      {/* Lens row. The grouping toggle lives here, not inside the Categories
-          list, because the design shows it on BOTH tabs. */}
+      {/* Lens row */}
       <div className="flex items-center gap-3">
         <div className="flex gap-3" role="tablist">
           <LensTab
@@ -184,13 +182,6 @@ export function MonthView() {
             onClick={() => setLens('categories')}
           />
         </div>
-        <div className="ml-auto">
-          <Toggle
-            on={grouped}
-            onChange={setGrouped}
-            label="Group by needs and wants"
-          />
-        </div>
       </div>
 
       {lens === 'transactions' ? (
@@ -199,8 +190,6 @@ export function MonthView() {
         <CategoriesList
           rows={rows ?? []}
           paidFromFunds={summary?.paidFromFunds ?? 0}
-          grouped={grouped}
-          onGroupedChange={setGrouped}
         />
       )}
     </div>
@@ -226,9 +215,9 @@ function Seg({
 }) {
   const pct = Math.max(0, Math.min(1, frac)) * 100
   if (pct <= 0) return null
-  // Keep a small segment visible so it never vanishes. A 1.5%-wide segment is
-  // also a 4px hit target, which is why it carries its value in aria-label and
-  // in the metric row rather than only under the pointer.
+  // Keep a small segment visible so it never vanishes. Its WIDTH is still only
+  // a few pixels when the share is tiny, which is why the value lives in the
+  // aria-label and in the metric row rather than only under the pointer.
   return (
     <button
       type="button"
@@ -246,11 +235,16 @@ function Seg({
         onHover({ label, amount, color, x: r.left + r.width / 2, y: r.top })
       }}
       onBlur={() => onHover(null)}
-      className={`rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
+      // The bar stays 20px because that is the design; the button around it is
+      // 44px and transparent, so the thumb target is the full height without
+      // the mark growing to meet it. -my-3 keeps the row's own height at 20px.
+      className={`-my-3 flex items-center py-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
         onSelect ? 'cursor-pointer' : 'cursor-default'
-      } ${className}`}
+      }`}
       style={{ width: `${Math.max(pct, 1.5)}%` }}
-    />
+    >
+      <span aria-hidden className={`h-5 w-full rounded-sm ${className}`} />
+    </button>
   )
 }
 
@@ -285,7 +279,7 @@ function Metric({
         type="button"
         disabled={!expandable}
         onClick={() => setOpen((o) => !o)}
-        className={`flex items-center gap-1.5 text-sm text-stone-500 ${
+        className={`flex min-h-11 items-center gap-1.5 text-sm text-stone-500 ${
           expandable ? 'hover:text-stone-700' : 'cursor-default'
         }`}
       >
@@ -315,7 +309,7 @@ function Metric({
                 type="button"
                 onClick={() => onPick?.(b.potId, b.name)}
                 aria-label={`${b.name} ${formatMoney(b.amount)} — show everything against this fund`}
-                className="tnum flex w-full justify-between gap-6 rounded text-xs text-stone-500 hover:text-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                className="tnum flex min-h-11 w-full items-center justify-between gap-6 rounded text-xs text-stone-500 hover:text-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
               >
                 <span>
                   <CategoryIcon icon={b.icon} size={14} /> {b.name}

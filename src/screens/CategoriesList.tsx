@@ -27,27 +27,24 @@ type CatAgg = {
 /**
  * The Categories lens. Each category's "%" is its computed SHARE of the
  * period's total spending (not a target). A proportional bar visualises it; a
- * chevron expands to the transactions inside. "Group by needs and wants" adds a
- * Needs/Wants grouping layer. Shared by the month and (later) year views.
+ * chevron expands to the transactions inside.
+ *
+ * Spending is always split into Needs and Wants. It used to be a toggle, off by
+ * default, which meant the answer to "how much of this was unavoidable" — the
+ * one question the committed/discretionary split exists to answer — was hidden
+ * behind a switch most people never flipped. Both groups start open, so the
+ * grouping is a heading over the categories rather than a wall to click through.
  */
 export function CategoriesList({
   rows,
   paidFromFunds,
-  grouped: groupedProp,
-  onGroupedChange,
 }: {
   rows: CategoryRowData[]
   paidFromFunds: number
-  /** Lift the grouping toggle out when the parent renders it (the design puts
-   *  it in the lens-tab row, shared by both tabs). Uncontrolled otherwise. */
-  grouped?: boolean
-  onGroupedChange?: (v: boolean) => void
 }) {
-  const [ownGrouped, setOwnGrouped] = useState(false)
-  const controlled = groupedProp !== undefined && onGroupedChange !== undefined
-  const grouped = controlled ? groupedProp : ownGrouped
-  const setGrouped = controlled ? onGroupedChange : setOwnGrouped
-  const [open, setOpen] = useState<Set<string>>(new Set())
+  const [open, setOpen] = useState<Set<string>>(
+    new Set(['group-Needs', 'group-Wants']),
+  )
   const toggle = (k: string) =>
     setOpen((prev) => {
       const next = new Set(prev)
@@ -102,24 +99,14 @@ export function CategoriesList({
     }))
     .sort((a, b) => (a.occurredOn < b.occurredOn ? 1 : -1))
 
-  const share = (total: number) => (totalExpense > 0 ? total / totalExpense : 0)
-
   return (
     <div>
-      {!controlled && (
-        <div className="mb-3 flex items-center justify-end">
-          <Toggle
-            on={grouped}
-            onChange={setGrouped}
-            label="Group by needs and wants"
-          />
-        </div>
-      )}
-
       <div className="flex flex-col gap-1">
-        {/* Income spans the full width — it is not a share of spending, so
-            there is no bar to draw and no percentage to show. */}
-        <FullRow
+        {/* Income fills the row: it is not a share of spending, so there is no
+            proportion to draw and no percentage to show. */}
+        <BarRow
+          share={1}
+          showShare={false}
           tone="bg-lime-100"
           expanded={open.has('income')}
           onClick={() => toggle('income')}
@@ -128,34 +115,20 @@ export function CategoriesList({
         />
         {open.has('income') && <TxnList txns={incomeTxns} />}
 
-        {grouped ? (
-          <>
-            <Group
-              label="Needs"
-              cats={cats.filter((c) => c.kind === 'committed')}
-              totalExpense={totalExpense}
-              open={open}
-              toggle={toggle}
-            />
-            <Group
-              label="Wants"
-              cats={cats.filter((c) => c.kind === 'discretionary')}
-              totalExpense={totalExpense}
-              open={open}
-              toggle={toggle}
-            />
-          </>
-        ) : (
-          cats.map((c) => (
-            <CategoryRow
-              key={c.id}
-              cat={c}
-              share={share(c.total)}
-              open={open}
-              toggle={toggle}
-            />
-          ))
-        )}
+        <Group
+          label="Needs"
+          cats={cats.filter((c) => c.kind === 'committed')}
+          totalExpense={totalExpense}
+          open={open}
+          toggle={toggle}
+        />
+        <Group
+          label="Wants"
+          cats={cats.filter((c) => c.kind === 'discretionary')}
+          totalExpense={totalExpense}
+          open={open}
+          toggle={toggle}
+        />
       </div>
 
       {paidFromFunds > 0 && (
@@ -168,15 +141,23 @@ export function CategoriesList({
 }
 
 /**
- * A category row. The BAR IS THE ROW: the tinted block's width encodes this
- * category's share of the period's spending, with the figures sitting outside
- * it to the right. That is the design's mechanism, and it is more honest than
- * the tint-behind-the-row it replaced — the block's edge is a readable position
- * you can compare down the column, where a wash of colour is not.
+ * A category row: a full-width row of text, with a tinted fill behind it whose
+ * width is this category's share of the period's spending.
  *
- * The width is share-of-total, the same number the % shows. Normalising to the
+ * The fill and the text are separate layers, and that is the whole point. When
+ * the tinted block WAS the row, it had to be wide enough to hold a name — an
+ * 11rem floor — so on a phone, where the row is barely wider than that floor,
+ * 13% and 7% and 1% all drew the same block and the encoding said nothing. Even
+ * on a wide screen it flattened everything below about a fifth into one width.
+ *
+ * Freed of the text, the fill can be 1.4% wide and look it. The width is
+ * share-of-total, the same number the % beside it shows; normalising to the
  * largest category would make the top row always full and the bar would then
  * disagree with its own label.
+ *
+ * Indentation moves the LABEL, never the track: every row's fill starts at the
+ * same left edge and is measured against the same width, so a child's bar is
+ * still comparable to its parent's.
  */
 function BarRow({
   share,
@@ -187,6 +168,7 @@ function BarRow({
   iconColor,
   label,
   amount,
+  showShare = true,
   indent = false,
 }: {
   share: number
@@ -197,75 +179,52 @@ function BarRow({
   iconColor?: string
   label: string
   amount: number
+  /** Income is not a share of spending — it has no percentage to show. */
+  showShare?: boolean
   indent?: boolean
 }) {
+  const pct = Math.max(0, Math.min(share, 1)) * 100
   return (
-    <div className={`flex items-center gap-2 ${indent ? 'pl-6' : ''}`}>
-      <div className="min-w-0 flex-1">
-        <button
-          onClick={onClick}
-          aria-expanded={expanded}
-          // A floor of 11rem so a 2% category still shows its name. Without it
-          // the smallest rows collapse to an unreadable stub.
-          style={{ width: `max(${Math.min(share * 100, 100)}%, 11rem)` }}
-          className={`flex min-h-9 max-w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand ${tone}`}
-        >
-          <CaretRightIcon
-            size={16}
-            aria-hidden
-            className={`shrink-0 text-stone-500 transition-transform ${expanded ? 'rotate-90' : ''}`}
-          />
-          {icon && <CategoryIcon icon={icon} color={iconColor} className="shrink-0" />}
-          <span className="min-w-0 flex-1 truncate text-sm font-medium text-stone-800">
-            {label}
-          </span>
-        </button>
-      </div>
-      <span data-money className="w-9 shrink-0 text-right text-sm text-stone-500">
-        {formatPercent(share)}
-      </span>
-      <span
-        data-money
-        className="w-[100px] shrink-0 text-right text-sm text-stone-800"
-      >
-        {formatMoney(amount)}
-      </span>
-    </div>
-  )
-}
-
-/** A row with no share to encode — the block spans the width, figure inside. */
-function FullRow({
-  tone,
-  expanded,
-  onClick,
-  label,
-  amount,
-}: {
-  tone: string
-  expanded: boolean
-  onClick: () => void
-  label: string
-  amount: number
-}) {
-  return (
-    <button
-      onClick={onClick}
-      aria-expanded={expanded}
-      className={`flex min-h-9 w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand ${tone}`}
-    >
-      <CaretRightIcon
-        size={16}
+    // The track is what the fill is a proportion OF. Without it a 2% row is a
+    // stub against nothing and you cannot see what full would have been — and
+    // the row stops looking like a row you can tap.
+    <div className="relative overflow-hidden rounded-lg bg-stone-50">
+      <div
         aria-hidden
-        className={`shrink-0 text-stone-500 transition-transform ${expanded ? 'rotate-90' : ''}`}
+        className={`absolute inset-y-0 left-0 ${tone}`}
+        // A hairline floor so a rounding-to-zero category is still a mark
+        // rather than nothing at all.
+        style={{ width: `max(${pct}%, 2px)` }}
       />
-      <span className="min-w-0 flex-1 truncate text-sm font-medium text-stone-800">
-        {label}
-      </span>
-      <span data-money className="w-[100px] text-right text-sm text-stone-800">
-        {formatMoney(amount)}
-      </span>
-    </button>
+      <button
+        onClick={onClick}
+        aria-expanded={expanded}
+        className={`relative flex min-h-11 w-full items-center gap-2 px-3 py-1.5 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand ${
+          indent ? 'pl-9' : ''
+        }`}
+      >
+        <CaretRightIcon
+          size={16}
+          aria-hidden
+          className={`shrink-0 text-stone-500 transition-transform ${expanded ? 'rotate-90' : ''}`}
+        />
+        {icon && <CategoryIcon icon={icon} color={iconColor} className="shrink-0" />}
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-stone-800">
+          {label}
+        </span>
+        {showShare && (
+          <span data-money className="shrink-0 text-sm text-stone-500">
+            {formatPercent(share)}
+          </span>
+        )}
+        <span
+          data-money
+          className="w-[88px] shrink-0 text-right text-sm text-stone-800"
+        >
+          {formatMoney(amount)}
+        </span>
+      </button>
+    </div>
   )
 }
 
@@ -329,7 +288,7 @@ function CategoryRow({
     <>
       <BarRow
         share={share}
-        tone="bg-stone-100"
+        tone="bg-stone-200"
         expanded={open.has(cat.id)}
         onClick={() => toggle(cat.id)}
         icon={cat.icon}
@@ -361,37 +320,5 @@ function TxnList({ txns }: { txns: Txn[] }) {
         </li>
       ))}
     </ul>
-  )
-}
-
-export function Toggle({
-  on,
-  onChange,
-  label,
-}: {
-  on: boolean
-  onChange: (v: boolean) => void
-  label: string
-}) {
-  return (
-    <button
-      role="switch"
-      aria-checked={on}
-      onClick={() => onChange(!on)}
-      className="flex items-center gap-2 text-sm text-stone-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-    >
-      <span
-        className={`relative h-6 w-10 rounded-full transition-colors ${
-          on ? 'bg-brand' : 'bg-stone-300'
-        }`}
-      >
-        <span
-          className={`absolute top-0.5 size-5 rounded-full bg-white transition-all ${
-            on ? 'left-[18px]' : 'left-0.5'
-          }`}
-        />
-      </span>
-      {label}
-    </button>
   )
 }

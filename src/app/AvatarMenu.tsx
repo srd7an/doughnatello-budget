@@ -36,7 +36,7 @@ export function AvatarMenu({ onOpenSettings }: { onOpenSettings: () => void }) {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Account menu"
-        className="grid size-8 place-items-center rounded-full bg-stone-300 text-sm font-medium text-stone-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        className="grid size-11 place-items-center rounded-full bg-stone-300 text-sm font-medium text-stone-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
       >
         {initials(household.displayName)}
       </button>
