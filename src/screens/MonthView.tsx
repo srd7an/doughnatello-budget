@@ -21,8 +21,9 @@ type Hover = {
   y: number
 }
 
-// Month zoom: FLOW over the selected month. Hero is income; the composition bar
-// and metric row are the same Leftover · Expense · Savings, keyed together.
+// Month zoom: FLOW over the selected month. Hero is income; the metric row and
+// the composition bar are the same Leftover · Expense · Savings, keyed
+// together and read in that order — headline, key, picture, as on the year.
 export function MonthView() {
   const { household } = useHousehold()
   const { year, month, label } = usePeriod()
@@ -73,11 +74,33 @@ export function MonthView() {
           <span className="ml-1 text-sm text-stone-500">RSD</span>
         </p>
 
+        {/* The key, above the bar it explains — the same running order as
+            the year: headline, key, picture. */}
+        <div className="mt-4 flex flex-wrap gap-8">
+          <Metric
+            swatch="bg-leftover"
+            label={isCurrentMonth ? 'Left to spend' : 'Leftover'}
+            amount={leftToSpend}
+            share={income > 0 ? leftToSpend / income : null}
+          />
+          <Metric
+            swatch="bg-expense"
+            label="Expense"
+            amount={summary?.expense ?? 0}
+            share={income > 0 ? (summary?.expense ?? 0) / income : null}
+          />
+          <Metric
+            swatch="bg-saved"
+            label="Savings"
+            amount={summary?.savings ?? 0}
+            share={income > 0 ? (summary?.savings ?? 0) / income : null}
+          />
+        </div>
         {/* Composition bar: Leftover · Expense · Savings, width = income.
             Each segment answers for itself on hover and focus; the metric row
-            below is the same three figures, always visible. */}
+            above is the same three figures, always visible. */}
         <div
-          className="mt-3 flex h-5 gap-1"
+          className="mt-4 flex h-5 gap-1"
           onPointerLeave={() => setHover(null)}
         >
           {income > 0 ? (
@@ -137,28 +160,6 @@ export function MonthView() {
             ]}
           />
         )}
-
-        {/* Metric row = legend, keyed to the bar */}
-        <div className="mt-4 flex flex-wrap gap-8">
-          <Metric
-            swatch="bg-leftover"
-            label={isCurrentMonth ? 'Left to spend' : 'Leftover'}
-            amount={leftToSpend}
-            share={income > 0 ? leftToSpend / income : null}
-          />
-          <Metric
-            swatch="bg-expense"
-            label="Expense"
-            amount={summary?.expense ?? 0}
-            share={income > 0 ? (summary?.expense ?? 0) / income : null}
-          />
-          <Metric
-            swatch="bg-saved"
-            label="Savings"
-            amount={summary?.savings ?? 0}
-            share={income > 0 ? (summary?.savings ?? 0) / income : null}
-          />
-        </div>
       </section>
 
       {/* Lens row */}
