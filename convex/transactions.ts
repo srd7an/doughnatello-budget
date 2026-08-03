@@ -105,6 +105,17 @@ export async function insertTransaction(
     if (!cat || cat.householdId !== args.householdId) {
       throw new ConvexError("Category not found");
     }
+    // The side must match. A category of kind "income" holding an expense is
+    // not merely odd: the month groups spending into Needs and Wants by this
+    // field, so such a row lands in neither and silently disappears from the
+    // list while still counting towards the total.
+    if ((cat.kind === "income") !== (args.direction === "income")) {
+      throw new ConvexError(
+        args.direction === "income"
+          ? `"${cat.name}" is a spending category`
+          : `"${cat.name}" is an income category`,
+      );
+    }
     // An expense may also name the LOAN it pays down (see assertLoan).
     if (args.potId) await assertLoan(ctx, args.householdId, args.direction, args.potId);
   }

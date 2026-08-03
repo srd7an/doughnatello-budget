@@ -139,12 +139,13 @@ export const adjustBalance = mutation({
     const difference = bankBalance - account.bankBalance;
     if (difference === 0) return null;
 
-    const categoryId = await adjustmentCategory(ctx, account.householdId);
+    const direction = difference > 0 ? ("income" as const) : ("expense" as const);
+    const categoryId = await adjustmentCategory(ctx, account.householdId, direction);
 
     const transactionId = await insertTransaction(ctx, userId, {
       householdId: account.householdId,
       accountId,
-      direction: difference > 0 ? "income" : "expense",
+      direction,
       amount: Math.abs(difference),
       categoryId,
       occurredOn: occurredOn ?? new Date().toISOString().slice(0, 10),
@@ -168,20 +169,31 @@ export const adjustBalance = mutation({
 async function adjustmentCategory(
   ctx: MutationCtx,
   householdId: Id<"households">,
+  direction: "income" | "expense",
 ): Promise<Id<"categories">> {
+  // One per side. A single category served both until it couldn't: a category
+  // carries the kind, and the kind says which side of the ledger it belongs to,
+  // so an income row filed under a spending category is a row the month screen
+  // cannot place. Money that appeared and money that went missing are two
+  // different events anyway.
+  const income = direction === "income";
+  const name = income ? "Adjustment income" : "Adjustment";
+
   const categories = await ctx.db
     .query("categories")
     .withIndex("by_household", (q) => q.eq("householdId", householdId))
     .collect();
-  const existing = categories.find((c) => c.name === "Adjustment");
+  const existing = categories.find(
+    (c) => c.name === name && (c.kind === "income") === income,
+  );
   if (existing) return existing._id;
 
   const sortOrder =
     categories.reduce((max, c) => Math.max(max, c.sortOrder), -1) + 1;
   return await ctx.db.insert("categories", {
     householdId,
-    name: "Adjustment",
-    kind: "committed",
+    name,
+    kind: income ? "income" : "committed",
     icon: "wallet",
     color: "#78716C",
     sortOrder,

@@ -386,3 +386,95 @@ describe("a row with no category", () => {
     expect(p.unknownCategories).not.toContain("");
   });
 });
+
+/**
+ * The bug this suite exists for: five real expenses were imported into a
+ * category of kind "income" that merely shared their name and had been
+ * archived months earlier. They counted towards the month's total but appeared
+ * in neither Needs nor Wants, because the month groups by kind — and being
+ * archived, the category was invisible in Settings and unpickable in the form,
+ * so the rows wore the fallback star and could not be corrected.
+ */
+describe("matching a category by name", () => {
+  test("an archived category is never matched — a live one is made instead", async () => {
+    const { t, householdId } = await setup();
+    const cats = await asA(t).query(api.categories.list, { householdId });
+    const grocery = cats.find((c) => c.name === "Grocery")!;
+    await asA(t).mutation(api.categories.archive, { categoryId: grocery._id });
+
+    await asA(t).mutation(api.imports.commit, {
+      householdId,
+      rows: [
+        {
+          date: "2026-07-01",
+          direction: "expense" as const,
+          amount: 1_000_00,
+          category: "Grocery",
+        },
+      ],
+      createMissingCategories: true,
+    });
+
+    const after = await asA(t).query(api.categories.list, { householdId });
+    const live = after.filter((c) => c.name === "Grocery");
+    expect(live).toHaveLength(1); // list() hides the archived one
+    expect(live[0]._id).not.toBe(grocery._id);
+
+    // And the preview says so first, rather than silently binding to the dead one.
+    const p = await asA(t).mutation(api.imports.preview, {
+      householdId,
+      rows: [
+        { date: "2026-07-02", direction: "income" as const, amount: 1_00, category: "Grocery" },
+      ],
+    });
+    expect(p.unknownCategories).toContain("Grocery");
+  });
+
+  test("income and expense rows of the same name get a category each", async () => {
+    const { t, householdId } = await setup();
+    await asA(t).mutation(api.imports.commit, {
+      householdId,
+      rows: [
+        { date: "2026-07-01", direction: "expense" as const, amount: 5_000_00, category: "Rent" },
+        { date: "2026-07-02", direction: "income" as const, amount: 9_000_00, category: "Rent" },
+      ],
+      createMissingCategories: true,
+    });
+
+    const cats = await asA(t).query(api.categories.list, { householdId });
+    const rent = cats.filter((c) => c.name === "Rent");
+    expect(rent).toHaveLength(2);
+    expect(rent.map((c) => c.kind).sort()).toEqual(["committed", "income"]);
+  });
+
+  test("a blank category keeps the two sides apart too", async () => {
+    const { t, householdId } = await setup();
+    await asA(t).mutation(api.imports.commit, {
+      householdId,
+      rows: [
+        { date: "2026-07-01", direction: "expense" as const, amount: 1_000_00 },
+        { date: "2026-07-02", direction: "income" as const, amount: 2_000_00 },
+      ],
+    });
+
+    const cats = await asA(t).query(api.categories.list, { householdId });
+    expect(cats.find((c) => c.name === "Uncategorised")!.kind).toBe("committed");
+    expect(cats.find((c) => c.name === "Uncategorised income")!.kind).toBe("income");
+  });
+
+  test("the server refuses an expense filed under an income category", async () => {
+    const { t, householdId } = await setup();
+    const cats = await asA(t).query(api.categories.list, { householdId });
+    const incomeCat = cats.find((c) => c.kind === "income")!;
+
+    await expect(
+      asA(t).mutation(api.transactions.create, {
+        householdId,
+        direction: "expense",
+        amount: 1_000_00,
+        categoryId: incomeCat._id,
+        occurredOn: "2026-07-01",
+      }),
+    ).rejects.toThrow(/is an income category/);
+  });
+});

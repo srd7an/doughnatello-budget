@@ -161,21 +161,31 @@ describe("changing what the bank says", () => {
     expect(txs[0].amount).toBe(5_000_00);
   });
 
-  test("the Adjustment category is created once and reused", async () => {
+  test("one Adjustment category per side, each created once and reused", async () => {
     const { t, householdId, main } = await setup();
     const today = new Date().toISOString().slice(0, 10);
-    await asA(t).mutation(api.accounts.adjustBalance, {
-      accountId: main._id,
-      bankBalance: 1_000_00,
-      occurredOn: today,
-    });
-    await asA(t).mutation(api.accounts.adjustBalance, {
-      accountId: main._id,
-      bankBalance: 3_000_00,
-      occurredOn: today,
-    });
+    const to = (bankBalance: number) =>
+      asA(t).mutation(api.accounts.adjustBalance, {
+        accountId: main._id,
+        bankBalance,
+        occurredOn: today,
+      });
+    // Up twice, down twice: two of each kind, and no category made per call.
+    await to(1_000_00);
+    await to(3_000_00);
+    await to(2_000_00);
+    await to(500_00);
+
     const cats = await asA(t).query(api.categories.list, { householdId });
-    expect(cats.filter((c) => c.name === "Adjustment")).toHaveLength(1);
+    const adjustments = cats.filter((c) => c.name.startsWith("Adjustment"));
+    expect(adjustments).toHaveLength(2);
+    // The side must match the direction, or the rows land in neither group.
+    expect(adjustments.find((c) => c.name === "Adjustment income")!.kind).toBe(
+      "income",
+    );
+    expect(adjustments.find((c) => c.name === "Adjustment")!.kind).toBe(
+      "committed",
+    );
   });
 
   test("adjusting to the same figure records nothing", async () => {

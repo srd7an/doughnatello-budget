@@ -20,6 +20,9 @@ import { insertTransaction } from "./transactions";
 
 /** Where a row with no category of its own goes. */
 const UNCATEGORISED = "Uncategorised";
+// Two names rather than one, because the two sides are now separate categories
+// and a screen listing "Uncategorised" twice explains nothing.
+const UNCATEGORISED_INCOME = "Uncategorised income";
 
 const row = v.object({
   date: v.string(), // YYYY-MM-DD
@@ -68,7 +71,7 @@ export const preview = mutation({
       }
       if (r.direction !== "transfer" && !r.category?.trim()) {
         uncategorised += 1;
-      } else if (r.category && !categories.has(r.category.toLowerCase())) {
+      } else if (r.category && !categories.has(catKey(r.direction, r.category))) {
         unknownCategories.add(r.category);
       }
       for (const name of [r.fund, r.payFrom, r.paysOff]) {
@@ -142,11 +145,15 @@ export const commit = mutation({
         // column at all. It goes somewhere named for what it is, so the
         // history lands intact and can be filed afterwards, which is far
         // easier than re-importing.
-        const name = r.category?.trim() || UNCATEGORISED;
-        const key = name.toLowerCase();
+        const name =
+          r.category?.trim() ||
+          (r.direction === "income" ? UNCATEGORISED_INCOME : UNCATEGORISED);
+        const key = catKey(r.direction, name);
         categoryId = categories.get(key);
         if (!categoryId) {
-          if (!args.createMissingCategories && name !== UNCATEGORISED) {
+          const isFallbackName =
+            name === UNCATEGORISED || name === UNCATEGORISED_INCOME;
+          if (!args.createMissingCategories && !isFallbackName) {
             errors.push(`Row ${i + 1}: no category "${r.category ?? ""}"`);
             skipped += 1;
             continue;
@@ -256,6 +263,18 @@ function fingerprint(
   return `${date}|${amount}|${direction}|${(payee ?? "").toLowerCase()}`;
 }
 
+/**
+ * A category is matched by name AND by which side of the ledger it is on.
+ *
+ * Matching on the name alone put five real expenses into a category of kind
+ * "income" that happened to share their name, where the month screen — which
+ * groups by Needs and Wants — could not see them at all. They counted towards
+ * the totals and appeared in neither list. An income row and an expense row
+ * that both say "Education" mean two different categories, so they get two.
+ */
+const catKey = (direction: string, name: string) =>
+  `${direction === "income" ? "in" : "ex"}|${name.trim().toLowerCase()}`;
+
 /** Name→id maps for matching, plus fingerprints of what is already there. */
 async function lookups(ctx: MutationCtx, householdId: Id<"households">) {
   const [categories, pots, transactions] = await Promise.all([
@@ -273,9 +292,19 @@ async function lookups(ctx: MutationCtx, householdId: Id<"households">) {
       .collect(),
   ]);
 
+  // Archived names are deliberately not matched. Archiving is how you retire a
+  // category or a fund; an import that still binds to one files the row under
+  // something invisible in Settings and unpickable in the form — which is how
+  // an imported salary ended up wearing a star nobody could change.
   return [
-    new Map(categories.map((c) => [c.name.toLowerCase(), c._id])),
-    new Map(pots.map((p) => [p.name.toLowerCase(), p._id])),
+    new Map(
+      categories
+        .filter((c) => !c.isArchived)
+        .map((c) => [catKey(c.kind, c.name), c._id]),
+    ),
+    new Map(
+      pots.filter((p) => !p.isArchived).map((p) => [p.name.toLowerCase(), p._id]),
+    ),
     new Set(
       transactions.map((t) =>
         fingerprint(t.occurredOn, t.amount, t.direction, t.payee),
