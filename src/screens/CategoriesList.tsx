@@ -333,7 +333,12 @@ function CategoryRow({
 }
 
 /**
- * The transactions inside a category.
+ * The transactions inside a category, or inside Income.
+ *
+ * It hangs on the same left rule a group's categories do, and for the same
+ * reason: anything that opened out of a row above it should say so with a line
+ * rather than an indent you have to infer. Under a category that means two
+ * rules, one inside the other, which is exactly how deep the thing is.
  *
  * The dashed rule is a BORDER ON THE ROW, not a divider between rows: on hover
  * the row takes a filled, 8px-rounded shape and the rule goes with it, which
@@ -348,12 +353,12 @@ function TxnList({
   onOpen: (id: Id<'transactions'>) => void
 }) {
   return (
-    <ul className="flex flex-col gap-1">
+    <ul className="ml-4 flex flex-col gap-1 border-l border-stone-200 pl-4">
       {txns.map((t) => (
         <li key={t.id}>
           <button
             onClick={() => onOpen(t.id)}
-            className="flex min-h-11 w-full items-center gap-2 border-b border-dashed border-stone-300 py-1.5 pr-3 pl-8 text-left text-sm hover:rounded-lg hover:border-transparent hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:min-h-9"
+            className="flex min-h-11 w-full items-center gap-2 border-b border-dashed border-stone-300 px-3 py-1.5 text-left text-sm hover:rounded-lg hover:border-transparent hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:min-h-9"
           >
             <span className="min-w-0 flex-1 truncate font-medium text-stone-800">
               {t.payee}
