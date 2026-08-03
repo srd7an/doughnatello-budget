@@ -1,5 +1,5 @@
 import { query, mutation, MutationCtx, QueryCtx } from "./_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { Doc, Id } from "./_generated/dataModel";
 import { requireMember, requireDoc } from "./lib/auth";
 import { potBalance } from "./lib/balances";
@@ -79,7 +79,7 @@ export async function insertTransaction(
   args: TransactionInput,
 ) {
   if (!Number.isInteger(args.amount) || args.amount <= 0) {
-    throw new Error("Amount must be a positive whole number of para");
+    throw new ConvexError("Amount must be a positive whole number of para");
   }
 
   // A household may hold several accounts; the caller names one or gets the
@@ -92,18 +92,18 @@ export async function insertTransaction(
   const account = args.accountId
     ? accounts.find((a) => a._id === args.accountId)
     : accounts.find((a) => a.isPrimary && !a.isArchived);
-  if (!account) throw new Error("Account not found");
+  if (!account) throw new ConvexError("Account not found");
 
   // Category: required for income/expense, forbidden for transfer.
   if (args.direction === "transfer") {
-    if (args.categoryId) throw new Error("Transfers are uncategorised");
+    if (args.categoryId) throw new ConvexError("Transfers are uncategorised");
     await assertMove(ctx, args);
   } else {
-    if (args.fromPotId) throw new Error("Only a transfer moves money out of a fund");
-    if (!args.categoryId) throw new Error("A category is required");
+    if (args.fromPotId) throw new ConvexError("Only a transfer moves money out of a fund");
+    if (!args.categoryId) throw new ConvexError("A category is required");
     const cat = await ctx.db.get(args.categoryId);
     if (!cat || cat.householdId !== args.householdId) {
-      throw new Error("Category not found");
+      throw new ConvexError("Category not found");
     }
     // An expense may also name the LOAN it pays down (see assertLoan).
     if (args.potId) await assertLoan(ctx, args.householdId, args.direction, args.potId);
@@ -111,7 +111,7 @@ export async function insertTransaction(
 
   if (args.takeFromPotId) {
     if (args.direction !== "expense") {
-      throw new Error("Take from only applies to expenses");
+      throw new ConvexError("Take from only applies to expenses");
     }
     await assertPot(ctx, args.householdId, args.takeFromPotId);
   }
@@ -125,7 +125,7 @@ export async function insertTransaction(
         q.eq("householdId", args.householdId).eq("userId", args.paidBy!),
       )
       .unique();
-    if (!member) throw new Error("paidBy is not a member");
+    if (!member) throw new ConvexError("paidBy is not a member");
     paidBy = args.paidBy;
   }
 
@@ -224,7 +224,7 @@ async function assertPot(
   potId: Id<"pots">,
 ) {
   const pot = await ctx.db.get(potId);
-  if (!pot || pot.householdId !== householdId) throw new Error("Pot not found");
+  if (!pot || pot.householdId !== householdId) throw new ConvexError("Pot not found");
   return pot;
 }
 
@@ -258,16 +258,16 @@ async function assertMove(
 ) {
   const { householdId, potId, fromPotId } = args;
   if (!potId && !fromPotId) {
-    throw new Error("A transfer needs a destination pot");
+    throw new ConvexError("A transfer needs a destination pot");
   }
   if (potId && fromPotId && potId === fromPotId) {
-    throw new Error("A fund cannot move money to itself");
+    throw new ConvexError("A fund cannot move money to itself");
   }
   for (const id of [potId, fromPotId]) {
     if (!id) continue;
     const pot = await assertPot(ctx, householdId, id);
     if (pot.kind === "debt") {
-      throw new Error("A loan is paid off, not moved into — record it as an expense");
+      throw new ConvexError("A loan is paid off, not moved into — record it as an expense");
     }
   }
 }
@@ -290,11 +290,11 @@ async function assertLoan(
   potId: Id<"pots">,
 ) {
   if (direction !== "expense") {
-    throw new Error("Only an expense can pay off a loan");
+    throw new ConvexError("Only an expense can pay off a loan");
   }
   const pot = await assertPot(ctx, householdId, potId);
   if (pot.kind !== "debt") {
-    throw new Error("That is a fund, not a loan — use Take from to spend it");
+    throw new ConvexError("That is a fund, not a loan — use Take from to spend it");
   }
 }
 
@@ -486,7 +486,7 @@ export const update = mutation({
     const nextDirection = args.direction ?? doc.direction;
     const nextAmount = args.amount ?? doc.amount;
     if (!Number.isInteger(nextAmount) || nextAmount <= 0) {
-      throw new Error("Amount must be a positive whole number of para");
+      throw new ConvexError("Amount must be a positive whole number of para");
     }
 
     // What funded it before, so an edit that does not mention funding keeps it.
@@ -501,8 +501,15 @@ export const update = mutation({
       : (args.takeFromPotId ?? previousPotFunding);
 
     let categoryId = args.categoryId ?? doc.categoryId;
-    let potId = args.clearLoan ? undefined : (args.potId ?? doc.potId);
-    if (args.clearDestination) potId = undefined;
+    // Both flags empty the SAME field, because a transfer's destination and an
+    // expense's loan are both potId — so each only applies in the direction it
+    // is about. Unscoped, `clearLoan` (which the form sets on anything that is
+    // not an expense) wiped the destination of every transfer it was sent with,
+    // and turning an expense into one failed for want of a fund it had just
+    // been given.
+    let potId = args.potId ?? doc.potId;
+    if (args.clearLoan && nextDirection === "expense") potId = undefined;
+    if (args.clearDestination && nextDirection === "transfer") potId = undefined;
     const fromPotId =
       nextDirection === "transfer" && !args.clearFromPot
         ? (args.fromPotId ?? doc.fromPotId)
@@ -515,10 +522,10 @@ export const update = mutation({
       // source would otherwise make the fund look too poor to afford its own
       // edit.
     } else {
-      if (!categoryId) throw new Error("A category is required");
+      if (!categoryId) throw new ConvexError("A category is required");
       const cat = await ctx.db.get(categoryId);
       if (!cat || cat.householdId !== householdId) {
-        throw new Error("Category not found");
+        throw new ConvexError("Category not found");
       }
       // Switching a transfer to an expense carries its destination fund over as
       // a loan, which it is not — drop anything that is not a debt pot rather
@@ -537,7 +544,7 @@ export const update = mutation({
     if (args.accountId) {
       const account = await ctx.db.get(args.accountId);
       if (!account || account.householdId !== householdId) {
-        throw new Error("Account not found");
+        throw new ConvexError("Account not found");
       }
     }
     if (args.paidBy) {
@@ -547,7 +554,7 @@ export const update = mutation({
           q.eq("householdId", householdId).eq("userId", args.paidBy!),
         )
         .unique();
-      if (!member) throw new Error("paidBy is not a member");
+      if (!member) throw new ConvexError("paidBy is not a member");
     }
 
     for (const f of existingFunding) await ctx.db.delete(f._id);

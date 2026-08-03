@@ -10,6 +10,7 @@ import {
   sanitizeMoneyInput,
 } from '../lib/format'
 import { formatDayMonthYear } from '../lib/dates'
+import { ConvexError } from 'convex/values'
 import { CalendarDotsIcon, RepeatIcon, XIcon } from '../ui/icons'
 import { Button } from '../ui/Button'
 import { Popover } from '../ui/Popover'
@@ -32,6 +33,19 @@ const SEGMENTS: { id: Direction; label: string }[] = [
   { id: 'income', label: 'Income' },
   { id: 'transfer', label: 'Transfer' },
 ]
+
+/**
+ * The sentence a rule was written with.
+ *
+ * Convex delivers a ConvexError's payload to the client and replaces a plain
+ * Error with "Server Error", so the rules a person can break by filling this
+ * form in are thrown as ConvexError and read back here. Anything else was not
+ * written for a human and gets the fallback.
+ */
+function reason(e: unknown, fallback: string): string {
+  if (e instanceof ConvexError && typeof e.data === 'string') return e.data
+  return fallback
+}
 
 function todayISO(): string {
   const d = new Date()
@@ -347,7 +361,7 @@ export function TransactionForm({
       }
       onDone()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save')
+      setError(reason(e, 'Could not save'))
     } finally {
       setSaving(false)
     }
@@ -762,7 +776,7 @@ export function TransactionForm({
               } catch (e) {
                 setDeleting(false)
                 setConfirmDelete(false)
-                setError(e instanceof Error ? e.message : 'Could not delete')
+                setError(reason(e, 'Could not delete'))
               }
             }}
             onBlur={() => setConfirmDelete(false)}

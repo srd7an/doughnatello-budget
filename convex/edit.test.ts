@@ -368,6 +368,46 @@ describe("editing", () => {
     expect(pots.find((p) => p._id === potId)!.balance).toBe(0);
   });
 
+  test("an expense corrected to a transfer keeps the fund it was given", async () => {
+    const { t, householdId, grocery } = await setup();
+    const potId = await asA(t).mutation(api.pots.create, {
+      householdId,
+      name: "Car stuff",
+      kind: "sinking",
+      icon: "car",
+      color: "#D6336C",
+    });
+    const id = await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "expense",
+      amount: 10_000_00,
+      categoryId: grocery,
+      occurredOn: "2026-01-01",
+      payee: "Car saving",
+    });
+
+    // Exactly what the form sends when you switch the tab to Transfer and
+    // pick a fund: clearLoan is set because this is no longer an expense.
+    await asA(t).mutation(api.transactions.update, {
+      transactionId: id,
+      direction: "transfer",
+      potId,
+      clearLoan: true,
+      clearPotFunding: true,
+      clearFromPot: true,
+    });
+
+    const after = await asA(t).query(api.transactions.detail, {
+      transactionId: id,
+    });
+    expect(after.direction).toBe("transfer");
+    expect(after.potId).toBe(potId);
+    expect(after.categoryId).toBeNull();
+
+    const pots = await asA(t).query(api.pots.balances, { householdId });
+    expect(pots.find((p) => p._id === potId)!.balance).toBe(10_000_00);
+  });
+
   test("an amount of zero is refused", async () => {
     const { t, householdId, grocery } = await setup();
     const id = await asA(t).mutation(api.transactions.create, {
