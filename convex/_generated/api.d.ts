@@ -23,6 +23,7 @@ import type * as lib_auth from "../lib/auth.js";
 import type * as lib_balances from "../lib/balances.js";
 import type * as lib_recurrence from "../lib/recurrence.js";
 import type * as lib_seed from "../lib/seed.js";
+import type * as maintenance from "../maintenance.js";
 import type * as overview from "../overview.js";
 import type * as pots from "../pots.js";
 import type * as recurring from "../recurring.js";
@@ -51,6 +52,7 @@ declare const fullApi: ApiFromModules<{
   "lib/balances": typeof lib_balances;
   "lib/recurrence": typeof lib_recurrence;
   "lib/seed": typeof lib_seed;
+  maintenance: typeof maintenance;
   overview: typeof overview;
   pots: typeof pots;
   recurring: typeof recurring;
