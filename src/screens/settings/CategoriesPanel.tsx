@@ -3,18 +3,19 @@ import { useMutation, useQuery } from 'convex/react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { useHousehold } from '../../household/HouseholdContext'
-import { CategoryIcon } from '../../ui/icons'
 import {
-  Card,
   ColorPicker,
   ConfirmButton,
+  EditRow,
   Field,
+  FormActions,
   GhostButton,
   IconPicker,
+  ItemRow,
   Loading,
   Note,
   Panel,
-  PrimaryButton,
+  Rows,
   TextInput,
 } from './kit'
 
@@ -71,18 +72,17 @@ export function CategoriesPanel() {
       {GROUPS.map((g) => {
         const rows = active.filter((c) => c.kind === g.kind)
         return (
-          <Card key={g.kind}>
-            <div className="border-b border-stone-100 px-4 py-3">
-              <h2 className="text-sm font-semibold">{g.label}</h2>
+          <section key={g.kind}>
+            <div className="px-3 pb-1">
+              <h2 className="text-xs font-medium tracking-wide text-stone-400 uppercase">
+                {g.label}
+              </h2>
               <p className="text-xs text-stone-400">{g.blurb}</p>
             </div>
-            <ul>
-              {rows.map((c) => (
-                <li
-                  key={c._id}
-                  className="border-b border-stone-100 last:border-b-0"
-                >
-                  {editing === c._id ? (
+            <Rows>
+              {rows.map((c) =>
+                editing === c._id ? (
+                  <EditRow key={c._id}>
                     <CategoryForm
                       initial={{
                         name: c.name,
@@ -95,95 +95,95 @@ export function CategoriesPanel() {
                         await update({ categoryId: c._id, ...values })
                         setEditing(null)
                       }}
+                      onArchive={async () => {
+                        await archive({ categoryId: c._id })
+                        setEditing(null)
+                      }}
                     />
-                  ) : (
-                    <div className="flex items-center gap-3 p-4">
-                      <CategoryIcon icon={c.icon} color={c.color} />
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                        {c.name}
-                      </span>
-                      <GhostButton onClick={() => setEditing(c._id)}>
-                        Edit
-                      </GhostButton>
-                      <ConfirmButton
-                        label="Archive"
-                        confirmLabel="Yes, archive it"
-                        onConfirm={() => archive({ categoryId: c._id })}
-                      />
-                    </div>
-                  )}
-                </li>
-              ))}
+                  </EditRow>
+                ) : (
+                  <ItemRow
+                    key={c._id}
+                    icon={c.icon}
+                    color={c.color}
+                    name={c.name}
+                    onClick={() => setEditing(c._id)}
+                  />
+                ),
+              )}
               {rows.length === 0 && (
-                <li className="px-4 py-3 text-sm text-stone-400">
+                <li className="px-3 py-2 text-sm text-stone-400">
                   Nothing here yet.
                 </li>
               )}
-            </ul>
+            </Rows>
 
             {adding === g.kind ? (
-              <div className="border-t border-stone-100">
-                <CategoryForm
-                  initial={{ kind: g.kind }}
-                  onCancel={() => setAdding(null)}
-                  onSave={async (values) => {
-                    await create({ householdId, ...values })
-                    setAdding(null)
-                  }}
-                />
-              </div>
+              <CategoryForm
+                initial={{ kind: g.kind }}
+                onCancel={() => setAdding(null)}
+                onSave={async (values) => {
+                  await create({ householdId, ...values })
+                  setAdding(null)
+                }}
+              />
             ) : (
-              <div className="border-t border-stone-100 p-3">
+              <div className="pt-1">
                 <GhostButton onClick={() => setAdding(g.kind)}>
                   Add to {g.label}
                 </GhostButton>
               </div>
             )}
-          </Card>
+          </section>
         )
       })}
 
       {archived.length > 0 && (
-        <Card>
-          <div className="border-b border-stone-100 px-4 py-3">
-            <h2 className="text-sm font-semibold text-stone-500">Archived</h2>
+        <section>
+          <div className="px-3 pb-1">
+            <h2 className="text-xs font-medium tracking-wide text-stone-400 uppercase">
+              Archived
+            </h2>
             <p className="text-xs text-stone-400">
               Hidden from the pickers. Past transactions keep them. One with no
               transactions can be deleted for good.
             </p>
             {error && <p className="mt-1 text-xs text-debt">{error}</p>}
           </div>
-          <ul>
+          <Rows>
             {archived.map((c) => (
-              <li
+              // Not pressable: there is nothing to edit about something you have
+              // put away, only the two things you might do to it next.
+              <ItemRow
                 key={c._id}
-                className="flex items-center gap-3 border-b border-stone-100 p-4 last:border-b-0"
-              >
-                <span className="opacity-50">
-                  <CategoryIcon icon={c.icon} />
-                </span>
-                <span className="min-w-0 flex-1 truncate text-sm text-stone-500">
-                  {c.name}
-                </span>
-                <GhostButton onClick={() => unarchive({ categoryId: c._id })}>
-                  Restore
-                </GhostButton>
-                <ConfirmButton
-                  label="Delete"
-                  confirmLabel="Yes, delete for good"
-                  onConfirm={async () => {
-                    setError(null)
-                    try {
-                      await remove({ categoryId: c._id })
-                    } catch (e) {
-                      setError(e instanceof Error ? e.message : 'Could not delete')
-                    }
-                  }}
-                />
-              </li>
+                icon={c.icon}
+                name={c.name}
+                muted
+                trailing={
+                  <span className="flex shrink-0 items-center gap-1">
+                    <GhostButton onClick={() => unarchive({ categoryId: c._id })}>
+                      Restore
+                    </GhostButton>
+                    <ConfirmButton
+                      label="Delete"
+                      confirmLabel="Yes, delete for good"
+                      onConfirm={async () => {
+                        setError(null)
+                        try {
+                          await remove({ categoryId: c._id })
+                        } catch (e) {
+                          setError(
+                            e instanceof Error ? e.message : 'Could not delete',
+                          )
+                        }
+                      }}
+                    />
+                  </span>
+                }
+              />
             ))}
-          </ul>
-        </Card>
+          </Rows>
+        </section>
       )}
 
       <Note>
@@ -206,10 +206,13 @@ function CategoryForm({
   initial,
   onSave,
   onCancel,
+  onArchive,
 }: {
   initial?: Partial<CategoryValues>
   onSave: (values: CategoryValues) => Promise<unknown>
   onCancel: () => void
+  /** Only when editing — a category that does not exist cannot be put away. */
+  onArchive?: () => Promise<unknown>
 }) {
   const [name, setName] = useState(initial?.name ?? '')
   const [kind, setKind] = useState<Kind>(initial?.kind ?? 'committed')
@@ -228,7 +231,7 @@ function CategoryForm({
   }
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="space-y-4 px-3 py-2">
       <Field label="Name">
         <TextInput
           autoFocus
@@ -267,12 +270,21 @@ function CategoryForm({
           <ColorPicker value={color} onChange={setColor} />
         </Field>
       </div>
-      <div className="flex gap-2">
-        <PrimaryButton onClick={save} disabled={!name.trim() || busy}>
-          {busy ? 'Saving…' : 'Save'}
-        </PrimaryButton>
-        <GhostButton onClick={onCancel}>Cancel</GhostButton>
-      </div>
+      <FormActions
+        onSave={save}
+        onCancel={onCancel}
+        busy={busy}
+        disabled={!name.trim()}
+        destructive={
+          onArchive && (
+            <ConfirmButton
+              label="Archive"
+              confirmLabel="Yes, archive it"
+              onConfirm={onArchive}
+            />
+          )
+        }
+      />
     </div>
   )
 }

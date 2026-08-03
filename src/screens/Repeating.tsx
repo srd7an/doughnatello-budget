@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useMutation, useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { useHousehold } from '../household/HouseholdContext'
@@ -6,13 +7,15 @@ import { CategoryIcon, RepeatIcon } from '../ui/icons'
 import { localISO } from '../lib/dates'
 import { cadenceLabel, dueLabel } from '../lib/recurrence'
 import {
-  Card,
   ConfirmButton,
+  EditRow,
   Empty,
   GhostButton,
+  ItemRow,
   Loading,
   Note,
   Panel,
+  Rows,
 } from './settings/kit'
 
 /**
@@ -29,6 +32,7 @@ export function Repeating() {
     householdId: household._id,
   })
   const setActive = useMutation(api.recurring.setActive)
+  const [open, setOpen] = useState<string | null>(null)
   const remove = useMutation(api.recurring.remove)
   const today = localISO(new Date())
 
@@ -41,71 +45,100 @@ export function Repeating() {
       ) : rules.length === 0 ? (
         <Empty>Nothing repeats yet.</Empty>
       ) : (
-        <Card className="overflow-hidden">
-          <ul>
-            {rules.map((r) => {
-              const label =
-                r.payee ?? r.category?.name ?? r.pot?.name ?? 'Repeating'
-              const icon = r.category?.icon ?? r.pot?.icon
-              return (
-                <li
-                  key={r._id}
-                  className="border-b border-stone-100 p-4 last:border-b-0"
-                >
-                  <div className="flex items-start gap-3">
-                    {icon ? (
-                      <CategoryIcon icon={icon} />
-                    ) : (
-                      <RepeatIcon size={20} aria-hidden />
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="flex items-center gap-2 text-sm font-medium">
-                        <span className="truncate">{label}</span>
-                        {!r.isActive && <Tag>Paused</Tag>}
-                        {r.autoPost && <Tag>Automatic</Tag>}
-                        {r.amountMode === 'estimate' && <Tag>Estimate</Tag>}
-                      </p>
-                      <p className="mt-0.5 text-xs text-stone-400">
-                        {cadenceLabel(
-                          r.cadence,
-                          r.intervalCount,
-                          r.anchorDay,
-                          r.nextDueOn,
-                        )}
-                        {r.isActive && ` · ${dueLabel(r.nextDueOn, today)}`}
-                        {r.fundedFromPot && ` · from ${r.fundedFromPot.name}`}
-                      </p>
-                    </div>
-                    <span
-                      data-money
-                      className={`text-sm font-semibold ${
-                        r.direction === 'income' ? 'text-gain' : ''
-                      }`}
-                    >
-                      {r.direction === 'income' ? '+' : ''}
-                      {formatMoney(r.amount)}
-                    </span>
-                  </div>
+        <Rows>
+          {rules.map((r) => {
+            const label = r.payee ?? r.category?.name ?? r.pot?.name ?? 'Repeating'
+            const icon = r.category?.icon ?? r.pot?.icon
+            const meta = [
+              cadenceLabel(r.cadence, r.intervalCount, r.anchorDay, r.nextDueOn),
+              r.isActive && dueLabel(r.nextDueOn, today),
+              r.fundedFromPot && `from ${r.fundedFromPot.name}`,
+            ]
+              .filter(Boolean)
+              .join(' · ')
 
-                  <div className="mt-2 flex items-center gap-2 pl-8">
-                    <GhostButton
-                      onClick={() =>
-                        setActive({ ruleId: r._id, isActive: !r.isActive })
-                      }
-                    >
-                      {r.isActive ? 'Pause' : 'Resume'}
-                    </GhostButton>
-                    <ConfirmButton
-                      label="Delete"
-                      confirmLabel="Yes, delete it"
-                      onConfirm={() => remove({ ruleId: r._id })}
-                    />
+            // Open, like every other list in Settings, rather than carrying its
+            // controls at rest. Revealing them on hover was the tempting middle
+            // way and it is the wrong one: a phone has no hover, so Pause and
+            // Delete would simply not exist on the device most likely to be
+            // holding this screen.
+            if (open === r._id) {
+              return (
+                <EditRow key={r._id}>
+                  <div className="space-y-3 px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      {icon ? (
+                        <CategoryIcon
+                          icon={icon}
+                          color={r.category?.color ?? r.pot?.color}
+                          className="shrink-0"
+                        />
+                      ) : (
+                        <RepeatIcon size={20} aria-hidden className="shrink-0" />
+                      )}
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-stone-800">
+                        {label}
+                      </span>
+                      <span
+                        data-money
+                        className={`shrink-0 text-sm ${
+                          r.direction === 'income' ? 'text-gain' : 'text-stone-800'
+                        }`}
+                      >
+                        {r.direction === 'income' ? '+' : ''}
+                        {formatMoney(r.amount)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-stone-400">{meta}</p>
+                    <div className="flex items-center gap-2">
+                      <GhostButton
+                        onClick={() =>
+                          setActive({ ruleId: r._id, isActive: !r.isActive })
+                        }
+                      >
+                        {r.isActive ? 'Pause' : 'Resume'}
+                      </GhostButton>
+                      <GhostButton onClick={() => setOpen(null)}>Close</GhostButton>
+                      <span className="ml-auto">
+                        <ConfirmButton
+                          label="Delete"
+                          confirmLabel="Yes, delete it"
+                          onConfirm={async () => {
+                            await remove({ ruleId: r._id })
+                            setOpen(null)
+                          }}
+                        />
+                      </span>
+                    </div>
                   </div>
-                </li>
+                </EditRow>
               )
-            })}
-          </ul>
-        </Card>
+            }
+
+            return (
+              <ItemRow
+                key={r._id}
+                icon={icon ?? 'schedule'}
+                color={r.category?.color ?? r.pot?.color}
+                name={label}
+                muted={!r.isActive}
+                tags={
+                  <>
+                    {!r.isActive && <Tag>Paused</Tag>}
+                    {r.autoPost && <Tag>Automatic</Tag>}
+                    {r.amountMode === 'estimate' && <Tag>Estimate</Tag>}
+                  </>
+                }
+                meta={meta}
+                figure={`${r.direction === 'income' ? '+' : ''}${formatMoney(r.amount)}`}
+                figureClass={`${
+                  r.direction === 'income' ? 'text-gain' : 'text-stone-800'
+                } ${r.isActive ? '' : 'opacity-50'}`}
+                onClick={() => setOpen(r._id)}
+              />
+            )
+          })}
+        </Rows>
       )}
 
       <Note>

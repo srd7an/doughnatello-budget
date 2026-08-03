@@ -5,20 +5,22 @@ import type { Id } from '../../../convex/_generated/dataModel'
 import { useHousehold } from '../../household/HouseholdContext'
 import { formatMoney } from '../../lib/format'
 import { localISO } from '../../lib/dates'
-import { CategoryIcon } from '../../ui/icons'
 import {
-  Card,
+  ArchivedList,
   ConfirmButton,
+  EditRow,
   Empty,
   Field,
   GhostButton,
   IconPicker,
+  ItemRow,
+  ListHeader,
   Loading,
   MoneyInput,
   Note,
-  ArchivedList,
   Panel,
   PrimaryButton,
+  Rows,
   TextInput,
 } from './kit'
 
@@ -67,17 +69,12 @@ export function AssetsPanel({ editId }: { editId?: string }) {
       {live.length === 0 ? (
         <Empty>No assets yet — a flat, a car, anything worth recording.</Empty>
       ) : (
-        <Card>
-          <div className="flex items-baseline justify-between border-b border-stone-100 px-4 py-3">
-            <span className="text-sm text-stone-500">Total value</span>
-            <span data-money className="font-semibold">
-              {formatMoney(total)}
-            </span>
-          </div>
-          <ul>
-            {live.map((a) => (
-              <li key={a._id} className="border-b border-stone-100 last:border-b-0">
-                {editing === a._id ? (
+        <div>
+          <ListHeader label="Total value" figure={formatMoney(total)} />
+          <Rows>
+            {live.map((a) =>
+              editing === a._id ? (
+                <EditRow key={a._id}>
                   <AssetForm
                     debts={debts}
                     initial={{
@@ -92,8 +89,18 @@ export function AssetsPanel({ editId }: { editId?: string }) {
                       await update({ assetId: a._id, name, icon, linkedDebtPotId })
                       setEditing(null)
                     }}
+                    onRevalue={() => {
+                      setEditing(null)
+                      setRevaluing(a._id)
+                    }}
+                    onArchive={async () => {
+                      await archive({ assetId: a._id })
+                      setEditing(null)
+                    }}
                   />
-                ) : revaluing === a._id ? (
+                </EditRow>
+              ) : revaluing === a._id ? (
+                <EditRow key={a._id}>
                   <RevalueForm
                     current={a.value}
                     today={today}
@@ -103,35 +110,30 @@ export function AssetsPanel({ editId }: { editId?: string }) {
                       setRevaluing(null)
                     }}
                   />
-                ) : (
-                  <AssetRow
-                    asset={a}
-                    today={today}
-                    debtName={
-                      debts.find((d) => d._id === a.linkedDebtPotId)?.name
-                    }
-                    onEdit={() => setEditing(a._id)}
-                    onRevalue={() => setRevaluing(a._id)}
-                    onArchive={() => archive({ assetId: a._id })}
-                  />
-                )}
-              </li>
-            ))}
-          </ul>
-        </Card>
+                </EditRow>
+              ) : (
+                <AssetRow
+                  key={a._id}
+                  asset={a}
+                  today={today}
+                  debtName={debts.find((d) => d._id === a.linkedDebtPotId)?.name}
+                  onEdit={() => setEditing(a._id)}
+                />
+              ),
+            )}
+          </Rows>
+        </div>
       )}
 
       {adding ? (
-        <Card>
-          <AssetForm
-            debts={debts}
-            onCancel={() => setAdding(false)}
-            onSave={async (values) => {
-              await create({ householdId, ...values })
-              setAdding(false)
-            }}
-          />
-        </Card>
+        <AssetForm
+          debts={debts}
+          onCancel={() => setAdding(false)}
+          onSave={async (values) => {
+            await create({ householdId, ...values })
+            setAdding(false)
+          }}
+        />
       ) : (
         <PrimaryButton onClick={() => setAdding(true)}>
           Add an asset
@@ -176,15 +178,11 @@ function AssetRow({
   today,
   debtName,
   onEdit,
-  onRevalue,
-  onArchive,
 }: {
   asset: Asset
   today: string
   debtName?: string
   onEdit: () => void
-  onRevalue: () => void
-  onArchive: () => void
 }) {
   const age = Math.round(
     (Date.parse(today) - Date.parse(asset.valuedOn)) / 86_400_000,
@@ -192,34 +190,23 @@ function AssetRow({
   const stale = age > STALE_DAYS
 
   return (
-    <div className="p-4">
-      <div className="flex items-center gap-3">
-        <CategoryIcon
-          icon={asset.icon ?? DEFAULT_ASSET_ICON}
-          className="shrink-0 text-stone-500"
-        />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">
-          {asset.name}
-        </span>
-        <span data-money className="text-sm font-semibold">
-          {formatMoney(asset.value)}
-        </span>
-      </div>
-      <p className={`mt-0.5 text-xs ${stale ? 'text-status-near' : 'text-stone-400'}`}>
-        Valued {asset.valuedOn}
-        {stale && ' · over a year ago, worth checking'}
-        {debtName && ` · bought with ${debtName}`}
-      </p>
-      <div className="mt-2 flex items-center gap-2">
-        <GhostButton onClick={onRevalue}>Re-value</GhostButton>
-        <GhostButton onClick={onEdit}>Edit</GhostButton>
-        <ConfirmButton
-          label="Archive"
-          confirmLabel="Yes, archive it"
-          onConfirm={onArchive}
-        />
-      </div>
-    </div>
+    <ItemRow
+      icon={asset.icon ?? DEFAULT_ASSET_ICON}
+      name={asset.name}
+      meta={
+        // A stale valuation is the one thing here worth colouring, so it keeps
+        // its own span rather than folding into the quiet meta line.
+        <>
+          <span className={stale ? 'text-status-near' : undefined}>
+            Valued {asset.valuedOn}
+            {stale && ' · over a year ago, worth checking'}
+          </span>
+          {debtName && ` · bought with ${debtName}`}
+        </>
+      }
+      figure={formatMoney(asset.value)}
+      onClick={onEdit}
+    />
   )
 }
 
@@ -264,7 +251,7 @@ function RevalueForm({
   }
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="space-y-4 px-3 py-2">
       <div className="flex gap-3">
         <Field label="Worth now" className="flex-1">
           <MoneyInput para={value} onChange={setValue} />
@@ -295,6 +282,8 @@ function AssetForm({
   debts,
   onSave,
   onCancel,
+  onRevalue,
+  onArchive,
 }: {
   /** Present means editing, and editing cannot change what a thing is worth —
    *  that is a dated valuation, so those fields are not offered here. */
@@ -302,6 +291,10 @@ function AssetForm({
   debts: { _id: Id<'pots'>; name: string }[]
   onSave: (values: AssetValues) => Promise<unknown>
   onCancel: () => void
+  /** What a thing is worth is a dated event, not a field — so re-valuing is a
+   *  door out of this form rather than an input in it. Editing only. */
+  onRevalue?: () => void
+  onArchive?: () => Promise<unknown>
 }) {
   const [name, setName] = useState(initial?.name ?? '')
   const [icon, setIcon] = useState(initial?.icon ?? DEFAULT_ASSET_ICON)
@@ -331,7 +324,7 @@ function AssetForm({
   }
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="space-y-4 px-3 py-2">
       <div className="flex gap-3">
         <Field label="Name" className="flex-1">
           <TextInput
@@ -378,11 +371,21 @@ function AssetForm({
           </select>
         </Field>
       )}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <PrimaryButton onClick={save} disabled={!name.trim() || value <= 0 || busy}>
           {busy ? 'Saving…' : 'Save'}
         </PrimaryButton>
         <GhostButton onClick={onCancel}>Cancel</GhostButton>
+        {onRevalue && <GhostButton onClick={onRevalue}>Re-value</GhostButton>}
+        {onArchive && (
+          <span className="ml-auto">
+            <ConfirmButton
+              label="Archive"
+              confirmLabel="Yes, archive it"
+              onConfirm={onArchive}
+            />
+          </span>
+        )}
       </div>
     </div>
   )

@@ -54,6 +54,138 @@ export function Card({
   )
 }
 
+/**
+ * A list of things, in the row language the rest of the app speaks.
+ *
+ * The month's transactions, the category list and the pickers all draw a row
+ * the same way: a dashed rule underneath, and on hover the rule is replaced by
+ * a filled shape with an 8px radius — the corner arrives WITH the fill, because
+ * a row that is only a line has nothing to round. Settings used to draw
+ * something else entirely: solid dividers inside a bordered card, and two
+ * buttons parked under every single row.
+ *
+ * The buttons are gone. The ROW is the button, exactly as a transaction row is,
+ * and what you could do to the thing lives inside the editor it opens. A panel
+ * of twenty-five categories was fifty buttons at rest; now it is twenty-five
+ * rows, and the one you want is the one you press.
+ */
+export function Rows({ children }: { children: ReactNode }) {
+  return <ul>{children}</ul>
+}
+
+const ROW =
+  'flex min-h-11 w-full items-center gap-2 border-b border-dashed border-stone-300 px-3 py-1.5 text-left sm:min-h-9'
+
+const ROW_PRESSABLE =
+  'hover:rounded-lg hover:border-transparent hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand'
+
+export function ItemRow({
+  icon,
+  color,
+  /** Anything that is not a category icon — a member's initials, say. */
+  leading,
+  name,
+  /** Small stone pills after the name — "Paused", "Automatic". */
+  tags,
+  /** The quiet second line: a cadence, a target, what it is funded from. */
+  meta,
+  /** The figure on the right. Always mono, because every figure in this app is. */
+  figure,
+  figureClass = '',
+  /** Faded, for archived things that are shown but no longer in play. */
+  muted,
+  onClick,
+  /** For rows that are not editable and carry their own controls instead. */
+  trailing,
+}: {
+  icon?: string
+  color?: string
+  leading?: ReactNode
+  name: string
+  tags?: ReactNode
+  meta?: ReactNode
+  figure?: string
+  figureClass?: string
+  muted?: boolean
+  onClick?: () => void
+  trailing?: ReactNode
+}) {
+  const body = (
+    <>
+      {leading}
+      {leading === undefined && icon !== undefined && (
+        <span className={muted ? 'opacity-50' : undefined}>
+          <CategoryIcon icon={icon} color={color} className="shrink-0" />
+        </span>
+      )}
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-1.5">
+          <span
+            className={`truncate text-sm font-medium ${
+              muted ? 'text-stone-500' : 'text-stone-800'
+            }`}
+          >
+            {name}
+          </span>
+          {tags}
+        </span>
+        {meta && <span className="block truncate text-xs text-stone-400">{meta}</span>}
+      </span>
+      {figure && (
+        <span data-money className={`shrink-0 text-sm ${figureClass}`}>
+          {figure}
+        </span>
+      )}
+    </>
+  )
+
+  return (
+    <li>
+      {onClick ? (
+        <button type="button" onClick={onClick} className={`${ROW} ${ROW_PRESSABLE}`}>
+          {body}
+        </button>
+      ) : (
+        <div className={ROW}>
+          {body}
+          {trailing}
+        </div>
+      )}
+    </li>
+  )
+}
+
+/** A row that is one open editor. It keeps the rule so the list still reads as
+ *  a list while you are part-way through changing one of its rows. Padding is
+ *  the form's own, so the two do not stack up into a gap. */
+export function EditRow({ children }: { children: ReactNode }) {
+  return <li className="border-b border-dashed border-stone-300">{children}</li>
+}
+
+/** The heading over a list, with what it totals on the right. */
+export function ListHeader({
+  label,
+  figure,
+  figureClass = 'text-stone-800',
+}: {
+  label: string
+  figure?: string
+  figureClass?: string
+}) {
+  return (
+    <div className="flex items-baseline justify-between px-3 pb-1">
+      <span className="text-xs font-medium tracking-wide text-stone-400 uppercase">
+        {label}
+      </span>
+      {figure && (
+        <span data-money className={`text-sm ${figureClass}`}>
+          {figure}
+        </span>
+      )}
+    </div>
+  )
+}
+
 export function Empty({ children }: { children: ReactNode }) {
   return (
     <p className="rounded-xl border border-dashed border-stone-200 bg-white p-6 text-center text-sm text-stone-500">
@@ -159,6 +291,39 @@ export function GhostButton(
   props: React.ButtonHTMLAttributes<HTMLButtonElement>,
 ) {
   return <Button variant="secondary" {...props} />
+}
+
+/**
+ * The bottom of an editor: what you came to do on the left, what you might do
+ * to the thing itself pushed to the far right.
+ *
+ * Archiving and deleting live HERE now rather than beside every row in the
+ * list. You cannot archive something without first choosing it, which is the
+ * same order of operations you already follow in your head, and it costs the
+ * resting list two controls per row it never needed.
+ */
+export function FormActions({
+  onSave,
+  onCancel,
+  busy,
+  disabled,
+  destructive,
+}: {
+  onSave: () => void
+  onCancel: () => void
+  busy?: boolean
+  disabled?: boolean
+  destructive?: ReactNode
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <PrimaryButton onClick={onSave} disabled={disabled || busy}>
+        {busy ? 'Saving…' : 'Save'}
+      </PrimaryButton>
+      <GhostButton onClick={onCancel}>Cancel</GhostButton>
+      {destructive && <span className="ml-auto">{destructive}</span>}
+    </div>
+  )
 }
 
 /**
@@ -392,47 +557,50 @@ export function ArchivedList({
   if (items.length === 0) return null
 
   return (
-    <Card>
-      <div className="border-b border-stone-100 px-4 py-3">
-        <h2 className="text-sm font-semibold text-stone-500">Archived</h2>
+    <section>
+      <div className="px-3 pb-1">
+        <h2 className="text-xs font-medium tracking-wide text-stone-400 uppercase">
+          Archived
+        </h2>
         <p className="text-xs text-stone-400">
           Kept so past months still add up. Anything nothing points at any more
           can be deleted for good.
         </p>
         {error && <p className="mt-1 text-xs text-debt">{error}</p>}
       </div>
-      <ul>
+      <Rows>
         {items.map((it) => (
-          <li
+          <ItemRow
             key={it.id}
-            className="flex items-center gap-2 border-b border-stone-100 p-4 last:border-b-0"
-          >
-            <span className="min-w-0 flex-1 truncate text-sm text-stone-500">
-              {it.name}
-            </span>
-            <GhostButton
-              onClick={async () => {
-                setError(null)
-                await onRestore(it.id)
-              }}
-            >
-              Restore
-            </GhostButton>
-            <ConfirmButton
-              label="Delete"
-              confirmLabel="Yes, delete for good"
-              onConfirm={async () => {
-                setError(null)
-                try {
-                  await onDelete(it.id)
-                } catch (e) {
-                  setError(e instanceof Error ? e.message : 'Could not delete')
-                }
-              }}
-            />
-          </li>
+            name={it.name}
+            muted
+            trailing={
+              <span className="flex shrink-0 items-center gap-1">
+                <GhostButton
+                  onClick={async () => {
+                    setError(null)
+                    await onRestore(it.id)
+                  }}
+                >
+                  Restore
+                </GhostButton>
+                <ConfirmButton
+                  label="Delete"
+                  confirmLabel="Yes, delete for good"
+                  onConfirm={async () => {
+                    setError(null)
+                    try {
+                      await onDelete(it.id)
+                    } catch (e) {
+                      setError(e instanceof Error ? e.message : 'Could not delete')
+                    }
+                  }}
+                />
+              </span>
+            }
+          />
         ))}
-      </ul>
-    </Card>
+      </Rows>
+    </section>
   )
 }

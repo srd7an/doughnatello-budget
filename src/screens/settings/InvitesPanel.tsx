@@ -7,10 +7,13 @@ import {
   ConfirmButton,
   Empty,
   GhostButton,
+  ItemRow,
+  ListHeader,
   Loading,
   Note,
   Panel,
   PrimaryButton,
+  Rows,
 } from './kit'
 
 function inviteUrl(token: string): string {
@@ -106,36 +109,32 @@ export function InvitesPanel() {
       {pending.length === 0 ? (
         <Empty>No invites waiting to be used.</Empty>
       ) : (
-        <Card>
-          <div className="border-b border-stone-100 px-4 py-3">
-            <h2 className="text-sm font-semibold">Waiting to be used</h2>
-          </div>
-          <ul>
+        <div>
+          <ListHeader label="Waiting to be used" />
+          <Rows>
             {pending.map((i) => (
-              <li
+              // An invite is a token and a deadline; there is nothing about it
+              // to edit, so its two actions stay on the row.
+              <ItemRow
                 key={i._id}
-                className="flex flex-wrap items-center gap-2 border-b border-stone-100 p-4 last:border-b-0"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-mono text-xs text-stone-600">
-                    …{i.token.slice(-12)}
-                  </p>
-                  <p className="text-xs text-stone-400">
-                    {expiryLabel(i.expiresAt)}
-                  </p>
-                </div>
-                <GhostButton onClick={() => copy(i.token)}>
-                  {copied === i.token ? 'Copied' : 'Copy link'}
-                </GhostButton>
-                <ConfirmButton
-                  label="Withdraw"
-                  confirmLabel="Yes, withdraw it"
-                  onConfirm={() => revoke({ inviteId: i._id })}
-                />
-              </li>
+                name={`…${i.token.slice(-12)}`}
+                meta={expiryLabel(i.expiresAt)}
+                trailing={
+                  <span className="flex shrink-0 items-center gap-1">
+                    <GhostButton onClick={() => copy(i.token)}>
+                      {copied === i.token ? 'Copied' : 'Copy link'}
+                    </GhostButton>
+                    <ConfirmButton
+                      label="Withdraw"
+                      confirmLabel="Yes, withdraw it"
+                      onConfirm={() => revoke({ inviteId: i._id })}
+                    />
+                  </span>
+                }
+              />
             ))}
-          </ul>
-        </Card>
+          </Rows>
+        </div>
       )}
 
       <Note>

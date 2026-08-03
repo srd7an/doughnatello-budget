@@ -1,17 +1,19 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useMutation, useQuery } from 'convex/react'
 import { api } from '../../../convex/_generated/api'
 import { useHousehold } from '../../household/HouseholdContext'
 import { initials } from '../../lib/format'
 import {
-  Card,
   ConfirmButton,
+  EditRow,
   Field,
   GhostButton,
+  ItemRow,
   Loading,
   Note,
   Panel,
   PrimaryButton,
+  Rows,
   TextInput,
 } from './kit'
 
@@ -31,7 +33,7 @@ export function PeoplePanel() {
   const updateMember = useMutation(api.households.updateMember)
   const removeMember = useMutation(api.households.removeMember)
 
-  const [renaming, setRenaming] = useState<string | null>(null)
+  const [open, setOpen] = useState<string | null>(null)
 
   if (members === undefined || viewer === undefined) return <Loading />
 
@@ -42,83 +44,86 @@ export function PeoplePanel() {
     <Panel
       description="Everyone here sees every transaction. Admins can also invite, rename and remove."
     >
-      <Card>
-        <ul>
-          {members.map((m) => {
-            const isSelf = m.userId === viewer?._id
-            const lastAdmin = m.role === 'admin' && adminCount === 1
+      <Rows>
+        {members.map((m) => {
+          const isSelf = m.userId === viewer?._id
+          const lastAdmin = m.role === 'admin' && adminCount === 1
+          // Nothing to open if there is nothing you may do — a member looking at
+          // someone else gets a row that reads rather than a row that lies about
+          // being pressable.
+          const mayEdit = isSelf || isAdmin
+
+          if (open === m.userId) {
             return (
-              <li key={m.userId} className="border-b border-stone-100 p-4 last:border-b-0">
-                {renaming === m.userId ? (
+              <EditRow key={m.userId}>
+                <div className="space-y-4 px-3 py-2">
                   <RenameForm
                     initial={m.displayName}
-                    onCancel={() => setRenaming(null)}
+                    onCancel={() => setOpen(null)}
                     onSave={async (displayName) => {
                       await updateMember({ householdId, userId: m.userId, displayName })
-                      setRenaming(null)
+                      setOpen(null)
                     }}
+                    extra={
+                      <>
+                        {isAdmin && !lastAdmin && (
+                          <GhostButton
+                            onClick={() =>
+                              updateMember({
+                                householdId,
+                                userId: m.userId,
+                                role: m.role === 'admin' ? 'member' : 'admin',
+                              })
+                            }
+                          >
+                            {m.role === 'admin' ? 'Make a member' : 'Make an admin'}
+                          </GhostButton>
+                        )}
+                        {isAdmin && !lastAdmin && !isSelf && (
+                          <span className="ml-auto">
+                            <ConfirmButton
+                              label="Remove"
+                              confirmLabel="Yes, remove them"
+                              onConfirm={async () => {
+                                await removeMember({ householdId, userId: m.userId })
+                                setOpen(null)
+                              }}
+                            />
+                          </span>
+                        )}
+                      </>
+                    }
                   />
-                ) : (
-                  <>
-                    <div className="flex items-center gap-3">
-                      <span
-                        aria-hidden
-                        className="grid size-9 shrink-0 place-items-center rounded-full bg-stone-200 text-sm font-semibold text-stone-700"
-                      >
-                        {initials(m.displayName)}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">
-                          {m.displayName}
-                          {isSelf && (
-                            <span className="ml-1.5 text-xs font-normal text-stone-400">
-                              you
-                            </span>
-                          )}
-                        </p>
-                        <p className="text-xs text-stone-400">
-                          {m.role === 'admin' ? 'Admin' : 'Member'}
-                          {lastAdmin && ' · the only one'}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mt-2 flex flex-wrap items-center gap-2 pl-12">
-                      {(isSelf || isAdmin) && (
-                        <GhostButton onClick={() => setRenaming(m.userId)}>
-                          Rename
-                        </GhostButton>
-                      )}
-                      {isAdmin && !lastAdmin && (
-                        <GhostButton
-                          onClick={() =>
-                            updateMember({
-                              householdId,
-                              userId: m.userId,
-                              role: m.role === 'admin' ? 'member' : 'admin',
-                            })
-                          }
-                        >
-                          {m.role === 'admin' ? 'Make a member' : 'Make an admin'}
-                        </GhostButton>
-                      )}
-                      {isAdmin && !lastAdmin && !isSelf && (
-                        <ConfirmButton
-                          label="Remove"
-                          confirmLabel="Yes, remove them"
-                          onConfirm={() =>
-                            removeMember({ householdId, userId: m.userId })
-                          }
-                        />
-                      )}
-                    </div>
-                  </>
-                )}
-              </li>
+                </div>
+              </EditRow>
             )
-          })}
-        </ul>
-      </Card>
+          }
+
+          return (
+            <ItemRow
+              key={m.userId}
+              leading={
+                <span
+                  aria-hidden
+                  className="grid size-8 shrink-0 place-items-center rounded-full bg-stone-200 text-xs font-medium text-stone-700"
+                >
+                  {initials(m.displayName)}
+                </span>
+              }
+              name={m.displayName}
+              tags={
+                isSelf ? (
+                  <span className="text-xs font-normal text-stone-400">you</span>
+                ) : undefined
+              }
+              meta={`${m.role === 'admin' ? 'Admin' : 'Member'}${
+                lastAdmin ? ' · the only one' : ''
+              }`}
+              onClick={mayEdit ? () => setOpen(m.userId) : undefined}
+            />
+          )
+        })}
+      </Rows>
 
       <Note>
         Removing someone takes away their access but keeps the transactions they
@@ -133,10 +138,13 @@ function RenameForm({
   initial,
   onSave,
   onCancel,
+  /** The rest of what you can do to this person, on the same action row. */
+  extra,
 }: {
   initial: string
   onSave: (name: string) => Promise<unknown>
   onCancel: () => void
+  extra?: ReactNode
 }) {
   const [name, setName] = useState(initial)
   const [busy, setBusy] = useState(false)
@@ -150,7 +158,7 @@ function RenameForm({
           onChange={(e) => setName(e.target.value)}
         />
       </Field>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <PrimaryButton
           disabled={!name.trim() || busy}
           onClick={async () => {
@@ -165,6 +173,7 @@ function RenameForm({
           {busy ? 'Saving…' : 'Save'}
         </PrimaryButton>
         <GhostButton onClick={onCancel}>Cancel</GhostButton>
+        {extra}
       </div>
     </div>
   )

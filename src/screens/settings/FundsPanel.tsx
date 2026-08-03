@@ -4,21 +4,23 @@ import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { useHousehold } from '../../household/HouseholdContext'
 import { formatMoney, formatPercent } from '../../lib/format'
-import { CategoryIcon } from '../../ui/icons'
 import {
   ArchivedList,
-  Card,
   ColorPicker,
   ConfirmButton,
+  EditRow,
   Empty,
   Field,
-  GhostButton,
+  FormActions,
   IconPicker,
+  ItemRow,
+  ListHeader,
   Loading,
   MoneyInput,
   Note,
   Panel,
   PrimaryButton,
+  Rows,
   TextInput,
 } from './kit'
 
@@ -59,51 +61,48 @@ export function FundsPanel({ editId }: { editId?: string }) {
       {funds.length === 0 ? (
         <Empty>No funds yet. A fund is where you park money for later.</Empty>
       ) : (
-        <Card>
-          <div className="flex items-baseline justify-between border-b border-stone-100 px-4 py-3">
-            <span className="text-sm text-stone-500">Set aside in total</span>
-            <span data-money className="font-semibold text-gain">
-              {formatMoney(total)}
-            </span>
-          </div>
-          <ul>
-            {funds.map((f) => (
-              <li key={f._id} className="border-b border-stone-100 last:border-b-0">
-                {editing === f._id ? (
+        <div>
+          <ListHeader
+            label="Set aside in total"
+            figure={formatMoney(total)}
+            figureClass="text-gain"
+          />
+          <Rows>
+            {funds.map((f) =>
+              editing === f._id ? (
+                <EditRow key={f._id}>
                   <PotForm
-                    initial={{
-                      ...f,
-                      targetAmount: f.targetAmount ?? undefined,
-                    }}
+                    initial={{ ...f, targetAmount: f.targetAmount ?? undefined }}
                     onCancel={() => setEditing(null)}
                     onSave={async (values) => {
                       await update({ potId: f._id, ...values })
                       setEditing(null)
                     }}
+                    onArchive={async () => {
+                      await archive({ potId: f._id })
+                      setEditing(null)
+                    }}
                   />
-                ) : (
-                  <FundRow
-                    fund={f}
-                    onEdit={() => setEditing(f._id)}
-                    onArchive={() => archive({ potId: f._id })}
-                  />
-                )}
-              </li>
-            ))}
-          </ul>
-        </Card>
+                </EditRow>
+              ) : (
+                <FundRow key={f._id} fund={f} onEdit={() => setEditing(f._id)} />
+              ),
+            )}
+          </Rows>
+        </div>
       )}
 
       {adding ? (
-        <Card>
-          <PotForm
-            onCancel={() => setAdding(false)}
-            onSave={async (values) => {
-              await create({ householdId, kind: 'sinking', ...values })
-              setAdding(false)
-            }}
-          />
-        </Card>
+        <PotForm
+          onCancel={() => setAdding(false)}
+          onSave={async (values) => {
+            // Still hardcoded, and still the open question: a fund you are
+            // filling for a known bill is "sinking", one you are simply
+            // building is "savings", and nothing yet asks which.
+            await create({ householdId, kind: 'sinking', ...values })
+            setAdding(false)
+          }}
+        />
       ) : (
         <PrimaryButton onClick={() => setAdding(true)}>Add a fund</PrimaryButton>
       )}
@@ -131,52 +130,27 @@ type Fund = {
   targetAmount: number | null
 }
 
-function FundRow({
-  fund,
-  onEdit,
-  onArchive,
-}: {
-  fund: Fund
-  onEdit: () => void
-  onArchive: () => void
-}) {
+function FundRow({ fund, onEdit }: { fund: Fund; onEdit: () => void }) {
   const target = fund.targetAmount ?? 0
   const share = target > 0 ? Math.min(fund.balance / target, 1) : null
 
+  // A target reads as a sentence rather than a bar. The bar was drawn under
+  // the row, which pushed every fund apart and made a list of six funds a
+  // scroll; the same fact fits on the line that was already there.
   return (
-    <div className="p-4">
-      <div className="flex items-center gap-3">
-        <CategoryIcon icon={fund.icon} color={fund.color} />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">
-          {fund.name}
-        </span>
-        <span data-money className="text-sm font-semibold">
-          {formatMoney(fund.balance)}
-        </span>
-      </div>
-
-      {share !== null && (
-        <div className="mt-2 pl-8">
-          <div className="h-1.5 overflow-hidden rounded-full bg-stone-100">
-            <div
-              className="h-full bg-saved"
-              style={{ width: `${share * 100}%` }}
-            />
-          </div>
-          <p className="mt-1 text-xs text-stone-400">
-            {formatPercent(share)} of {formatMoney(target)}
-          </p>
-        </div>
-      )}
-      <div className="mt-2 flex items-center gap-2 pl-8">
-        <GhostButton onClick={onEdit}>Edit</GhostButton>
-        <ConfirmButton
-          label="Archive"
-          confirmLabel="Yes, archive it"
-          onConfirm={onArchive}
-        />
-      </div>
-    </div>
+    <ItemRow
+      icon={fund.icon}
+      color={fund.color}
+      name={fund.name}
+      meta={
+        share !== null
+          ? `${formatPercent(share)} of ${formatMoney(target)}`
+          : undefined
+      }
+      figure={formatMoney(fund.balance)}
+      figureClass={fund.balance < 0 ? 'text-debt' : 'text-stone-800'}
+      onClick={onEdit}
+    />
   )
 }
 
@@ -191,10 +165,13 @@ function PotForm({
   initial,
   onSave,
   onCancel,
+  onArchive,
 }: {
   initial?: Partial<PotValues>
   onSave: (values: PotValues) => Promise<unknown>
   onCancel: () => void
+  /** Only when editing — there is nothing to archive before it exists. */
+  onArchive?: () => Promise<unknown>
 }) {
   const [name, setName] = useState(initial?.name ?? '')
   const [icon, setIcon] = useState(initial?.icon ?? 'piggy')
@@ -218,7 +195,7 @@ function PotForm({
   }
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="space-y-4 px-3 py-2">
       <Field label="Name">
         <TextInput
           autoFocus
@@ -241,12 +218,21 @@ function PotForm({
       >
         <MoneyInput para={target} onChange={setTarget} />
       </Field>
-      <div className="flex gap-2">
-        <PrimaryButton onClick={save} disabled={!name.trim() || busy}>
-          {busy ? 'Saving…' : 'Save'}
-        </PrimaryButton>
-        <GhostButton onClick={onCancel}>Cancel</GhostButton>
-      </div>
+      <FormActions
+        onSave={save}
+        onCancel={onCancel}
+        busy={busy}
+        disabled={!name.trim()}
+        destructive={
+          onArchive && (
+            <ConfirmButton
+              label="Archive"
+              confirmLabel="Yes, archive it"
+              onConfirm={onArchive}
+            />
+          )
+        }
+      />
     </div>
   )
 }

@@ -4,20 +4,22 @@ import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { useHousehold } from '../../household/HouseholdContext'
 import { formatMoney, formatPercent } from '../../lib/format'
-import { CategoryIcon } from '../../ui/icons'
 import {
   ArchivedList,
-  Card,
   ConfirmButton,
+  EditRow,
   Empty,
   Field,
-  GhostButton,
+  FormActions,
   IconPicker,
+  ItemRow,
+  ListHeader,
   Loading,
   MoneyInput,
   Note,
   Panel,
   PrimaryButton,
+  Rows,
   TextInput,
 } from './kit'
 
@@ -60,17 +62,16 @@ export function LoansPanel({ editId }: { editId?: string }) {
       {loans.length === 0 ? (
         <Empty>No loans. Long may it last.</Empty>
       ) : (
-        <Card>
-          <div className="flex items-baseline justify-between border-b border-stone-100 px-4 py-3">
-            <span className="text-sm text-stone-500">Still owed</span>
-            <span data-money className="font-semibold text-debt">
-              {formatMoney(owedTotal)}
-            </span>
-          </div>
-          <ul>
-            {loans.map((l) => (
-              <li key={l._id} className="border-b border-stone-100 last:border-b-0">
-                {editing === l._id ? (
+        <div>
+          <ListHeader
+            label="Still owed"
+            figure={formatMoney(owedTotal)}
+            figureClass="text-debt"
+          />
+          <Rows>
+            {loans.map((l) =>
+              editing === l._id ? (
+                <EditRow key={l._id}>
                   <LoanForm
                     initial={{
                       name: l.name,
@@ -84,35 +85,33 @@ export function LoansPanel({ editId }: { editId?: string }) {
                       await update({ potId: l._id, ...values })
                       setEditing(null)
                     }}
+                    onArchive={async () => {
+                      await archive({ potId: l._id })
+                      setEditing(null)
+                    }}
                   />
-                ) : (
-                  <LoanRow
-                    loan={l}
-                    onEdit={() => setEditing(l._id)}
-                    onArchive={() => archive({ potId: l._id })}
-                  />
-                )}
-              </li>
-            ))}
-          </ul>
-        </Card>
+                </EditRow>
+              ) : (
+                <LoanRow key={l._id} loan={l} onEdit={() => setEditing(l._id)} />
+              ),
+            )}
+          </Rows>
+        </div>
       )}
 
       {adding ? (
-        <Card>
-          <LoanForm
-            onCancel={() => setAdding(false)}
-            onSave={async (values) => {
-              await create({
-                householdId,
-                kind: 'debt',
-                color: '#D85A30',
-                ...values,
-              })
-              setAdding(false)
-            }}
-          />
-        </Card>
+        <LoanForm
+          onCancel={() => setAdding(false)}
+          onSave={async (values) => {
+            await create({
+              householdId,
+              kind: 'debt',
+              color: '#D85A30',
+              ...values,
+            })
+            setAdding(false)
+          }}
+        />
       ) : (
         <PrimaryButton onClick={() => setAdding(true)}>Add a loan</PrimaryButton>
       )}
@@ -142,58 +141,33 @@ type Loan = {
   minimumPayment: number | null
 }
 
-function LoanRow({
-  loan,
-  onEdit,
-  onArchive,
-}: {
-  loan: Loan
-  onEdit: () => void
-  onArchive: () => void
-}) {
+function LoanRow({ loan, onEdit }: { loan: Loan; onEdit: () => void }) {
   const original = loan.originalAmount ?? 0
   const owed = loan.owed ?? 0
   const paidShare = original > 0 ? Math.min((original - owed) / original, 1) : null
 
+  // How far through it you are, as a sentence on the row rather than a bar
+  // under it. The bar cost a fund or a loan three lines of height each, which
+  // on a phone meant two of them filled the screen.
+  const meta = paidShare !== null
+    ? [
+        `${formatPercent(paidShare)} paid off of ${formatMoney(original)}`,
+        loan.interestRate ? `${loan.interestRate}%` : null,
+        loan.minimumPayment ? `${formatMoney(loan.minimumPayment)} minimum` : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : undefined
+
   return (
-    <div className="p-4">
-      <div className="flex items-center gap-3">
-        <CategoryIcon icon={loan.icon} />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">
-          {loan.name}
-        </span>
-        <span data-money className="text-sm font-semibold text-debt">
-          {formatMoney(owed)}
-        </span>
-      </div>
-
-      {paidShare !== null && (
-        <div className="mt-2 pl-8">
-          <div className="h-1.5 overflow-hidden rounded-full bg-stone-100">
-            <div
-              className="h-full bg-saved"
-              style={{ width: `${paidShare * 100}%` }}
-            />
-          </div>
-          <p className="mt-1 text-xs text-stone-400">
-            {formatPercent(paidShare)} paid off of {formatMoney(original)}
-            {loan.interestRate ? ` · ${loan.interestRate}%` : ''}
-            {loan.minimumPayment
-              ? ` · ${formatMoney(loan.minimumPayment)} minimum`
-              : ''}
-          </p>
-        </div>
-      )}
-
-      <div className="mt-2 flex items-center gap-2 pl-8">
-        <GhostButton onClick={onEdit}>Edit</GhostButton>
-        <ConfirmButton
-          label="Archive"
-          confirmLabel="Yes, archive it"
-          onConfirm={onArchive}
-        />
-      </div>
-    </div>
+    <ItemRow
+      icon={loan.icon}
+      name={loan.name}
+      meta={meta}
+      figure={formatMoney(owed)}
+      figureClass="text-debt"
+      onClick={onEdit}
+    />
   )
 }
 
@@ -212,10 +186,13 @@ function LoanForm({
   initial,
   onSave,
   onCancel,
+  onArchive,
 }: {
   initial?: LoanValues
   onSave: (values: LoanValues) => Promise<unknown>
   onCancel: () => void
+  /** Only when editing. */
+  onArchive?: () => Promise<unknown>
 }) {
   const [name, setName] = useState(initial?.name ?? '')
   const [icon, setIcon] = useState(initial?.icon ?? DEFAULT_LOAN_ICON)
@@ -241,7 +218,7 @@ function LoanForm({
   }
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="space-y-4 px-3 py-2">
       <div className="flex gap-3">
         <Field label="Name" className="flex-1">
           <TextInput
@@ -274,15 +251,21 @@ function LoanForm({
           <MoneyInput para={minimum} onChange={setMinimum} />
         </Field>
       </div>
-      <div className="flex gap-2">
-        <PrimaryButton
-          onClick={save}
-          disabled={!name.trim() || original <= 0 || busy}
-        >
-          {busy ? 'Saving…' : 'Save'}
-        </PrimaryButton>
-        <GhostButton onClick={onCancel}>Cancel</GhostButton>
-      </div>
+      <FormActions
+        onSave={save}
+        onCancel={onCancel}
+        busy={busy}
+        disabled={!name.trim() || original <= 0}
+        destructive={
+          onArchive && (
+            <ConfirmButton
+              label="Archive"
+              confirmLabel="Yes, archive it"
+              onConfirm={onArchive}
+            />
+          )
+        }
+      />
     </div>
   )
 }
