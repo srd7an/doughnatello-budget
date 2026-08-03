@@ -25,9 +25,14 @@ type CatAgg = {
 }
 
 /**
- * The Categories lens. Each category's "%" is its computed SHARE of the
- * period's total spending (not a target). A proportional bar visualises it; a
- * chevron expands to the transactions inside.
+ * The Categories lens. Every "%" here is a share of INCOME — never a target,
+ * and never a share of spending. One denominator down the whole column is what
+ * makes the tree add up: the categories inside a group come to the group's own
+ * figure, and Needs plus Wants come to the Expense segment of the bar at the
+ * top of the same screen. Measured against spending instead, a group and its
+ * categories were pies of different things, and a child's bar could be longer
+ * than its parent's. A proportional bar visualises it; a chevron expands to the
+ * transactions inside.
  *
  * Spending is always split into Needs and Wants. It used to be a toggle, off by
  * default, which meant the answer to "how much of this was unavoidable" — the
@@ -54,7 +59,6 @@ export function CategoriesList({
 
   const incomeRows = rows.filter((r) => r.direction === 'income')
   const expenseRows = rows.filter((r) => r.direction === 'expense')
-  const totalExpense = expenseRows.reduce((s, r) => s + r.amount, 0)
   const income = incomeRows.reduce((s, r) => s + r.amount, 0)
 
   if (incomeRows.length === 0 && expenseRows.length === 0) {
@@ -118,7 +122,6 @@ export function CategoriesList({
         <Group
           label="Needs"
           cats={cats.filter((c) => c.kind === 'committed')}
-          totalExpense={totalExpense}
           income={income}
           open={open}
           toggle={toggle}
@@ -126,7 +129,6 @@ export function CategoriesList({
         <Group
           label="Wants"
           cats={cats.filter((c) => c.kind === 'discretionary')}
-          totalExpense={totalExpense}
           income={income}
           open={open}
           toggle={toggle}
@@ -144,7 +146,7 @@ export function CategoriesList({
 
 /**
  * A category row: a full-width row of text, with a tinted fill behind it whose
- * width is this category's share of the period's spending.
+ * width is this row's share of income.
  *
  * The fill and the text are separate layers, and that is the whole point. When
  * the tinted block WAS the row, it had to be wide enough to hold a name — an
@@ -152,10 +154,10 @@ export function CategoriesList({
  * 13% and 7% and 1% all drew the same block and the encoding said nothing. Even
  * on a wide screen it flattened everything below about a fifth into one width.
  *
- * Freed of the text, the fill can be 1.4% wide and look it. The width is
- * share-of-total, the same number the % beside it shows; normalising to the
- * largest category would make the top row always full and the bar would then
- * disagree with its own label.
+ * Freed of the text, the fill can be 1.4% wide and look it. The width is the
+ * same number the % beside it shows; normalising to the largest category would
+ * make the top row always full and the bar would then disagree with its own
+ * label.
  *
  * Children are indented by the rule their group draws, track and all — a
  * category's bar is read against its siblings, which share that indent, and
@@ -208,7 +210,11 @@ function BarRow({
           {label}
         </span>
         {showShare && (
-          <span data-money className="shrink-0 text-sm text-stone-500">
+          <span
+            data-money
+            title="Share of income"
+            className="shrink-0 text-sm text-stone-500"
+          >
             {formatPercent(share)}
           </span>
         )}
@@ -224,23 +230,18 @@ function BarRow({
 }
 
 /**
- * Needs and Wants are measured against INCOME, not against spending: the
- * question they answer is what share of what came in was unavoidable, and the
- * two of them together come to the Expense segment of the bar at the top of the
- * screen. The categories inside them are shares of spending — see the note on
- * the mismatch in CategoriesList.
+ * Needs and Wants: what share of what came in was unavoidable, and what was
+ * chosen. Their categories are measured the same way, so they sum to the group.
  */
 function Group({
   label,
   cats,
-  totalExpense,
   income,
   open,
   toggle,
 }: {
   label: string
   cats: CatAgg[]
-  totalExpense: number
   income: number
   open: Set<string>
   toggle: (k: string) => void
@@ -273,7 +274,7 @@ function Group({
             <CategoryRow
               key={c.id}
               cat={c}
-              share={totalExpense > 0 ? c.total / totalExpense : 0}
+              share={income > 0 ? c.total / income : 0}
               open={open}
               toggle={toggle}
             />
