@@ -12,6 +12,7 @@ import {
   Empty,
   Field,
   GhostButton,
+  IconPicker,
   Loading,
   MoneyInput,
   Note,
@@ -71,6 +72,7 @@ export function LoansPanel() {
                   <LoanForm
                     initial={{
                       name: l.name,
+                      icon: l.icon,
                       originalAmount: l.originalAmount ?? 0,
                       interestRate: l.interestRate ?? 0,
                       minimumPayment: l.minimumPayment ?? 0,
@@ -102,7 +104,6 @@ export function LoansPanel() {
               await create({
                 householdId,
                 kind: 'debt',
-                icon: 'bank',
                 color: '#D85A30',
                 ...values,
               })
@@ -196,10 +197,14 @@ function LoanRow({
 
 type LoanValues = {
   name: string
+  icon: string
   originalAmount: number
   interestRate?: number
   minimumPayment?: number
 }
+
+/** A loan is money from an institution until you say otherwise. */
+const DEFAULT_LOAN_ICON = 'bank'
 
 function LoanForm({
   initial,
@@ -211,6 +216,7 @@ function LoanForm({
   onCancel: () => void
 }) {
   const [name, setName] = useState(initial?.name ?? '')
+  const [icon, setIcon] = useState(initial?.icon ?? DEFAULT_LOAN_ICON)
   const [original, setOriginal] = useState(initial?.originalAmount ?? 0)
   const [rate, setRate] = useState(String(initial?.interestRate ?? ''))
   const [minimum, setMinimum] = useState(initial?.minimumPayment ?? 0)
@@ -222,6 +228,7 @@ function LoanForm({
     try {
       await onSave({
         name: name.trim(),
+        icon,
         originalAmount: original,
         interestRate: rate ? Number(rate) : undefined,
         minimumPayment: minimum > 0 ? minimum : undefined,
@@ -233,14 +240,19 @@ function LoanForm({
 
   return (
     <div className="space-y-4 p-4">
-      <Field label="Name">
-        <TextInput
-          autoFocus
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Car loan"
-        />
-      </Field>
+      <div className="flex gap-3">
+        <Field label="Name" className="flex-1">
+          <TextInput
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Car loan"
+          />
+        </Field>
+        <Field label="Icon">
+          <IconPicker value={icon} onChange={setIcon} />
+        </Field>
+      </div>
       <Field
         label="Amount borrowed"
         hint="The original sum. What is still owed is worked out from your payments."

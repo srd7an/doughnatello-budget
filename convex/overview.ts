@@ -331,7 +331,9 @@ export const year = query({
       .map((a) => ({
         _id: a._id,
         name: a.name,
-        icon: "",
+        // Assets have no colour of their own — they are not funds, and the
+        // neutral keeps them from reading as one.
+        icon: a.icon ?? "money",
         color: "#a8a29e",
         balance: a.value,
         change: 0, // revaluation not tracked

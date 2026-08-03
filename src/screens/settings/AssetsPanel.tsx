@@ -5,12 +5,14 @@ import type { Id } from '../../../convex/_generated/dataModel'
 import { useHousehold } from '../../household/HouseholdContext'
 import { formatMoney } from '../../lib/format'
 import { localISO } from '../../lib/dates'
+import { CategoryIcon } from '../../ui/icons'
 import {
   Card,
   ConfirmButton,
   Empty,
   Field,
   GhostButton,
+  IconPicker,
   Loading,
   MoneyInput,
   Note,
@@ -77,6 +79,7 @@ export function AssetsPanel() {
                     initial={{
                       name: a.name,
                       value: a.value,
+                      icon: a.icon ?? DEFAULT_ASSET_ICON,
                       valuedOn: a.valuedOn,
                       linkedDebtPotId: a.linkedDebtPotId,
                     }}
@@ -141,9 +144,17 @@ type Asset = {
   _id: Id<'assets'>
   name: string
   value: number
+  icon?: string
   valuedOn: string
   linkedDebtPotId?: Id<'pots'>
 }
+
+/**
+ * What an asset looks like before you say otherwise. Deliberately a plain
+ * money glyph rather than a house or a car: the panel holds both, and guessing
+ * wrong is worse than not guessing.
+ */
+const DEFAULT_ASSET_ICON = 'money'
 
 function AssetRow({
   asset,
@@ -166,6 +177,10 @@ function AssetRow({
   return (
     <div className="p-4">
       <div className="flex items-center gap-3">
+        <CategoryIcon
+          icon={asset.icon ?? DEFAULT_ASSET_ICON}
+          className="shrink-0 text-stone-500"
+        />
         <span className="min-w-0 flex-1 truncate text-sm font-medium">
           {asset.name}
         </span>
@@ -193,6 +208,7 @@ function AssetRow({
 type AssetValues = {
   name: string
   value: number
+  icon: string
   valuedOn: string
   linkedDebtPotId?: Id<'pots'>
 }
@@ -209,6 +225,7 @@ function AssetForm({
   onCancel: () => void
 }) {
   const [name, setName] = useState(initial?.name ?? '')
+  const [icon, setIcon] = useState(initial?.icon ?? DEFAULT_ASSET_ICON)
   const [value, setValue] = useState(initial?.value ?? 0)
   const [valuedOn, setValuedOn] = useState(
     initial?.valuedOn ?? localISO(new Date()),
@@ -225,6 +242,7 @@ function AssetForm({
       await onSave({
         name: name.trim(),
         value,
+        icon,
         valuedOn,
         linkedDebtPotId: debt || undefined,
       })
@@ -235,14 +253,19 @@ function AssetForm({
 
   return (
     <div className="space-y-4 p-4">
-      <Field label="Name">
-        <TextInput
-          autoFocus
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Flat"
-        />
-      </Field>
+      <div className="flex gap-3">
+        <Field label="Name" className="flex-1">
+          <TextInput
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Flat"
+          />
+        </Field>
+        <Field label="Icon">
+          <IconPicker value={icon} onChange={setIcon} />
+        </Field>
+      </div>
       <div className="flex gap-3">
         <Field label="Value" className="flex-1">
           <MoneyInput para={value} onChange={setValue} />

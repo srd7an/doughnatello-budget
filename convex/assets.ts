@@ -29,6 +29,7 @@ export const create = mutation({
     householdId: v.id("households"),
     name: v.string(),
     value: v.number(),
+    icon: v.optional(v.string()),
     valuedOn: v.string(), // YYYY-MM-DD
     linkedDebtPotId: v.optional(v.id("pots")),
   },
@@ -55,6 +56,7 @@ export const update = mutation({
     assetId: v.id("assets"),
     name: v.optional(v.string()),
     value: v.optional(v.number()),
+    icon: v.optional(v.string()),
     valuedOn: v.optional(v.string()),
     linkedDebtPotId: v.optional(v.id("pots")),
   },

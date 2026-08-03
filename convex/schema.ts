@@ -113,6 +113,9 @@ export default defineSchema({
     householdId: v.id("households"),
     name: v.string(),
     value: v.number(), // para
+    // A glyph key like categories and pots carry (see src/ui/icons.tsx).
+    // Optional: assets predate it, and a missing one falls back on display.
+    icon: v.optional(v.string()),
     valuedOn: v.string(), // YYYY-MM-DD — surfaced to prompt annual re-value
     linkedDebtPotId: v.optional(v.id("pots")),
     isArchived: v.boolean(),

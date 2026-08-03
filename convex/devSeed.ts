@@ -140,9 +140,9 @@ type PotKey = (typeof POTS)[number]["key"];
 type PotIds = Record<string, Id<"pots">>;
 
 const ASSETS = [
-  { name: "Apartment", value: rsd(21_000_000), valuedOn: "2026-01-15", debt: "homeLoan" },
-  { name: "Škoda Octavia", value: rsd(1_450_000), valuedOn: "2026-03-01", debt: "carLoan" },
-  { name: "Foreign currency savings", value: rsd(620_000), valuedOn: "2026-06-30" },
+  { name: "Apartment", value: rsd(21_000_000), icon: "property", valuedOn: "2026-01-15", debt: "homeLoan" },
+  { name: "Škoda Octavia", value: rsd(1_450_000), icon: "car", valuedOn: "2026-03-01", debt: "carLoan" },
+  { name: "Foreign currency savings", value: rsd(620_000), icon: "vault", valuedOn: "2026-06-30" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -491,6 +491,7 @@ export const prepare = internalMutation({
         householdId,
         name: a.name,
         value: a.value,
+        icon: a.icon,
         valuedOn: a.valuedOn,
         linkedDebtPotId: a.debt ? potIds[a.debt] : undefined,
         isArchived: false,
