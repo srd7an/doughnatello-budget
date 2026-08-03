@@ -296,6 +296,8 @@ function AssetForm({
   onSave,
   onCancel,
 }: {
+  /** Present means editing, and editing cannot change what a thing is worth —
+   *  that is a dated valuation, so those fields are not offered here. */
   initial?: AssetValues
   debts: { _id: Id<'pots'>; name: string }[]
   onSave: (values: AssetValues) => Promise<unknown>
@@ -343,18 +345,23 @@ function AssetForm({
           <IconPicker value={icon} onChange={setIcon} />
         </Field>
       </div>
-      <div className="flex gap-3">
-        <Field label="Value" className="flex-1">
-          <MoneyInput para={value} onChange={setValue} />
-        </Field>
-        <Field label="Valued on" hint="Update this when you re-check.">
-          <TextInput
-            type="date"
-            value={valuedOn}
-            onChange={(e) => setValuedOn(e.target.value)}
-          />
-        </Field>
-      </div>
+      {/* Only when it is new. On an existing asset the value is changed by
+          Re-value, which records WHEN — offering it here would be a field that
+          silently did nothing. */}
+      {!initial && (
+        <div className="flex gap-3">
+          <Field label="Value" className="flex-1">
+            <MoneyInput para={value} onChange={setValue} />
+          </Field>
+          <Field label="Valued on" hint="What it is worth as of this date.">
+            <TextInput
+              type="date"
+              value={valuedOn}
+              onChange={(e) => setValuedOn(e.target.value)}
+            />
+          </Field>
+        </div>
+      )}
       {debts.length > 0 && (
         <Field label="Bought with a loan">
           <select

@@ -136,7 +136,11 @@ export function SettingsModal({
   // The URL is the source of truth for which section is showing, so a link to
   // one lands on it and picking another is a navigation like any other.
   const section: SectionId = isSection(sectionParam) ? sectionParam : 'accounts'
-  const setSection = (id: SectionId) => navigate(`/settings/${id}`)
+  // Replaces rather than pushes: moving between panels is not a new place,
+  // it is the same modal showing something else. Pushing meant closing took
+  // one Back per section you had looked at.
+  const setSection = (id: SectionId) =>
+    navigate(`/settings/${id}`, { replace: true })
   const [footer, setFooter] = useState<FooterState>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const restoreTo = useRef<HTMLElement | null>(null)

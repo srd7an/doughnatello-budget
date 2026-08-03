@@ -43,12 +43,21 @@ export function AppShell() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  const addOpen = !!useMatch('/add')
+  // EVERY useMatch is called on every render, unconditionally. Combining them
+  // with ?? or || short-circuits the calls, React sees a different number of
+  // hooks between two routes, and the app goes white on the way from one to
+  // the other. Match first, decide after.
+  const addMatch = useMatch('/add')
   const txMatch = useMatch('/transactions/:transactionId')
   const settingsItem = useMatch('/settings/:section/:itemId')
-  const settingsMatch =
-    settingsItem ?? useMatch('/settings/:section') ?? useMatch('/settings')
-  const onPage = !!useMatch('/funds/:potId') || !!useMatch('/assets/:assetId')
+  const settingsSection = useMatch('/settings/:section')
+  const settingsRoot = useMatch('/settings')
+  const potMatch = useMatch('/funds/:potId')
+  const assetMatch = useMatch('/assets/:assetId')
+
+  const addOpen = !!addMatch
+  const settingsMatch = settingsItem ?? settingsSection ?? settingsRoot
+  const onPage = !!potMatch || !!assetMatch
 
   const close = () => {
     if (location.key === 'default') navigate('/', { replace: true })
