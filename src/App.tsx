@@ -7,6 +7,7 @@ import {
 } from 'convex/react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { api } from '../convex/_generated/api'
+import { ErrorBoundary } from './ui/ErrorBoundary'
 import { SignInForm } from './SignInForm'
 import { AcceptInvite, CreateHousehold } from './Onboarding'
 import { HouseholdProvider } from './household/HouseholdContext'
@@ -22,7 +23,7 @@ function inviteTokenFromUrl(): string | null {
 
 function App() {
   return (
-    <>
+    <ErrorBoundary>
       <AuthLoading>
         <Splash>Loading…</Splash>
       </AuthLoading>
@@ -32,7 +33,7 @@ function App() {
       <Authenticated>
         <AuthedApp />
       </Authenticated>
-    </>
+    </ErrorBoundary>
   )
 }
 

@@ -67,9 +67,14 @@ export function TransactionForm({
   const householdId = household._id
   const isEdit = transactionId !== undefined
 
+  // Stop asking the moment it is on its way out. Deleting leaves the form
+  // mounted for the instant before the route changes, and `detail` is reactive:
+  // it would re-run against an id that no longer resolves, throw, and take the
+  // screen with it. Skipping is how a query says "never mind".
+  const [deleting, setDeleting] = useState(false)
   const detail = useQuery(
     api.transactions.detail,
-    transactionId ? { transactionId } : 'skip',
+    transactionId && !deleting ? { transactionId } : 'skip',
   )
   const categories = useQuery(api.categories.list, { householdId }) ?? []
   const potBalances = useQuery(api.pots.balances, { householdId }) ?? []
@@ -680,8 +685,14 @@ export function TransactionForm({
             label="Delete"
             confirmLabel="Delete it"
             onConfirm={async () => {
-              await remove({ transactionId })
-              onDone()
+              setDeleting(true)
+              try {
+                await remove({ transactionId })
+                onDone()
+              } catch (e) {
+                setDeleting(false)
+                setError(e instanceof Error ? e.message : 'Could not delete')
+              }
             }}
           />
         </div>
