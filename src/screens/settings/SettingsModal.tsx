@@ -8,6 +8,7 @@ import {
 } from 'react'
 import { useAuthActions } from '@convex-dev/auth/react'
 import { useNavigate } from 'react-router-dom'
+import { useKeepPeriod } from '../../period/PeriodContext'
 import { Button } from '../../ui/Button'
 import { SignOutIcon, XIcon } from '../../ui/icons'
 import { AccountsPanel } from './AccountsPanel'
@@ -134,14 +135,16 @@ export function SettingsModal({
 }) {
   const { signOut } = useAuthActions()
   const navigate = useNavigate()
+  const keepPeriod = useKeepPeriod()
   // The URL is the source of truth for which section is showing, so a link to
   // one lands on it and picking another is a navigation like any other.
   const section: SectionId = isSection(sectionParam) ? sectionParam : 'accounts'
   // Replaces rather than pushes: moving between panels is not a new place,
   // it is the same modal showing something else. Pushing meant closing took
-  // one Back per section you had looked at.
+  // one Back per section you had looked at. And it carries the period, or the
+  // month behind the modal jumps to today the moment you change panel.
   const setSection = (id: SectionId) =>
-    navigate(`/settings/${id}`, { replace: true })
+    navigate(keepPeriod(`/settings/${id}`), { replace: true })
   const [footer, setFooter] = useState<FooterState>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const restoreTo = useRef<HTMLElement | null>(null)

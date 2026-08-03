@@ -10,6 +10,7 @@ import { useMutation } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { Button } from '../ui/Button'
 import { SM, useMediaQuery } from '../lib/useMediaQuery'
+import { useKeepPeriod } from '../period/PeriodContext'
 import { PlusIcon } from '../ui/icons'
 import { useHousehold } from '../household/HouseholdContext'
 import { AvatarMenu } from './AvatarMenu'
@@ -68,8 +69,8 @@ export function AppShell() {
 
   /** Opening an overlay keeps the period in the URL, or the page behind it
    *  would jump to today the moment you pressed Add. */
-  const open = (pathname: string) =>
-    navigate({ pathname, search: location.search })
+  const keepPeriod = useKeepPeriod()
+  const open = (pathname: string) => navigate(keepPeriod(pathname))
 
   const close = () => {
     if (location.key === 'default') navigate('/', { replace: true })

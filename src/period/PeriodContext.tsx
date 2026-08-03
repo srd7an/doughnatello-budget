@@ -5,7 +5,7 @@ import {
   useMemo,
   type ReactNode,
 } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import { formatMonth } from '../lib/format'
 
 /**
@@ -138,4 +138,18 @@ export function usePeriod(): Period {
   const ctx = useContext(PeriodContext)
   if (!ctx) throw new Error('usePeriod must be used within a PeriodProvider')
   return ctx
+}
+
+/**
+ * A destination that keeps the period you are looking at.
+ *
+ * The period lives in the query string, and `navigate('/somewhere')` throws a
+ * query string away — so every jump that leaves the overview showing has to
+ * carry it, or the page behind an overlay silently snaps back to today. That
+ * happened twice: once opening the add form, and again moving between panels
+ * inside Settings. It is a hook rather than a rule to remember.
+ */
+export function useKeepPeriod() {
+  const location = useLocation()
+  return (pathname: string) => ({ pathname, search: location.search })
 }

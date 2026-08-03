@@ -155,8 +155,12 @@ export const commit = mutation({
             householdId: args.householdId,
             name,
             kind: r.direction === "income" ? "income" : "committed",
-            icon: "star",
-            color: "#78716C",
+            // A star says nothing, and every imported category wearing one
+            // makes the icons useless at exactly the moment there are most of
+            // them. These say what kind of row they hold, and are meant to be
+            // changed — which is the point of them being recognisable.
+            icon: r.direction === "income" ? "wallet" : "receipt",
+            color: r.direction === "income" ? "#1D9E75" : "#78716C",
             sortOrder: sortOrder++,
             isArchived: false,
           });

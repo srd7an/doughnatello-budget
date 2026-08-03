@@ -1,5 +1,6 @@
 import { describe, expect, test, vi } from 'vitest'
 import { screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router-dom'
 import { renderScreen, setFixtures } from '../test/render'
 import { setViewport } from '../test/setup'
@@ -81,6 +82,18 @@ describe('the shell', () => {
     const p = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
     shell(`/?p=${p}`)
     expect(screen.queryByRole('button', { name: /today/i })).not.toBeInTheDocument()
+  })
+
+  test('settings keeps the month the page behind it is showing', async () => {
+    setFixtures(EMPTY)
+    setViewport('desktop')
+    shell('/settings/accounts?p=2026-01')
+
+    // The month is behind the modal, and changing panel must not disturb it —
+    // navigating without the query string snapped it back to today.
+    expect(screen.getByText('January 2026')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Funds' }))
+    expect(screen.getByText('January 2026')).toBeInTheDocument()
   })
 
   test('the period control gives up its slot to a way back on a page', () => {
