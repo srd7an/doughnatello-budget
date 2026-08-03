@@ -165,7 +165,7 @@ export function SettingsModal({
                     key={item.id}
                     onClick={() => setSection(item.id)}
                     aria-current={section === item.id}
-                    className={`min-h-11 w-full rounded-lg px-3 py-1.5 text-left text-sm font-medium whitespace-nowrap text-stone-800 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand ${
+                    className={`min-h-11 sm:min-h-9 w-full rounded-lg px-3 py-1.5 text-left text-sm font-medium whitespace-nowrap text-stone-800 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand ${
                       section === item.id ? 'bg-stone-200' : 'hover:bg-stone-100'
                     }`}
                   >
@@ -178,7 +178,7 @@ export function SettingsModal({
 
           <button
             onClick={() => void signOut()}
-            className="mt-auto flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-stone-800 hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
+            className="mt-auto flex min-h-11 sm:min-h-9 shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-stone-800 hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
           >
             <SignOutIcon size={20} aria-hidden />
             Sign out
@@ -191,7 +191,7 @@ export function SettingsModal({
             <button
               onClick={onClose}
               aria-label="Close settings"
-              className="grid size-11 place-items-center rounded-full text-stone-600 hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+              className="grid size-11 sm:size-8 place-items-center rounded-full text-stone-600 hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
             >
               <XIcon size={20} aria-hidden />
             </button>
@@ -208,14 +208,14 @@ export function SettingsModal({
               <button
                 onClick={() => void footer.onSave()}
                 disabled={footer.saving}
-                className="min-h-11 w-20 rounded-full border border-violet-800 bg-brand text-sm font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40"
+                className="min-h-11 sm:min-h-9 w-20 rounded-full border border-violet-800 bg-brand text-sm font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40"
               >
                 {footer.saving ? '…' : 'Save'}
               </button>
               <button
                 onClick={footer.onDiscard}
                 disabled={footer.saving}
-                className="min-h-11 w-20 rounded-full border border-violet-300 bg-white text-sm font-medium text-brand hover:bg-violet-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40"
+                className="min-h-11 sm:min-h-9 w-20 rounded-full border border-violet-300 bg-white text-sm font-medium text-brand hover:bg-violet-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40"
               >
                 Discard
               </button>

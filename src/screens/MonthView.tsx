@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react'
-import type { Id } from '../../convex/_generated/dataModel'
 import { useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { useHousehold } from '../household/HouseholdContext'
 import { usePeriod } from '../period/PeriodContext'
 import { formatMoney, formatPercent } from '../lib/format'
-import { CaretRightIcon, CategoryIcon } from '../ui/icons'
 import { Swatch } from '../ui/Swatch'
 import { ChartTooltip, SERIES } from '../ui/ChartTooltip'
 import { TransactionsList, type TxFilter } from './TransactionsList'
@@ -60,9 +58,6 @@ export function MonthView() {
   const income = summary?.income ?? 0
   const denom = Math.max(income, 1)
   const leftToSpend = summary?.leftToSpend ?? 0
-
-  // Per-pot savings this month, for the Savings metric expansion.
-  const savingsByPot = groupSavings(rows ?? [])
 
   return (
     <div className="space-y-6">
@@ -162,8 +157,6 @@ export function MonthView() {
             label="Savings"
             amount={summary?.savings ?? 0}
             share={income > 0 ? (summary?.savings ?? 0) / income : null}
-            breakdown={savingsByPot}
-            onPick={(potId, name) => show({ kind: 'pot', potId, label: name })}
           />
         </div>
       </section>
@@ -235,10 +228,11 @@ function Seg({
         onHover({ label, amount, color, x: r.left + r.width / 2, y: r.top })
       }}
       onBlur={() => onHover(null)}
-      // The bar stays 20px because that is the design; the button around it is
-      // 44px and transparent, so the thumb target is the full height without
+      // The bar stays 20px because that is the design; on a phone the button
+      // around it is 44px and transparent, so the thumb gets its target without
       // the mark growing to meet it. -my-3 keeps the row's own height at 20px.
-      className={`-my-3 flex items-center py-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
+      // A pointer does not need the extra reach, so from sm up it is gone.
+      className={`-my-3 flex items-center py-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:my-0 sm:py-0 ${
         onSelect ? 'cursor-pointer' : 'cursor-default'
       }`}
       style={{ width: `${Math.max(pct, 1.5)}%` }}
@@ -248,78 +242,35 @@ function Seg({
   )
 }
 
-type PotSaving = {
-  potId: Id<'pots'>
-  name: string
-  icon: string
-  amount: number
-}
-
+/**
+ * One figure in the legend under the bar. It is a label, not a control: it
+ * names a colour and states a number, and there is nothing to press. It was a
+ * button so that Savings could expand into a per-fund breakdown, which made the
+ * other two look pressable and did nothing when pressed.
+ */
 function Metric({
   swatch,
   label,
   amount,
   share,
-  breakdown,
-  onPick,
 }: {
   swatch: string
   label: string
   amount: number
   share: number | null
-  breakdown?: PotSaving[]
-  onPick?: (potId: Id<'pots'>, name: string) => void
 }) {
-  const [open, setOpen] = useState(false)
-  const expandable = !!breakdown && breakdown.length > 0
-
   return (
     <div>
-      <button
-        type="button"
-        disabled={!expandable}
-        onClick={() => setOpen((o) => !o)}
-        className={`flex min-h-11 items-center gap-1.5 text-sm text-stone-500 ${
-          expandable ? 'hover:text-stone-700' : 'cursor-default'
-        }`}
-      >
+      <p className="flex items-center gap-1.5 text-sm text-stone-500">
         {label}
         <Swatch className={swatch} />
-        {expandable && (
-          <CaretRightIcon
-            size={12}
-            aria-hidden
-            className={`text-stone-400 transition-transform ${open ? 'rotate-90' : ''}`}
-          />
-        )}
-      </button>
+      </p>
       <p className="tnum mt-0.5 text-sm">
         <span className="text-stone-800">{formatMoney(amount)}</span>
         {share !== null && (
           <span className="ml-1.5 text-stone-500">{formatPercent(share)}</span>
         )}
       </p>
-      {expandable && open && (
-        <ul className="mt-1 space-y-0.5">
-          {breakdown!.map((b) => (
-            <li key={b.potId}>
-              {/* Not just what went in — the whole month against that fund,
-                  what left it included. */}
-              <button
-                type="button"
-                onClick={() => onPick?.(b.potId, b.name)}
-                aria-label={`${b.name} ${formatMoney(b.amount)} — show everything against this fund`}
-                className="tnum flex min-h-11 w-full items-center justify-between gap-6 rounded text-xs text-stone-500 hover:text-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-              >
-                <span>
-                  <CategoryIcon icon={b.icon} size={14} /> {b.name}
-                </span>
-                <span>{formatMoney(b.amount)}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   )
 }
@@ -345,28 +296,4 @@ function LensTab({
       {label}
     </button>
   )
-}
-
-type Row = {
-  direction: string
-  amount: number
-  potId: Id<'pots'> | null
-  pot: { name: string; icon: string } | null
-}
-
-function groupSavings(rows: Row[]): PotSaving[] {
-  const byPot = new Map<string, PotSaving>()
-  for (const r of rows) {
-    if (r.direction !== 'transfer' || !r.potId || !r.pot) continue
-    const cur = byPot.get(r.potId)
-    if (cur) cur.amount += r.amount
-    else
-      byPot.set(r.potId, {
-        potId: r.potId,
-        name: r.pot.name,
-        icon: r.pot.icon,
-        amount: r.amount,
-      })
-  }
-  return [...byPot.values()].sort((a, b) => b.amount - a.amount)
 }

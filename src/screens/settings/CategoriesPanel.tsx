@@ -247,7 +247,7 @@ function CategoryForm({
                 type="button"
                 aria-pressed={kind === k}
                 onClick={() => setKind(k)}
-                className={`h-11 flex-1 rounded-lg text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
+                className={`h-11 sm:h-10 flex-1 rounded-lg text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
                   kind === k
                     ? 'bg-white text-stone-900'
                     : 'text-stone-500 hover:text-stone-700'

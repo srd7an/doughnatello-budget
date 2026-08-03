@@ -195,7 +195,7 @@ export function AccountsPanel() {
         ) : (
           <button
             onClick={() => setAdding(true)}
-            className="flex min-h-11 items-center gap-1 rounded-full px-2 py-1.5 text-sm font-medium text-brand hover:bg-violet-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            className="flex min-h-11 sm:min-h-9 items-center gap-1 rounded-full px-2 py-1.5 text-sm font-medium text-brand hover:bg-violet-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
           >
             <PlusIcon className="size-5" />
             Add account

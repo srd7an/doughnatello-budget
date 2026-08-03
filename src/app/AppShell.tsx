@@ -48,7 +48,7 @@ export function AppShell() {
             <PeriodControl />
             <button
               onClick={() => setAddOpen(true)}
-              className="hidden items-center gap-1.5 rounded-full border border-violet-800 bg-brand px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:flex"
+              className="hidden h-8 items-center gap-1.5 rounded-full border border-violet-800 bg-brand px-3 text-sm text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:flex"
             >
               Add transaction
             </button>

@@ -54,7 +54,7 @@ export function Popover({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={label}
-        className="flex min-h-11 items-center gap-2 rounded-lg border border-stone-300 bg-white px-2 py-1.5 text-sm text-stone-800 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        className="flex min-h-11 sm:min-h-9 items-center gap-2 rounded-lg border border-stone-300 bg-white px-2 py-1.5 text-sm text-stone-800 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
       >
         {trigger}
       </button>

@@ -155,9 +155,9 @@ export function CategoriesList({
  * largest category would make the top row always full and the bar would then
  * disagree with its own label.
  *
- * Indentation moves the LABEL, never the track: every row's fill starts at the
- * same left edge and is measured against the same width, so a child's bar is
- * still comparable to its parent's.
+ * Children are indented by the rule their group draws, track and all — a
+ * category's bar is read against its siblings, which share that indent, and
+ * against the % printed beside it either way.
  */
 function BarRow({
   share,
@@ -169,7 +169,6 @@ function BarRow({
   label,
   amount,
   showShare = true,
-  indent = false,
 }: {
   share: number
   tone: string
@@ -181,14 +180,10 @@ function BarRow({
   amount: number
   /** Income is not a share of spending — it has no percentage to show. */
   showShare?: boolean
-  indent?: boolean
 }) {
   const pct = Math.max(0, Math.min(share, 1)) * 100
   return (
-    // The track is what the fill is a proportion OF. Without it a 2% row is a
-    // stub against nothing and you cannot see what full would have been — and
-    // the row stops looking like a row you can tap.
-    <div className="relative overflow-hidden rounded-lg bg-stone-50">
+    <div className="relative overflow-hidden rounded-lg">
       <div
         aria-hidden
         className={`absolute inset-y-0 left-0 ${tone}`}
@@ -199,9 +194,7 @@ function BarRow({
       <button
         onClick={onClick}
         aria-expanded={expanded}
-        className={`relative flex min-h-11 w-full items-center gap-2 px-3 py-1.5 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand ${
-          indent ? 'pl-9' : ''
-        }`}
+        className="relative flex min-h-11 w-full items-center gap-2 px-3 py-1.5 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:min-h-9"
       >
         <CaretRightIcon
           size={16}
@@ -256,17 +249,22 @@ function Group({
         label={label}
         amount={total}
       />
-      {open.has(key) &&
-        cats.map((c) => (
-          <CategoryRow
-            key={c.id}
-            cat={c}
-            share={totalExpense > 0 ? c.total / totalExpense : 0}
-            open={open}
-            toggle={toggle}
-            indent
-          />
-        ))}
+      {/* One rule down the left of everything inside this group, so where a
+          group ends is a line you can see rather than an indent you infer. It
+          spans the categories AND any transactions opened under them. */}
+      {open.has(key) && (
+        <div className="ml-4 flex flex-col gap-1 border-l border-stone-200 pl-4">
+          {cats.map((c) => (
+            <CategoryRow
+              key={c.id}
+              cat={c}
+              share={totalExpense > 0 ? c.total / totalExpense : 0}
+              open={open}
+              toggle={toggle}
+            />
+          ))}
+        </div>
+      )}
     </>
   )
 }
@@ -276,39 +274,43 @@ function CategoryRow({
   share,
   open,
   toggle,
-  indent,
 }: {
   cat: CatAgg
   share: number
   open: Set<string>
   toggle: (k: string) => void
-  indent?: boolean
 }) {
   return (
     <>
       <BarRow
         share={share}
-        tone="bg-stone-200"
+        tone="bg-stone-100"
         expanded={open.has(cat.id)}
         onClick={() => toggle(cat.id)}
         icon={cat.icon}
         iconColor={cat.color}
         label={cat.name}
         amount={cat.total}
-        indent={indent}
       />
       {open.has(cat.id) && <TxnList txns={cat.txns} />}
     </>
   )
 }
 
+/**
+ * The transactions inside a category.
+ *
+ * The dashed rule is a BORDER ON THE ROW, not a divider between rows: on hover
+ * the row takes a filled, rounded shape and the rule goes with it, which only
+ * works if the row owns it.
+ */
 function TxnList({ txns }: { txns: Txn[] }) {
   return (
     <ul>
       {txns.map((t) => (
         <li
           key={t.id}
-          className="flex items-center gap-2 border-b border-dashed border-stone-300 py-1.5 pr-3 pl-11 text-sm"
+          className="flex items-center gap-2 rounded-lg border-b border-dashed border-stone-300 py-1.5 pr-3 pl-8 text-sm hover:border-transparent hover:bg-stone-100"
         >
           <span className="min-w-0 flex-1 truncate font-medium text-stone-800">
             {t.payee}

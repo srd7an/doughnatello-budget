@@ -62,7 +62,7 @@ export function Modal({
           <button
             onClick={onClose}
             aria-label="Close"
-            className="grid size-11 place-items-center rounded-full text-stone-600 hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            className="grid size-11 sm:size-8 place-items-center rounded-full text-stone-600 hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
           >
             <XIcon size={20} aria-hidden />
           </button>
