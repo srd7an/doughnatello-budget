@@ -152,8 +152,9 @@ export default defineSchema({
     //
     // A move's source is charged through an ordinary transactionFunding row
     // pointing at it, exactly as spending from that fund would be, which is why
-    // pot balances need no special case for it. No index: nothing queries by
-    // source — balances read the funding rows.
+    // pot balances need no special case for it. Indexed because a fund's own
+    // page asks the one question the funding rows cannot answer on their own:
+    // what left this fund for another one.
     fromPotId: v.optional(v.id("pots")),
     paidBy: v.string(), // userId
     createdBy: v.string(), // userId
@@ -161,7 +162,8 @@ export default defineSchema({
   })
     .index("by_household_date", ["householdId", "occurredOn"])
     .index("by_household_category", ["householdId", "categoryId"])
-    .index("by_household_pot", ["householdId", "potId"]),
+    .index("by_household_pot", ["householdId", "potId"])
+    .index("by_household_from_pot", ["householdId", "fromPotId"]),
 
   // The heart of the two counting rules. potId undefined => funded by this
   // month's income (reduces left to spend). potId set => funded from a pot

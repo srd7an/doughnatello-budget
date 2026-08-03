@@ -1,5 +1,11 @@
-import { useEffect, useState } from 'react'
-import { Link, Outlet } from 'react-router-dom'
+import { useEffect } from 'react'
+import {
+  Link,
+  Outlet,
+  useLocation,
+  useMatch,
+  useNavigate,
+} from 'react-router-dom'
 import { useMutation } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { PlusIcon } from '../ui/icons'
@@ -7,7 +13,10 @@ import { useHousehold } from '../household/HouseholdContext'
 import { AvatarMenu } from './AvatarMenu'
 import { PeriodControl } from './PeriodControl'
 import { AddTransactionModal } from './AddTransactionModal'
+import { TransactionDetail } from '../screens/TransactionDetail'
 import { SettingsModal } from '../screens/settings/SettingsModal'
+import { CaretLeftIcon } from '../ui/icons'
+import type { Id } from '../../convex/_generated/dataModel'
 
 /**
  * The shell has no tab nav — the period control (in the header) is the whole
@@ -18,12 +27,31 @@ import { SettingsModal } from '../screens/settings/SettingsModal'
  * there (a category has no July), and logging a transaction is not what you came
  * to do, so both controls are hidden and the header collapses to brand + avatar.
  * The brand mark is the way home from anywhere.
+ *
+ * Every overlay is a route rather than a piece of state: the back button closes
+ * it, a link to one can be shared, and a reload keeps you where you were.
+ * Closing means going BACK when there is somewhere to go back to, so the entry
+ * that opened the overlay leaves the history with it; a cold load lands home.
+ *
+ * The period control is the navigation on the overview, and it scopes nothing
+ * on a fund's page — a fund's balance is all of time, not August. So that page
+ * takes the slot for its own way back, and the header stays honest.
  */
 export function AppShell() {
-  const [addOpen, setAddOpen] = useState(false)
   const { household } = useHousehold()
   const sync = useMutation(api.recurring.sync)
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  const addOpen = !!useMatch('/add')
+  const txMatch = useMatch('/transactions/:transactionId')
+  const settingsMatch = useMatch('/settings/:section') ?? useMatch('/settings')
+  const onPotPage = !!useMatch('/funds/:potId')
+
+  const close = () => {
+    if (location.key === 'default') navigate('/', { replace: true })
+    else navigate(-1)
+  }
 
   // Materialise anything that came due since the last visit, so the Due block is
   // right on first paint instead of waiting for the nightly cron. Idempotent, so
@@ -40,14 +68,14 @@ export function AppShell() {
           {/* Row 1: brand + account */}
           <div className="flex items-center justify-between">
             <BrandMark />
-            <AvatarMenu onOpenSettings={() => setSettingsOpen(true)} />
+            <AvatarMenu onOpenSettings={() => navigate('/settings')} />
           </div>
 
           {/* Row 2: period control (the nav) + add */}
           <div className="mt-2 flex items-center justify-between gap-2">
-            <PeriodControl />
+            {onPotPage ? <BackLink /> : <PeriodControl />}
             <button
-              onClick={() => setAddOpen(true)}
+              onClick={() => navigate('/add')}
               className="hidden h-8 items-center gap-1.5 rounded-full border border-violet-800 bg-brand px-3 text-sm text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:flex"
             >
               Add transaction
@@ -62,19 +90,43 @@ export function AppShell() {
 
       {/* Mobile: Add FAB for thumb reach */}
       <button
-        onClick={() => setAddOpen(true)}
+        onClick={() => navigate('/add')}
         aria-label="Add transaction"
         className="fixed bottom-6 right-4 z-30 grid size-14 place-items-center rounded-full bg-brand text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:hidden"
       >
         <PlusIcon className="size-6" />
       </button>
 
-      <AddTransactionModal open={addOpen} onClose={() => setAddOpen(false)} />
+      <AddTransactionModal open={addOpen} onClose={close} />
+      <TransactionDetail
+        transactionId={
+          (txMatch?.params.transactionId as Id<'transactions'>) ?? null
+        }
+        onClose={close}
+      />
       <SettingsModal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
+        open={!!settingsMatch}
+        section={settingsMatch?.params.section}
+        onClose={close}
       />
     </div>
+  )
+}
+
+/** The way back off a page, in the slot the period control usually holds. */
+function BackLink() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  return (
+    <button
+      onClick={() =>
+        location.key === 'default' ? navigate('/') : navigate(-1)
+      }
+      className="flex h-11 items-center gap-1.5 rounded-full border border-stone-200 bg-white pr-4 pl-2.5 text-sm font-medium text-stone-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:h-8"
+    >
+      <CaretLeftIcon size={16} aria-hidden />
+      Back
+    </button>
   )
 }
 

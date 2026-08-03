@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react'
 import { useAuthActions } from '@convex-dev/auth/react'
+import { useNavigate } from 'react-router-dom'
 import { SignOutIcon, XIcon } from '../../ui/icons'
 import { AccountsPanel } from './AccountsPanel'
 import { FundsPanel } from './FundsPanel'
@@ -108,15 +109,26 @@ export function useSettingsFooter(state: FooterState) {
   }, [dirty, saving])
 }
 
+const SECTION_IDS = new Set(GROUPS.flatMap((g) => g.items).map((i) => i.id))
+const isSection = (v: string | undefined): v is SectionId =>
+  !!v && SECTION_IDS.has(v as SectionId)
+
 export function SettingsModal({
   open,
+  section: sectionParam,
   onClose,
 }: {
   open: boolean
+  /** From the URL — /settings/funds opens on Funds. */
+  section?: string
   onClose: () => void
 }) {
   const { signOut } = useAuthActions()
-  const [section, setSection] = useState<SectionId>('accounts')
+  const navigate = useNavigate()
+  // The URL is the source of truth for which section is showing, so a link to
+  // one lands on it and picking another is a navigation like any other.
+  const section: SectionId = isSection(sectionParam) ? sectionParam : 'accounts'
+  const setSection = (id: SectionId) => navigate(`/settings/${id}`)
   const [footer, setFooter] = useState<FooterState>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const restoreTo = useRef<HTMLElement | null>(null)

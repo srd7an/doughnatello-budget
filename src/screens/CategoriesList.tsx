@@ -1,9 +1,9 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import type { Id } from '../../convex/_generated/dataModel'
 import { formatMoney, formatPercent } from '../lib/format'
 import { CaretRightIcon, CategoryIcon } from '../ui/icons'
 import { dayLabel } from '../lib/dates'
-import { TransactionDetail } from './TransactionDetail'
 
 export type CategoryRowData = {
   _id: Id<'transactions'>
@@ -59,7 +59,9 @@ export function CategoriesList({
   )
   // A transaction found by drilling into a category opens the same editor as
   // one found in the list — there is one transaction, so there is one way in.
-  const [openId, setOpenId] = useState<Id<'transactions'> | null>(null)
+  const navigate = useNavigate()
+  const openTransaction = (id: Id<'transactions'>) =>
+    navigate(`/transactions/${id}`)
   const toggle = (k: string) =>
     setOpen((prev) => {
       const next = new Set(prev)
@@ -127,7 +129,7 @@ export function CategoriesList({
           label="Income"
           amount={income}
         />
-        {open.has('income') && <TxnList txns={incomeTxns} onOpen={setOpenId} />}
+        {open.has('income') && <TxnList txns={incomeTxns} onOpen={openTransaction} />}
 
         <Group
           label="Needs"
@@ -135,7 +137,7 @@ export function CategoriesList({
           income={income}
           open={open}
           toggle={toggle}
-          onOpen={setOpenId}
+          onOpen={openTransaction}
         />
         <Group
           label="Wants"
@@ -143,7 +145,7 @@ export function CategoriesList({
           income={income}
           open={open}
           toggle={toggle}
-          onOpen={setOpenId}
+          onOpen={openTransaction}
         />
       </div>
 
@@ -152,8 +154,6 @@ export function CategoriesList({
           +{formatMoney(paidFromFunds)} paid from funds
         </p>
       )}
-
-      <TransactionDetail transactionId={openId} onClose={() => setOpenId(null)} />
     </div>
   )
 }

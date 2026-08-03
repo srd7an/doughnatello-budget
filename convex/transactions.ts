@@ -300,7 +300,7 @@ async function assertLoan(
  * expenses) and the paying member's name. Grouping (by day, or by category) is
  * done client-side. Shared by listMonth and listYear.
  */
-async function enrichRows(
+export async function enrichRows(
   ctx: QueryCtx,
   householdId: Id<"households">,
   txs: Doc<"transactions">[],

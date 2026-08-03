@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { useHousehold } from '../household/HouseholdContext'
@@ -7,7 +7,6 @@ import { formatMoney, initials } from '../lib/format'
 import { ArrowRightIcon, CategoryIcon, XIcon } from '../ui/icons'
 import { dayLabel } from '../lib/dates'
 import type { Id } from '../../convex/_generated/dataModel'
-import { TransactionDetail } from './TransactionDetail'
 
 type Row = NonNullable<ReturnType<typeof useMonthRows>>[number]
 
@@ -51,7 +50,7 @@ export function TransactionsList({
   onClearFilter?: () => void
 } = {}) {
   const all = useMonthRows()
-  const [openId, setOpenId] = useState<Id<'transactions'> | null>(null)
+  const navigate = useNavigate()
 
   if (all === undefined) {
     return <p className="py-8 text-center text-sm text-stone-400">Loading…</p>
@@ -111,17 +110,12 @@ export function TransactionsList({
               <TransactionRow
                 key={row._id}
                 row={row}
-                onOpen={() => setOpenId(row._id)}
+                onOpen={() => navigate(`/transactions/${row._id}`)}
               />
             ))}
           </ul>
         </section>
       ))}
-
-      <TransactionDetail
-        transactionId={openId}
-        onClose={() => setOpenId(null)}
-      />
     </div>
   )
 }

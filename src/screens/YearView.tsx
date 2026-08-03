@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { useHousehold } from '../household/HouseholdContext'
@@ -71,9 +72,12 @@ export function YearView() {
 
       {/* Stock accordions — path is the chart, endpoints are these rows */}
       <div className="flex flex-col gap-1">
-        <Accordion label="Funds" group={data.funds} />
+        {/* Funds and loans are pots, so each row is a link to its own page.
+            An asset has no history to open — only a value and the date it was
+            set — so it stays a row. */}
+        <Accordion label="Funds" group={data.funds} linkTo="/funds" />
         <Accordion label="Assets" group={data.assets} />
-        <Accordion label="Loans" group={data.loans} paidLabel />
+        <Accordion label="Loans" group={data.loans} paidLabel linkTo="/funds" />
       </div>
 
       <section>
@@ -126,10 +130,13 @@ function Accordion({
   label,
   group,
   paidLabel,
+  linkTo,
 }: {
   label: string
   group: Group
   paidLabel?: boolean
+  /** Set when the rows open a page — the base path, id appended. */
+  linkTo?: string
 }) {
   const [open, setOpen] = useState(false)
   const empty = group.items.length === 0
@@ -158,11 +165,14 @@ function Accordion({
         />
       </button>
       {open &&
-        group.items.map((it) => (
-          <div
-            key={it._id}
-            className="mt-1 flex min-h-11 items-center gap-2 border-b border-dashed border-stone-300 py-2 pr-4 pl-9 text-sm"
-          >
+        group.items.map((it) => {
+          const cls = `mt-1 flex min-h-11 items-center gap-2 border-b border-dashed border-stone-300 py-2 pr-4 pl-9 text-sm ${
+            linkTo
+              ? 'rounded-lg hover:border-transparent hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand'
+              : ''
+          }`
+          const body = (
+            <>
             {/* The icon is a flex sibling of the name, not a child of it:
                 preflight renders an svg as a block, so inside the text it
                 dropped onto its own line above the label. */}
@@ -181,8 +191,18 @@ function Accordion({
               balance={it.balance}
               paidLabel={paidLabel}
             />
-          </div>
-        ))}
+            </>
+          )
+          return linkTo ? (
+            <Link key={it._id} to={`${linkTo}/${it._id}`} className={cls}>
+              {body}
+            </Link>
+          ) : (
+            <div key={it._id} className={cls}>
+              {body}
+            </div>
+          )
+        })}
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { requireMember, requireDoc } from "./lib/auth";
 import { debtOwed, potBalance } from "./lib/balances";
+import { enrichRows } from "./transactions";
 
 const potKind = v.union(
   v.literal("savings"),
@@ -194,5 +195,74 @@ export const unarchive = mutation({
   handler: async (ctx, { potId }) => {
     await requireDoc(ctx, "pots", potId);
     await ctx.db.patch(potId, { isArchived: false });
+  },
+});
+
+/**
+ * Everything a fund or a loan has to show for itself: what it is, what it holds
+ * or still owes, and every transaction that ever touched it.
+ *
+ * Not period-scoped, deliberately. A fund's balance is all of time — a holiday
+ * fund built over twenty months is not an August fact — and its page is the one
+ * place in the app the period control does not govern.
+ *
+ * "Touched it" is three different rows, which is why this cannot be one query:
+ *   potId       — money set aside INTO it, and (on an expense) a loan payment
+ *   fromPotId   — money moved OUT of it, to another fund or back to the balance
+ *   funding row — spending it paid for
+ * A single transaction can appear under two of those, so they are merged by id.
+ */
+export const detail = query({
+  args: { potId: v.id("pots") },
+  handler: async (ctx, { potId }) => {
+    const { doc } = await requireDoc(ctx, "pots", potId);
+    const householdId = doc.householdId;
+
+    const [pointsAt, movedOut, funding] = await Promise.all([
+      ctx.db
+        .query("transactions")
+        .withIndex("by_household_pot", (q) =>
+          q.eq("householdId", householdId).eq("potId", potId),
+        )
+        .collect(),
+      ctx.db
+        .query("transactions")
+        .withIndex("by_household_from_pot", (q) =>
+          q.eq("householdId", householdId).eq("fromPotId", potId),
+        )
+        .collect(),
+      ctx.db
+        .query("transactionFunding")
+        .withIndex("by_household_pot", (q) =>
+          q.eq("householdId", householdId).eq("potId", potId),
+        )
+        .collect(),
+    ]);
+
+    const byId = new Map(
+      [...pointsAt, ...movedOut].map((t) => [t._id, t] as const),
+    );
+    for (const f of funding) {
+      if (byId.has(f.transactionId)) continue;
+      const t = await ctx.db.get(f.transactionId);
+      if (t) byId.set(t._id, t);
+    }
+
+    return {
+      _id: doc._id,
+      name: doc.name,
+      kind: doc.kind,
+      icon: doc.icon,
+      color: doc.color,
+      isArchived: doc.isArchived,
+      targetAmount: doc.targetAmount ?? null,
+      targetDate: doc.targetDate ?? null,
+      interestRate: doc.interestRate ?? null,
+      minimumPayment: doc.minimumPayment ?? null,
+      originalAmount: doc.originalAmount ?? null,
+      balance: await potBalance(ctx, householdId, potId),
+      owed: doc.kind === "debt" ? await debtOwed(ctx, householdId, doc) : null,
+      rows: await enrichRows(ctx, householdId, [...byId.values()]),
+    };
   },
 });

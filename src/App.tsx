@@ -13,6 +13,7 @@ import { HouseholdProvider } from './household/HouseholdContext'
 import { PeriodProvider } from './period/PeriodContext'
 import { AppShell } from './app/AppShell'
 import { Overview } from './screens/Overview'
+import { PotPage } from './screens/PotPage'
 
 function inviteTokenFromUrl(): string | null {
   return new URLSearchParams(window.location.search).get('invite')
@@ -64,6 +65,18 @@ function AuthedApp() {
           <Routes>
             <Route element={<AppShell />}>
               <Route index element={<Overview />} />
+              {/* A fund or a loan is the one thing besides the overview that
+                  is a PAGE — it has its own history to show and its own way
+                  back. */}
+              <Route path="funds/:potId" element={<PotPage />} />
+              {/* Overlays. They are routes so the back button closes them and
+                  a link to one can be shared, and they render over whatever
+                  page they were opened from — Overview on a cold load. See
+                  AppShell, which reads the path and draws them. */}
+              <Route path="add" element={<Overview />} />
+              <Route path="transactions/:transactionId" element={<Overview />} />
+              <Route path="settings" element={<Overview />} />
+              <Route path="settings/:section" element={<Overview />} />
               <Route path="*" element={<Overview />} />
             </Route>
           </Routes>
