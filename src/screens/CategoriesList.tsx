@@ -119,6 +119,7 @@ export function CategoriesList({
           label="Needs"
           cats={cats.filter((c) => c.kind === 'committed')}
           totalExpense={totalExpense}
+          income={income}
           open={open}
           toggle={toggle}
         />
@@ -126,6 +127,7 @@ export function CategoriesList({
           label="Wants"
           cats={cats.filter((c) => c.kind === 'discretionary')}
           totalExpense={totalExpense}
+          income={income}
           open={open}
           toggle={toggle}
         />
@@ -221,22 +223,31 @@ function BarRow({
   )
 }
 
+/**
+ * Needs and Wants are measured against INCOME, not against spending: the
+ * question they answer is what share of what came in was unavoidable, and the
+ * two of them together come to the Expense segment of the bar at the top of the
+ * screen. The categories inside them are shares of spending — see the note on
+ * the mismatch in CategoriesList.
+ */
 function Group({
   label,
   cats,
   totalExpense,
+  income,
   open,
   toggle,
 }: {
   label: string
   cats: CatAgg[]
   totalExpense: number
+  income: number
   open: Set<string>
   toggle: (k: string) => void
 }) {
   const total = cats.reduce((s, c) => s + c.total, 0)
   const key = `group-${label}`
-  const share = totalExpense > 0 ? total / totalExpense : 0
+  const share = income > 0 ? total / income : 0
   return (
     <>
       <BarRow
