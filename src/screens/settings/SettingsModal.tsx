@@ -67,11 +67,16 @@ const GROUPS: { label: string; items: { id: SectionId; label: string }[] }[] = [
   },
 ]
 
-const BODIES: Record<SectionId, () => ReactNode> = {
+/**
+ * `editId` arrives from /settings/funds/<id> — a page that owns a thing links
+ * to the panel that can change it, with the thing already open. Panels that
+ * hold a list of records take it; the rest ignore it.
+ */
+const BODIES: Record<SectionId, (editId?: string) => ReactNode> = {
   accounts: () => <AccountsPanel />,
-  funds: () => <FundsPanel />,
-  assets: () => <AssetsPanel />,
-  loans: () => <LoansPanel />,
+  funds: (editId) => <FundsPanel editId={editId} />,
+  assets: (editId) => <AssetsPanel editId={editId} />,
+  loans: (editId) => <LoansPanel editId={editId} />,
   categories: () => <CategoriesPanel />,
   repeating: () => <Repeating />,
   people: () => <PeoplePanel />,
@@ -116,11 +121,14 @@ const isSection = (v: string | undefined): v is SectionId =>
 export function SettingsModal({
   open,
   section: sectionParam,
+  itemId,
   onClose,
 }: {
   open: boolean
   /** From the URL — /settings/funds opens on Funds. */
   section?: string
+  /** And /settings/funds/<id> opens that fund's form. */
+  itemId?: string
   onClose: () => void
 }) {
   const { signOut } = useAuthActions()
@@ -211,7 +219,7 @@ export function SettingsModal({
 
           <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-5 pb-6">
             <FooterContext.Provider value={setFooter}>
-              {BODIES[section]()}
+              {BODIES[section](itemId)}
             </FooterContext.Provider>
           </div>
 

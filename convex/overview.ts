@@ -180,11 +180,11 @@ type StockItem = {
  * year totals, the net-worth hero + this-year change, and the Funds/Assets/
  * Loans stock rows (each with a current balance and a this-year change).
  *
- * Net-worth change this year = income − real expenses, where "real" EXCLUDES
- * loan-payment expenses (a loan payment swaps cash for reduced debt — net-worth
- * neutral). Transfers into pots are also excluded (virtual, net-worth neutral).
- * Asset revaluation is not captured (no snapshot history) — it shows as no
- * change until re-valued.
+ * Net-worth change this year = income − real expenses + asset revaluation,
+ * where "real" EXCLUDES loan-payment expenses (a loan payment swaps cash for
+ * reduced debt — net-worth neutral). Transfers into pots are also excluded
+ * (virtual, net-worth neutral). Revaluation comes from assetValuations; see
+ * the note on why an asset's FIRST valuation is not a gain.
  */
 export const year = query({
   args: { householdId: v.id("households"), year: v.string() }, // "2026"
@@ -201,7 +201,7 @@ export const year = query({
       )
       .collect();
 
-    const [pots, assets, accounts] = await Promise.all([
+    const [pots, assets, accounts, valuations] = await Promise.all([
       ctx.db
         .query("pots")
         .withIndex("by_household", (q) => q.eq("householdId", householdId))
@@ -214,7 +214,36 @@ export const year = query({
         .query("accounts")
         .withIndex("by_household", (q) => q.eq("householdId", householdId))
         .collect(),
+      ctx.db
+        .query("assetValuations")
+        .withIndex("by_household", (q) => q.eq("householdId", householdId))
+        .collect(),
     ]);
+
+    /**
+     * What an asset's value did across this year.
+     *
+     * Only RE-valuations count. An asset whose first entry falls inside the
+     * year did not grow by its whole worth — it was written down for the first
+     * time, and treating that as a gain would put the price of a flat into one
+     * year's net-worth change. So an asset that did not exist at the start of
+     * the year contributes nothing to the change, however much it is worth.
+     */
+    const valueAt = (rows: typeof valuations, on: string) => {
+      const before = rows.filter((v) => v.valuedOn <= on);
+      if (before.length === 0) return null;
+      return before.reduce((a, b) => (a.valuedOn >= b.valuedOn ? a : b)).value;
+    };
+    const startOfYear = `${Number(year) - 1}-12-31`;
+    const endOfYear = `${year}-12-31`;
+    const assetChange = new Map<Id<"assets">, number>();
+    for (const a of assets) {
+      const rows = valuations.filter((v) => v.assetId === a._id);
+      const opened = valueAt(rows, startOfYear);
+      if (opened === null) continue; // first written down this year
+      assetChange.set(a._id, (valueAt(rows, endOfYear) ?? opened) - opened);
+    }
+
     const debtPotIds = new Set(
       pots.filter((p) => p.kind === "debt").map((p) => p._id),
     );
@@ -336,7 +365,7 @@ export const year = query({
         icon: a.icon ?? "money",
         color: "#a8a29e",
         balance: a.value,
-        change: 0, // revaluation not tracked
+        change: assetChange.get(a._id) ?? 0,
         valuedOn: a.valuedOn,
       }));
 
@@ -355,14 +384,18 @@ export const year = query({
     };
     const assetGroup = {
       balance: total(assetItems, "balance"),
-      change: 0,
+      change: total(assetItems, "change"),
       items: assetItems,
     };
 
     const debtTotal = -loans.balance; // loans.balance is negative owed
     return {
       netWorth: bank + assetGroup.balance - debtTotal,
-      netWorthChange: totals.income - realExpenseFull,
+      // Money in minus money really out, PLUS what the things you own did on
+      // their own. A flat that went up 10% is net worth that arrived without
+      // passing through the account, and leaving it out was the one thing this
+      // figure knowingly missed.
+      netWorthChange: totals.income - realExpenseFull + assetGroup.change,
       bank,
       months,
       totals,

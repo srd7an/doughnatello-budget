@@ -33,7 +33,7 @@ const STALE_DAYS = 365
  * never revisited quietly inflates net worth forever. Stale values are called
  * out rather than silently trusted.
  */
-export function AssetsPanel() {
+export function AssetsPanel({ editId }: { editId?: string }) {
   const { household } = useHousehold()
   const householdId = household._id
 
@@ -41,12 +41,16 @@ export function AssetsPanel() {
   const pots = useQuery(api.pots.balances, { householdId })
   const create = useMutation(api.assets.create)
   const update = useMutation(api.assets.update)
+  const revalue = useMutation(api.assets.revalue)
   const archive = useMutation(api.assets.archive)
   const remove = useMutation(api.assets.remove)
   const unarchive = useMutation(api.assets.unarchive)
 
   const [adding, setAdding] = useState(false)
-  const [editing, setEditing] = useState<Id<'assets'> | null>(null)
+  const [editing, setEditing] = useState<Id<'assets'> | null>(
+    (editId as Id<'assets'>) ?? null,
+  )
+  const [revaluing, setRevaluing] = useState<Id<'assets'> | null>(null)
 
   if (assets === undefined || pots === undefined) return <Loading />
 
@@ -84,9 +88,19 @@ export function AssetsPanel() {
                       linkedDebtPotId: a.linkedDebtPotId,
                     }}
                     onCancel={() => setEditing(null)}
-                    onSave={async (values) => {
-                      await update({ assetId: a._id, ...values })
+                    onSave={async ({ name, icon, linkedDebtPotId }) => {
+                      await update({ assetId: a._id, name, icon, linkedDebtPotId })
                       setEditing(null)
+                    }}
+                  />
+                ) : revaluing === a._id ? (
+                  <RevalueForm
+                    current={a.value}
+                    today={today}
+                    onCancel={() => setRevaluing(null)}
+                    onSave={async (values) => {
+                      await revalue({ assetId: a._id, ...values })
+                      setRevaluing(null)
                     }}
                   />
                 ) : (
@@ -97,6 +111,7 @@ export function AssetsPanel() {
                       debts.find((d) => d._id === a.linkedDebtPotId)?.name
                     }
                     onEdit={() => setEditing(a._id)}
+                    onRevalue={() => setRevaluing(a._id)}
                     onArchive={() => archive({ assetId: a._id })}
                   />
                 )}
@@ -161,12 +176,14 @@ function AssetRow({
   today,
   debtName,
   onEdit,
+  onRevalue,
   onArchive,
 }: {
   asset: Asset
   today: string
   debtName?: string
   onEdit: () => void
+  onRevalue: () => void
   onArchive: () => void
 }) {
   const age = Math.round(
@@ -194,6 +211,7 @@ function AssetRow({
         {debtName && ` · bought with ${debtName}`}
       </p>
       <div className="mt-2 flex items-center gap-2">
+        <GhostButton onClick={onRevalue}>Re-value</GhostButton>
         <GhostButton onClick={onEdit}>Edit</GhostButton>
         <ConfirmButton
           label="Archive"
@@ -211,6 +229,65 @@ type AssetValues = {
   icon: string
   valuedOn: string
   linkedDebtPotId?: Id<'pots'>
+}
+
+/**
+ * A dated observation of what something is worth now. Deliberately its own
+ * small form rather than a field on the asset: "the flat is worth 10% more"
+ * is a thing that happened on a date, and the year's net-worth change reads
+ * exactly these entries.
+ */
+function RevalueForm({
+  current,
+  today,
+  onSave,
+  onCancel,
+}: {
+  current: number
+  today: string
+  onSave: (values: { value: number; valuedOn: string; note?: string }) => Promise<unknown>
+  onCancel: () => void
+}) {
+  const [value, setValue] = useState(current)
+  const [valuedOn, setValuedOn] = useState(today)
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const save = async () => {
+    if (value < 0 || busy) return
+    setBusy(true)
+    try {
+      await onSave({ value, valuedOn, note: note.trim() || undefined })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4 p-4">
+      <div className="flex gap-3">
+        <Field label="Worth now" className="flex-1">
+          <MoneyInput para={value} onChange={setValue} />
+        </Field>
+        <Field label="As of">
+          <TextInput
+            type="date"
+            value={valuedOn}
+            onChange={(e) => setValuedOn(e.target.value)}
+          />
+        </Field>
+      </div>
+      <Field label="Note" hint="Optional — a valuation, an offer, a guess.">
+        <TextInput value={note} onChange={(e) => setNote(e.target.value)} />
+      </Field>
+      <div className="flex items-center gap-2">
+        <PrimaryButton onClick={save} disabled={busy}>
+          {busy ? 'Saving…' : 'Save valuation'}
+        </PrimaryButton>
+        <GhostButton onClick={onCancel}>Cancel</GhostButton>
+      </div>
+    </div>
+  )
 }
 
 function AssetForm({

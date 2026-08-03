@@ -45,8 +45,10 @@ export function AppShell() {
 
   const addOpen = !!useMatch('/add')
   const txMatch = useMatch('/transactions/:transactionId')
-  const settingsMatch = useMatch('/settings/:section') ?? useMatch('/settings')
-  const onPotPage = !!useMatch('/funds/:potId')
+  const settingsItem = useMatch('/settings/:section/:itemId')
+  const settingsMatch =
+    settingsItem ?? useMatch('/settings/:section') ?? useMatch('/settings')
+  const onPage = !!useMatch('/funds/:potId') || !!useMatch('/assets/:assetId')
 
   const close = () => {
     if (location.key === 'default') navigate('/', { replace: true })
@@ -73,7 +75,7 @@ export function AppShell() {
 
           {/* Row 2: period control (the nav) + add */}
           <div className="mt-2 flex items-center justify-between gap-2">
-            {onPotPage ? <BackLink /> : <PeriodControl />}
+            {onPage ? <BackLink /> : <PeriodControl />}
             <button
               onClick={() => navigate('/add')}
               className="hidden h-8 items-center gap-1.5 rounded-full border border-violet-800 bg-brand px-3 text-sm text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:flex"
@@ -107,6 +109,7 @@ export function AppShell() {
       <SettingsModal
         open={!!settingsMatch}
         section={settingsMatch?.params.section}
+        itemId={settingsItem?.params.itemId}
         onClose={close}
       />
     </div>

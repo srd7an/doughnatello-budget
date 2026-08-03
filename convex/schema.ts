@@ -121,6 +121,22 @@ export default defineSchema({
     isArchived: v.boolean(),
   }).index("by_household", ["householdId"]),
 
+  // What an asset was worth, and when. Re-valuing is an EVENT, not an edit to a
+  // field: a flat that went up is a thing that happened on a date, the same way
+  // a payment is. `assets.value`/`valuedOn` carry the current figure so net
+  // worth stays one cheap read; this table is how it got there.
+  assetValuations: defineTable({
+    householdId: v.id("households"),
+    assetId: v.id("assets"),
+    value: v.number(), // para
+    valuedOn: v.string(), // YYYY-MM-DD
+    note: v.optional(v.string()),
+    createdAt: v.number(),
+    createdBy: v.string(), // userId
+  })
+    .index("by_asset", ["assetId", "valuedOn"])
+    .index("by_household", ["householdId"]),
+
   categories: defineTable({
     householdId: v.id("households"),
     name: v.string(),

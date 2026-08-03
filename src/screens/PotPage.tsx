@@ -120,7 +120,9 @@ export function PotPage() {
         </div>
 
         <button
-          onClick={() => navigate(isLoan ? '/settings/loans' : '/settings/funds')}
+          onClick={() =>
+            navigate(`/settings/${isLoan ? 'loans' : 'funds'}/${pot._id}`)
+          }
           className="mt-4 flex min-h-11 items-center rounded-full border border-stone-200 px-4 text-sm text-stone-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-9"
         >
           Edit in settings

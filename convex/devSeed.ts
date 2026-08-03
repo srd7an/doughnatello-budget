@@ -139,10 +139,12 @@ const POTS = [
 type PotKey = (typeof POTS)[number]["key"];
 type PotIds = Record<string, Id<"pots">>;
 
+// `opened` is the first time it was written down and `drift` what it was worth
+// then, as a fraction of today — a flat up 8%, a car down to 88% of it.
 const ASSETS = [
-  { name: "Apartment", value: rsd(21_000_000), icon: "property", valuedOn: "2026-01-15", debt: "homeLoan" },
-  { name: "Škoda Octavia", value: rsd(1_450_000), icon: "car", valuedOn: "2026-03-01", debt: "carLoan" },
-  { name: "Foreign currency savings", value: rsd(620_000), icon: "vault", valuedOn: "2026-06-30" },
+  { name: "Apartment", value: rsd(21_000_000), icon: "property", drift: 0.92, opened: "2025-01-10", valuedOn: "2026-01-15", debt: "homeLoan" },
+  { name: "Škoda Octavia", value: rsd(1_450_000), icon: "car", drift: 1.14, opened: "2025-01-10", valuedOn: "2026-03-01", debt: "carLoan" },
+  { name: "Foreign currency savings", value: rsd(620_000), icon: "vault", drift: 0.8, opened: "2025-02-01", valuedOn: "2026-06-30" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -442,7 +444,8 @@ export const prepare = internalMutation({
     if (!account) throw new Error("Household has no primary account");
 
     if (args.reset !== false) {
-      const [funding, occurrences, txs, rules, assets, pots] = await Promise.all([
+      const [funding, occurrences, txs, rules, assets, pots, valuations] =
+        await Promise.all([
         ctx.db
           .query("transactionFunding")
           .withIndex("by_household_pot", (q) => q.eq("householdId", householdId))
@@ -467,8 +470,20 @@ export const prepare = internalMutation({
           .query("pots")
           .withIndex("by_household", (q) => q.eq("householdId", householdId))
           .collect(),
+        ctx.db
+          .query("assetValuations")
+          .withIndex("by_household", (q) => q.eq("householdId", householdId))
+          .collect(),
       ]);
-      for (const doc of [...funding, ...occurrences, ...txs, ...rules, ...assets, ...pots]) {
+      for (const doc of [
+        ...funding,
+        ...occurrences,
+        ...txs,
+        ...rules,
+        ...valuations,
+        ...assets,
+        ...pots,
+      ]) {
         await ctx.db.delete(doc._id);
       }
     }
@@ -487,7 +502,7 @@ export const prepare = internalMutation({
     }
 
     for (const a of ASSETS) {
-      await ctx.db.insert("assets", {
+      const assetId = await ctx.db.insert("assets", {
         householdId,
         name: a.name,
         value: a.value,
@@ -496,6 +511,21 @@ export const prepare = internalMutation({
         linkedDebtPotId: a.debt ? potIds[a.debt] : undefined,
         isArchived: false,
       });
+      // A first entry a year earlier, then today's — so the flat has actually
+      // moved this year and the net-worth change has something to say.
+      for (const [value, valuedOn] of [
+        [Math.round(a.value * (a.drift ?? 1)), a.opened],
+        [a.value, a.valuedOn],
+      ] as const) {
+        await ctx.db.insert("assetValuations", {
+          householdId,
+          assetId,
+          value,
+          valuedOn,
+          createdAt: Date.now(),
+          createdBy: members[0].userId,
+        });
+      }
     }
 
     return { householdId, householdName: household.name };

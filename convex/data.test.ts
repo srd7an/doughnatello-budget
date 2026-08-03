@@ -120,9 +120,33 @@ describe("pots and assets", () => {
     let assets = await asA(t).query(api.assets.list, { householdId });
     expect(assets).toHaveLength(1);
 
-    await asA(t).mutation(api.assets.update, { assetId, value: 1_700_000_00 });
+    // What an asset is worth changes through a dated valuation, never through
+    // `update` — that edits what it IS, not what it is worth.
+    await asA(t).mutation(api.assets.revalue, {
+      assetId,
+      value: 1_700_000_00,
+      valuedOn: "2026-06-01",
+    });
     assets = await asA(t).query(api.assets.list, { householdId });
     expect(assets[0].value).toBe(1_700_000_00);
+
+    // Filling in an OLDER valuation after the fact records it without making
+    // the asset worth last year's number today.
+    await asA(t).mutation(api.assets.revalue, {
+      assetId,
+      value: 1_900_000_00,
+      valuedOn: "2025-01-01",
+    });
+    assets = await asA(t).query(api.assets.list, { householdId });
+    expect(assets[0].value).toBe(1_700_000_00);
+
+    const detail = await asA(t).query(api.assets.detail, { assetId });
+    // Newest first, and the one written on create is in there too.
+    expect(detail.history.map((h) => h.valuedOn)).toEqual([
+      "2026-06-01",
+      "2026-01-01",
+      "2025-01-01",
+    ]);
 
     await asA(t).mutation(api.assets.archive, { assetId });
     expect(await asA(t).query(api.assets.list, { householdId })).toHaveLength(0);

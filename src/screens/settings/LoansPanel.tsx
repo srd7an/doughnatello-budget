@@ -31,7 +31,7 @@ import {
  * it leaves your account and reduces what is left to spend) and the balance
  * here follows.
  */
-export function LoansPanel() {
+export function LoansPanel({ editId }: { editId?: string }) {
   const { household } = useHousehold()
   const householdId = household._id
 
@@ -44,7 +44,9 @@ export function LoansPanel() {
   const unarchive = useMutation(api.pots.unarchive)
 
   const [adding, setAdding] = useState(false)
-  const [editing, setEditing] = useState<Id<'pots'> | null>(null)
+  const [editing, setEditing] = useState<Id<'pots'> | null>(
+    (editId as Id<'pots'>) ?? null,
+  )
 
   if (pots === undefined || allPots === undefined) return <Loading />
   const archived = allPots.filter((p) => p.isArchived && p.kind === 'debt')

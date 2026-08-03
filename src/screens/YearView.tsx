@@ -72,11 +72,10 @@ export function YearView() {
 
       {/* Stock accordions — path is the chart, endpoints are these rows */}
       <div className="flex flex-col gap-1">
-        {/* Funds and loans are pots, so each row is a link to its own page.
-            An asset has no history to open — only a value and the date it was
-            set — so it stays a row. */}
+        {/* Every row opens the thing it names. A fund's page lists money
+            moving; an asset's lists what it has been worth. */}
         <Accordion label="Funds" group={data.funds} linkTo="/funds" />
-        <Accordion label="Assets" group={data.assets} />
+        <Accordion label="Assets" group={data.assets} linkTo="/assets" />
         <Accordion label="Loans" group={data.loans} paidLabel linkTo="/funds" />
       </div>
 

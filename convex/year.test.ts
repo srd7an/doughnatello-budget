@@ -124,3 +124,59 @@ describe("overview.year", () => {
     expect(y.months[3].savings).toBe(20_000_000);
   });
 });
+
+/**
+ * Revaluation. Until now the year's net-worth change was income minus real
+ * spending and nothing else, so a flat that went up ten percent moved it by
+ * zero — the one thing the figure knowingly missed.
+ */
+describe("asset revaluation", () => {
+  test("a re-valued asset moves the year, a newly recorded one does not", async () => {
+    const { t, householdId } = await setup();
+
+    // Owned since last year, and worth more now.
+    const flat = await asA(t).mutation(api.assets.create, {
+      householdId,
+      name: "Flat",
+      value: 20_000_000_00,
+      valuedOn: "2025-06-01",
+    });
+    await asA(t).mutation(api.assets.revalue, {
+      assetId: flat,
+      value: 22_000_000_00,
+      valuedOn: `${YEAR}-06-01`,
+    });
+
+    // Written down for the first time inside the year. It did not GROW by its
+    // whole worth — it just got recorded.
+    await asA(t).mutation(api.assets.create, {
+      householdId,
+      name: "Car",
+      value: 1_500_000_00,
+      valuedOn: `${YEAR}-03-01`,
+    });
+
+    const y = await asA(t).query(api.overview.year, { householdId, year: YEAR });
+    expect(y.assets.change).toBe(2_000_000_00);
+    expect(y.assets.balance).toBe(23_500_000_00);
+    expect(y.netWorthChange).toBe(2_000_000_00); // no income, no spending
+  });
+
+  test("a valuation after the year ends does not leak into it", async () => {
+    const { t, householdId } = await setup();
+    const flat = await asA(t).mutation(api.assets.create, {
+      householdId,
+      name: "Flat",
+      value: 20_000_000_00,
+      valuedOn: "2025-06-01",
+    });
+    await asA(t).mutation(api.assets.revalue, {
+      assetId: flat,
+      value: 30_000_000_00,
+      valuedOn: "2027-02-01",
+    });
+
+    const y = await asA(t).query(api.overview.year, { householdId, year: YEAR });
+    expect(y.assets.change).toBe(0);
+  });
+});

@@ -35,7 +35,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const { householdId, ...rest } = args;
-    await requireMember(ctx, householdId);
+    const { userId } = await requireMember(ctx, householdId);
     // If a debt pot is linked, it must belong to the same household.
     if (rest.linkedDebtPotId) {
       const pot = await ctx.db.get(rest.linkedDebtPotId);
@@ -43,11 +43,94 @@ export const create = mutation({
         throw new Error("Linked pot not found");
       }
     }
-    return await ctx.db.insert("assets", {
+    const assetId = await ctx.db.insert("assets", {
       householdId,
       ...rest,
       isArchived: false,
     });
+    // What it was worth when you first wrote it down is the first entry in its
+    // history, not a special case outside it.
+    await ctx.db.insert("assetValuations", {
+      householdId,
+      assetId,
+      value: rest.value,
+      valuedOn: rest.valuedOn,
+      createdAt: Date.now(),
+      createdBy: userId,
+    });
+    return assetId;
+  },
+});
+
+/**
+ * Re-value an asset: what it is worth now, and as of when.
+ *
+ * This is the only way its value changes, which is the point — `update` edits
+ * what an asset IS (its name, its icon, the loan that bought it), and what it
+ * is WORTH is a series of dated observations instead. Otherwise a flat that
+ * doubled would leave no trace of having done so, and the year could never say
+ * anything about it.
+ *
+ * A back-dated entry is allowed and does not touch the current figure: filling
+ * in last year's valuation after the fact must not make the asset worth last
+ * year's number today.
+ */
+export const revalue = mutation({
+  args: {
+    assetId: v.id("assets"),
+    value: v.number(), // para
+    valuedOn: v.string(), // YYYY-MM-DD
+    note: v.optional(v.string()),
+  },
+  handler: async (ctx, { assetId, value, valuedOn, note }) => {
+    const { doc, userId } = await requireDoc(ctx, "assets", assetId);
+    if (!Number.isInteger(value) || value < 0) {
+      throw new Error("A value must be a whole number of para, and not negative");
+    }
+    await ctx.db.insert("assetValuations", {
+      householdId: doc.householdId,
+      assetId,
+      value,
+      valuedOn,
+      note,
+      createdAt: Date.now(),
+      createdBy: userId,
+    });
+    if (valuedOn >= doc.valuedOn) {
+      await ctx.db.patch(assetId, { value, valuedOn });
+    }
+  },
+});
+
+/** One asset with its whole history, newest first. */
+export const detail = query({
+  args: { assetId: v.id("assets") },
+  handler: async (ctx, { assetId }) => {
+    const { doc } = await requireDoc(ctx, "assets", assetId);
+    const history = await ctx.db
+      .query("assetValuations")
+      .withIndex("by_asset", (q) => q.eq("assetId", assetId))
+      .collect();
+    const linked = doc.linkedDebtPotId
+      ? await ctx.db.get(doc.linkedDebtPotId)
+      : null;
+    return {
+      _id: doc._id,
+      name: doc.name,
+      icon: doc.icon ?? "money",
+      value: doc.value,
+      valuedOn: doc.valuedOn,
+      isArchived: doc.isArchived,
+      linkedDebt: linked ? { _id: linked._id, name: linked.name } : null,
+      history: history
+        .sort((a, b) => (a.valuedOn < b.valuedOn ? 1 : -1))
+        .map((h) => ({
+          _id: h._id,
+          value: h.value,
+          valuedOn: h.valuedOn,
+          note: h.note ?? null,
+        })),
+    };
   },
 });
 
@@ -55,9 +138,7 @@ export const update = mutation({
   args: {
     assetId: v.id("assets"),
     name: v.optional(v.string()),
-    value: v.optional(v.number()),
     icon: v.optional(v.string()),
-    valuedOn: v.optional(v.string()),
     linkedDebtPotId: v.optional(v.id("pots")),
   },
   handler: async (ctx, { assetId, ...patch }) => {
