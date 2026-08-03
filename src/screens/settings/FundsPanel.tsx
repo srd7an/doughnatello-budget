@@ -227,12 +227,14 @@ function PotForm({
           placeholder="Car fund"
         />
       </Field>
-      <Field label="Icon">
-        <IconPicker value={icon} onChange={setIcon} />
-      </Field>
-      <Field label="Colour">
-        <ColorPicker value={color} onChange={setColor} />
-      </Field>
+      <div className="flex gap-3">
+        <Field label="Icon">
+          <IconPicker value={icon} onChange={setIcon} />
+        </Field>
+        <Field label="Colour">
+          <ColorPicker value={color} onChange={setColor} />
+        </Field>
+      </div>
       <Field
         label="Target"
         hint="Optional. A target is something to aim at, not a budget — nothing is enforced."

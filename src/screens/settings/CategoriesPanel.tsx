@@ -259,12 +259,14 @@ function CategoryForm({
           </div>
         </Field>
       )}
-      <Field label="Icon">
-        <IconPicker value={icon} onChange={setIcon} />
-      </Field>
-      <Field label="Colour">
-        <ColorPicker value={color} onChange={setColor} />
-      </Field>
+      <div className="flex gap-3">
+        <Field label="Icon">
+          <IconPicker value={icon} onChange={setIcon} />
+        </Field>
+        <Field label="Colour">
+          <ColorPicker value={color} onChange={setColor} />
+        </Field>
+      </div>
       <div className="flex gap-2">
         <PrimaryButton onClick={save} disabled={!name.trim() || busy}>
           {busy ? 'Saving…' : 'Save'}

@@ -94,6 +94,20 @@ describe('once it has', () => {
     expect(screen.getByText('Into')).toBeInTheDocument()
   })
 
+  test('the options escape the card that would have clipped them', async () => {
+    setFixtures(READY)
+    const { container } = renderScreen(<TransactionForm onDone={() => {}} />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Category' }))
+    const panel = screen.getByRole('dialog', { name: 'Category' })
+
+    // Rendered to the body, not inside the form. Every card this sits in
+    // clips — rounded corners, a scrolling modal — and an absolutely
+    // positioned child of one is cut off at its edge.
+    expect(container.contains(panel)).toBe(false)
+    expect(document.body.contains(panel)).toBe(true)
+  })
+
   test('picking a category closes the popover and shows the choice', async () => {
     setFixtures(READY)
     renderScreen(<TransactionForm onDone={() => {}} />)
