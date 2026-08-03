@@ -52,6 +52,17 @@ export function MonthView() {
     setLens('transactions')
   }
 
+  // Only worth saying when there is something on both sides of the split; one
+  // number restated as itself explains nothing.
+  const savedTotal = summary?.savings ?? 0
+  const forBills = summary?.sinking ?? 0
+  const savingsNote =
+    forBills > 0 && forBills < savedTotal
+      ? `${formatMoney(savedTotal - forBills)} put away · ${formatMoney(forBills)} for bills coming`
+      : forBills > 0 && forBills === savedTotal
+        ? 'all of it for bills coming'
+        : undefined
+
   // Categories with spending in them, which is what that list draws — not how
   // many categories exist. Undefined while the rows are still loading, so the
   // tab shows no count rather than a confident zero.
@@ -96,11 +107,18 @@ export function MonthView() {
             amount={summary?.expense ?? 0}
             share={income > 0 ? (summary?.expense ?? 0) / income : null}
           />
+          {/* Savings stays ONE segment of the bar — the identity income =
+              expense + savings + leftToSpend depends on it — but underneath it
+              says what the two halves of it are for. Money put away is
+              accumulation; money in a sinking fund is a bill that has not
+              arrived yet, and when it does it will not come off that month
+              again, because it came off this one. */}
           <Metric
             swatch="bg-saved"
             label="Savings"
             amount={summary?.savings ?? 0}
             share={income > 0 ? (summary?.savings ?? 0) / income : null}
+            note={savingsNote}
           />
         </div>
         {/* Composition bar: Leftover · Expense · Savings, width = income.
@@ -267,11 +285,15 @@ function Metric({
   label,
   amount,
   share,
+  note,
 }: {
   swatch: string
   label: string
   amount: number
   share: number | null
+  /** A third line, for a figure that is a slice of this one rather than a
+   *  neighbour of it — see the savings split. */
+  note?: string
 }) {
   return (
     <div>
@@ -285,6 +307,7 @@ function Metric({
           <span className="ml-1.5 text-stone-500">{formatPercent(share)}</span>
         )}
       </p>
+      {note && <p className="tnum mt-0.5 text-xs text-stone-400">{note}</p>}
     </div>
   )
 }

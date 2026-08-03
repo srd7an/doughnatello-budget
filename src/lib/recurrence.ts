@@ -61,16 +61,23 @@ function daysBetween(from: string, to: string): number {
  *
  * `total` counts the transaction being entered now as the first, because that
  * is what "repeats 12 times" means to a person — so a rule starting at the
- * second occurrence generates `total - 1` of them. Returns `startOn` itself for
- * a total of 2 (one now, one more).
+ * second occurrence generates `total - 1` of them, and a total of 2 ends on
+ * `startOn` itself: one now, one more.
+ *
+ * Below 2 there is nothing to repeat, and the answer is NULL rather than a
+ * date. It used to clamp to 2, which quietly made "1 time" mean "twice" — the
+ * giveaway being that 1 and 2 showed the same last-occurrence date, since they
+ * were by then the same number.
  */
 export function untilDateForCount(
   startOn: string,
   recurrence: { cadence: Cadence; intervalCount: number; anchorDay: number },
   total: number,
   next: (date: string, r: typeof recurrence) => string,
-): string {
-  const capped = Math.max(2, Math.min(Math.trunc(total) || 0, 600))
+): string | null {
+  const n = Math.trunc(total) || 0
+  if (n < 2) return null
+  const capped = Math.min(n, 600)
   let date = startOn
   for (let i = 2; i < capped; i++) date = next(date, recurrence)
   return date

@@ -29,9 +29,17 @@ describe('untilDateForCount', () => {
     expect(untilDateForCount('2026-08-03', w, 4, nextDue)).toBe('2026-08-17')
   })
 
-  test('nonsense totals are clamped, never looped', () => {
-    expect(untilDateForCount('2026-08-10', monthly, 0, nextDue)).toBe('2026-08-10')
-    expect(untilDateForCount('2026-08-10', monthly, -5, nextDue)).toBe('2026-08-10')
+  test('once means nothing repeats, and says so instead of guessing', () => {
+    // The bug this pins: 1 was clamped up to 2, so "1 time" and "2 times" gave
+    // the SAME last-occurrence date — which is how it was spotted.
+    expect(untilDateForCount('2026-08-10', monthly, 1, nextDue)).toBeNull()
+    expect(untilDateForCount('2026-08-10', monthly, 2, nextDue)).toBe('2026-08-10')
+  })
+
+  test('nonsense totals repeat nothing rather than looping', () => {
+    expect(untilDateForCount('2026-08-10', monthly, 0, nextDue)).toBeNull()
+    expect(untilDateForCount('2026-08-10', monthly, -5, nextDue)).toBeNull()
+    expect(untilDateForCount('2026-08-10', monthly, NaN, nextDue)).toBeNull()
     expect(untilDateForCount('2026-08-10', monthly, 99999, nextDue)).toBeTruthy()
   })
 })

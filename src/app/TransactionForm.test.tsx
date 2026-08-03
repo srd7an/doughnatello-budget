@@ -213,3 +213,53 @@ describe('searching a long picker', () => {
     expect(screen.getByText('Nothing matches')).toBeInTheDocument()
   })
 })
+
+/**
+ * Duplicating. Everything carries over except the date, because the one date
+ * you certainly do not mean is the old one — you are saying it happened again.
+ */
+describe('duplicating a transaction', () => {
+  const DETAIL = {
+    _id: 't1',
+    direction: 'expense',
+    amount: 2_500_00,
+    categoryId: 'c1',
+    potId: undefined,
+    fromPotId: undefined,
+    occurredOn: '2026-01-15',
+    payee: 'Idea',
+    note: 'weekly shop',
+    accountId: 'a1',
+    funding: [{ potId: undefined, amount: 2_500_00 }],
+  }
+
+  test('it prefills the copy but dates it today, and offers no Delete', async () => {
+    setFixtures({ ...READY, 'transactions:detail': DETAIL })
+    renderScreen(<TransactionForm copyOf={'t1' as never} onDone={() => {}} />)
+
+    expect(await screen.findByLabelText('Amount')).toHaveValue('2500')
+    expect(screen.getByRole('button', { name: 'Category' })).toHaveTextContent(
+      'Grocery',
+    )
+    expect(screen.getByDisplayValue('Idea')).toBeInTheDocument()
+
+    // A copy is a new transaction: there is nothing yet to delete or duplicate.
+    expect(screen.queryByRole('button', { name: /delete/i })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /duplicate/i }),
+    ).not.toBeInTheDocument()
+
+    // And it is not wearing January.
+    expect(screen.queryByText(/2026-01-15/)).not.toBeInTheDocument()
+  })
+
+  test('editing the same transaction keeps its own date and can duplicate', async () => {
+    setFixtures({ ...READY, 'transactions:detail': DETAIL })
+    renderScreen(<TransactionForm transactionId={'t1' as never} onDone={() => {}} />)
+
+    expect(
+      await screen.findByRole('button', { name: /duplicate/i }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /delete/i })).toBeInTheDocument()
+  })
+})

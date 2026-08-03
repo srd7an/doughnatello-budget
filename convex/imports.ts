@@ -66,8 +66,11 @@ export const preview = mutation({
         if (problems.length < 5) problems.push(`Row ${i + 1}: ${problem}`);
         continue;
       }
-      if (existing.has(fingerprint(r.date, r.amount, r.direction, r.payee))) {
+      const print = fingerprint(r.date, r.amount, r.direction, r.payee);
+      const unmatched = existing.get(print) ?? 0;
+      if (unmatched > 0) {
         duplicates += 1;
+        existing.set(print, unmatched - 1);
       }
       if (r.direction !== "transfer" && !r.category?.trim()) {
         uncategorised += 1;
@@ -134,7 +137,9 @@ export const commit = mutation({
       }
 
       const print = fingerprint(r.date, r.amount, r.direction, r.payee);
-      if (skipDuplicates && existing.has(print)) {
+      const unmatched = existing.get(print) ?? 0;
+      if (skipDuplicates && unmatched > 0) {
+        existing.set(print, unmatched - 1);
         skipped += 1;
         continue;
       }
@@ -231,7 +236,6 @@ export const commit = mutation({
         skipped += 1;
         continue;
       }
-      existing.add(print);
       imported += 1;
     }
 
@@ -305,10 +309,18 @@ async function lookups(ctx: MutationCtx, householdId: Id<"households">) {
     new Map(
       pots.filter((p) => !p.isArchived).map((p) => [p.name.toLowerCase(), p._id]),
     ),
-    new Set(
-      transactions.map((t) =>
-        fingerprint(t.occurredOn, t.amount, t.direction, t.payee),
-      ),
-    ),
+    // A COUNT per fingerprint, not a set.
+    //
+    // Two coffees on the same day for the same money are two coffees. The
+    // point of this check is to survive importing the same file twice, not to
+    // decide that your life cannot contain repetition — so each existing
+    // transaction absorbs at most one incoming row, and a row with nothing
+    // left to match is new. Rows imported during THIS run deliberately do not
+    // join the pool, or the second of two identical rows in one file would be
+    // skipped as a duplicate of the first, which is exactly what happened.
+    transactions.reduce((counts, t) => {
+      const print = fingerprint(t.occurredOn, t.amount, t.direction, t.payee);
+      return counts.set(print, (counts.get(print) ?? 0) + 1);
+    }, new Map<string, number>()),
   ] as const;
 }

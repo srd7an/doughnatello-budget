@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
@@ -90,23 +91,35 @@ const REPEATS: { id: Repeat; label: string }[] = [
  */
 export function TransactionForm({
   transactionId,
+  copyOf,
   onDone,
 }: {
   transactionId?: Id<'transactions'>
+  /**
+   * Start from an existing transaction without being that transaction.
+   *
+   * Everything is prefilled except the DATE, which is today: you are recording
+   * that the same thing happened again, and the one date you certainly do not
+   * mean is the old one. Saving creates; nothing is written to the original.
+   */
+  copyOf?: Id<'transactions'>
   onDone: () => void
 }) {
   const { household } = useHousehold()
   const householdId = household._id
   const isEdit = transactionId !== undefined
+  const navigate = useNavigate()
+  const location = useLocation()
 
   // Stop asking the moment it is on its way out. Deleting leaves the form
   // mounted for the instant before the route changes, and `detail` is reactive:
   // it would re-run against an id that no longer resolves, throw, and take the
   // screen with it. Skipping is how a query says "never mind".
   const [deleting, setDeleting] = useState(false)
+  const source = transactionId ?? copyOf
   const detail = useQuery(
     api.transactions.detail,
-    transactionId && !deleting ? { transactionId } : 'skip',
+    source && !deleting ? { transactionId: source } : 'skip',
   )
   const categoryList = useQuery(api.categories.list, { householdId })
   const potList = useQuery(api.pots.balances, { householdId })
@@ -121,7 +134,7 @@ export function TransactionForm({
     categoryList !== undefined &&
     potList !== undefined &&
     accountList !== undefined &&
-    (!isEdit || detail !== undefined)
+    (source === undefined || detail !== undefined)
   const create = useMutation(api.transactions.create)
   const update = useMutation(api.transactions.update)
   const remove = useMutation(api.transactions.remove)
@@ -179,7 +192,8 @@ export function TransactionForm({
         ? 'income'
         : (detail.funding.find((f) => f.potId)?.potId ?? 'income'),
     )
-    setOccurredOn(detail.occurredOn)
+    // A copy happens today; only an edit keeps the original's date.
+    if (isEdit) setOccurredOn(detail.occurredOn)
     setPayee(detail.payee ?? '')
     setNote(detail.note ?? '')
     setAccountId(detail.accountId)
@@ -189,6 +203,8 @@ export function TransactionForm({
 
   // Adding: focus the amount, because that is always the first thing typed.
   // Editing: leave focus alone — the field you came to change is rarely it.
+  // A copy is an add, but its amount is already filled in and is the single
+  // most likely thing to differ, so it gets the focus too.
   useEffect(() => {
     if (isEdit) return
     const id = requestAnimationFrame(() => amountRef.current?.focus())
@@ -283,11 +299,21 @@ export function TransactionForm({
     if (!recurrence || !ruleStartsOn) return undefined
     if (endMode === 'on') return endOn || undefined
     if (endMode === 'after') {
-      return untilDateForCount(ruleStartsOn, recurrence, Number(times), nextDue)
+      return untilDateForCount(ruleStartsOn, recurrence, Number(times), nextDue) ?? undefined
     }
     return undefined
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [repeat, anchorDay, ruleStartsOn, endMode, endOn, times])
+
+  /**
+   * "1 time" means this one and no more, so there is no rule to write.
+   *
+   * The count includes the transaction being saved now, which makes 1 a
+   * perfectly reasonable thing to type and a perfectly useless rule to create.
+   * It used to be clamped up to 2 and quietly repeated once.
+   */
+  const repeatsAtAll =
+    repeat !== 'once' && !(endMode === 'after' && Number(times) < 2)
 
   const save = async () => {
     if (!canSave) return
@@ -345,7 +371,7 @@ export function TransactionForm({
           fromPotId,
           occurredOn,
         })
-        if (repeat !== 'once' && ruleStartsOn) {
+        if (repeatsAtAll && ruleStartsOn) {
           await createRule({
             householdId,
             ...shared,
@@ -683,6 +709,11 @@ export function TransactionForm({
                             Last one on {untilDate}.
                           </p>
                         )}
+                        {endMode === 'after' && !repeatsAtAll && (
+                          <p className="mt-1.5 px-2 text-xs text-stone-500">
+                            Once is just this one — nothing will repeat.
+                          </p>
+                        )}
                         <label className="mt-2 flex items-center gap-2 px-2 text-xs text-stone-600">
                           <input
                             type="checkbox"
@@ -759,6 +790,25 @@ export function TransactionForm({
         <Button variant="primary" full onClick={save} disabled={!canSave}>
           {saving ? 'Saving…' : 'Save'}
         </Button>
+
+        {/* The same thing happened again. Everything carries over except the
+            date, which is today — see `copyOf`. It leaves the original alone,
+            so it sits above Delete rather than beside it. */}
+        {transactionId && (
+          <Button
+            variant="secondary"
+            full
+            onClick={() => {
+              // Carries the period across as every other jump does, and adds
+              // the one thing this jump is about.
+              const params = new URLSearchParams(location.search)
+              params.set('copy', transactionId)
+              navigate({ pathname: '/add', search: params.toString() })
+            }}
+          >
+            Duplicate
+          </Button>
+        )}
 
         {transactionId && (
           <Button

@@ -1,25 +1,17 @@
 @import "tailwindcss";
 
-/* Geist + Geist Mono, self-hosted (no CDN, no external request at runtime).
-   The design sets every FIGURE in Geist Mono; body text is Geist.
+/* Geist, self-hosted (no CDN, no external request at runtime). One family for
+   the whole app — text and figures alike.
 
-   Geist Mono comes from Vercel's own `geist` package rather than Fontsource,
-   and that is not a preference. Fontsource's build strips the stylistic sets:
-   its GSUB carries only ccmp/dnom/frac/locl/numr and its single zero glyph is
-   slashed, so the diagonal cannot be turned off by any feature setting — I
-   checked the binary, and rendered all four candidate settings to be sure.
-   Vercel's ships ss01–ss11 and a `zero.ss09` alternate, which is the plain
-   zero the design asks for. */
+   There was a second face here, Geist Mono, carrying every amount. It is gone:
+   a screen of money set in a monospace read as a terminal rather than as a
+   statement, and the two families never sat together. Its figures also came
+   at a cost — the mono had to be pulled from Vercel's own package rather than
+   Fontsource because only that build ships the `zero.ss09` alternate that
+   turns off the slashed zero, and a diagonal through every 0 is noise on a
+   screen made of amounts. None of that applies to a font that is no longer
+   here. */
 @import "@fontsource-variable/geist";
-
-@font-face {
-  font-family: "Geist Mono Variable";
-  font-style: normal;
-  font-display: swap;
-  font-weight: 100 900;
-  src: url("../node_modules/geist/dist/fonts/geist-mono/GeistMono-Variable.woff2")
-    format("woff2");
-}
 
 /**
  * doughnatello design tokens (Tailwind v4, CSS-first).
@@ -34,13 +26,11 @@
  * hairline borders only where needed.
  */
 @theme {
-  /* Type. Geist for text, Geist Mono for every figure — matching the design,
-     where the numbers are visibly a different family, not just tabular. */
+  /* Type. One family: Geist, for text and for figures. */
   --font-sans: "Geist Variable", system-ui, sans-serif;
-  /* Mono carries every figure in the app — amounts through .tnum/[data-money]
-     below, and code-like strings such as invite tokens, which keep the slashed
-     zero that money drops. */
-  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+  /* Kept for the few genuinely code-like strings — an invite token, where a
+     slashed zero is doing real work telling 0 from O. Never for money. */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
   /* Brand / primary actions */
   --color-brand: #7c3aed;
@@ -101,20 +91,14 @@
     cursor: pointer;
   }
 
-  /* The numbers are the interface: every figure is Geist Mono, which is what
-     the design draws them in and what makes a column of amounts read as
-     figures rather than as words.
-
-     ss09 is the whole reason the font comes from Vercel's package: it swaps
-     the slashed zero for a plain one. A diagonal through every 0 is noise on
-     a screen made of amounts. It is applied HERE and not globally on purpose —
-     an invite token is still set in mono WITHOUT ss09, because there a slashed
-     zero is doing real work telling 0 from O. */
+  /* Figures stay in Geist like everything else, and keep only its TABULAR
+     ones. That is not a second font — it is the same face drawing its digits
+     on a fixed advance, so a column of amounts lines up at the decimal and a
+     ticking figure does not shuffle its own width as it changes. Take this
+     away and every list of money jitters. */
   .tnum,
   [data-money] {
-    font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-    font-feature-settings: "ss09" 1;
   }
 
   /* Respect reduced-motion globally. */

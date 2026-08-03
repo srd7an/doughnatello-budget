@@ -98,15 +98,10 @@ describe("commit", () => {
     ).toHaveLength(1);
   });
 
-  test("duplicates within one file are caught too", async () => {
-    const { t, householdId } = await setup();
-    const result = await asA(t).mutation(api.imports.commit, {
-      householdId,
-      rows: [grocery("2026-07-01", 2_000_00, "Idea"), grocery("2026-07-01", 2_000_00, "Idea")],
-    });
-    expect(result.imported).toBe(1);
-    expect(result.skipped).toBe(1);
-  });
+  // Two identical rows in ONE file used to be treated as a duplicate pair and
+  // one of them dropped. That was wrong and is now the opposite — see
+  // "identical rows that are not duplicates" below. The file is the claim about
+  // what happened; deduping is only there to survive importing it twice.
 
   test("skipDuplicates false lets a genuine repeat through", async () => {
     const { t, householdId } = await setup();
@@ -478,3 +473,75 @@ describe("matching a category by name", () => {
     ).rejects.toThrow(/is an income category/);
   });
 });
+
+/**
+ * Repetition is not duplication.
+ *
+ * The check exists so importing the same file twice does not double a year of
+ * spending. It is not there to decide that two coffees on the same day for the
+ * same money cannot both have happened — and it used to, because a row was
+ * added to the seen-set the moment it was imported, so the second of two
+ * identical rows in one file was skipped as a duplicate of the first.
+ */
+describe("identical rows that are not duplicates", () => {
+  const coffee = (payee: string) => ({
+    date: "2026-07-01",
+    direction: "expense" as const,
+    amount: 3_50_00,
+    category: "Grocery",
+    payee,
+  });
+
+  test("two identical rows in one file are two transactions", async () => {
+    const { t, householdId } = await setup();
+    const result = await asA(t).mutation(api.imports.commit, {
+      householdId,
+      rows: [coffee("Kafeterija"), coffee("Kafeterija")],
+    });
+    expect(result.imported).toBe(2);
+    expect(result.skipped).toBe(0);
+
+    const rows = await asA(t).query(api.transactions.listMonth, {
+      householdId,
+      month: "2026-07",
+    });
+    expect(rows).toHaveLength(2);
+  });
+
+  test("but importing the same file twice still adds nothing", async () => {
+    const { t, householdId } = await setup();
+    const rows = [coffee("Kafeterija"), coffee("Kafeterija")];
+    await asA(t).mutation(api.imports.commit, { householdId, rows });
+    const second = await asA(t).mutation(api.imports.commit, { householdId, rows });
+
+    expect(second.imported).toBe(0);
+    expect(second.skipped).toBe(2);
+  });
+
+  test("a third copy on top of two existing ones imports exactly one", async () => {
+    const { t, householdId } = await setup();
+    await asA(t).mutation(api.imports.commit, {
+      householdId,
+      rows: [coffee("Kafeterija"), coffee("Kafeterija")],
+    });
+    // The file now says three. Two are already here, so one is new.
+    const again = await asA(t).mutation(api.imports.commit, {
+      householdId,
+      rows: [coffee("Kafeterija"), coffee("Kafeterija"), coffee("Kafeterija")],
+    });
+    expect(again.imported).toBe(1);
+    expect(again.skipped).toBe(2);
+  });
+
+  test("the preview counts them the same way it will import them", async () => {
+    const { t, householdId } = await setup();
+    await asA(t).mutation(api.imports.commit, { householdId, rows: [coffee("A")] });
+
+    const p = await asA(t).mutation(api.imports.preview, {
+      householdId,
+      rows: [coffee("A"), coffee("A"), coffee("A")],
+    });
+    expect(p.duplicates).toBe(1);
+    expect(p.importable).toBe(2);
+  });
+})

@@ -38,9 +38,20 @@ export const month = query({
       )
       .collect();
 
+    // Which side of savings a transfer fed depends on the fund it went into.
+    const kindByPot = new Map(
+      (
+        await ctx.db
+          .query("pots")
+          .withIndex("by_household", (q) => q.eq("householdId", householdId))
+          .collect()
+      ).map((p) => [p._id, p.kind]),
+    );
+
     let income = 0;
     let expense = 0;
     let savings = 0;
+    let sinking = 0;
     let paidFromFunds = 0;
 
     for (const t of txs) {
@@ -59,15 +70,23 @@ export const month = query({
         .filter((f) => f.potId !== undefined)
         .reduce((s, f) => s + f.amount, 0);
 
-      if (t.direction === "transfer") savings += fromIncome;
-      else {
+      if (t.direction === "transfer") {
+        savings += fromIncome;
+        // A sinking fund is money already promised to a bill that has not
+        // arrived yet — the registration, the service. It is still savings and
+        // still comes off the month, but it is DEFERRED SPENDING rather than
+        // accumulation, and that is the difference worth being able to see.
+        if (t.potId && kindByPot.get(t.potId) === "sinking") sinking += fromIncome;
+      } else {
         expense += fromIncome;
         paidFromFunds += fromPots;
       }
     }
 
     const leftToSpend = income - expense - savings;
-    return { income, expense, savings, leftToSpend, paidFromFunds };
+    // `sinking` is a SLICE of `savings`, never an addition to it: the identity
+    // income = expense + savings + leftToSpend has to keep holding.
+    return { income, expense, savings, sinking, leftToSpend, paidFromFunds };
   },
 });
 
@@ -252,9 +271,13 @@ export const year = query({
       income: 0,
       expense: 0,
       savings: 0,
+      sinking: 0, // a slice of savings, not an addition to it
       leftToSpend: 0,
       paidFromFunds: 0,
     }));
+    const sinkingPotIds = new Set(
+      pots.filter((p) => p.kind === "sinking").map((p) => p._id),
+    );
 
     let realExpenseFull = 0; // income − this = net-worth change
     const transfersInYear = new Map<Id<"pots">, number>();
@@ -278,6 +301,7 @@ export const year = query({
 
       if (t.direction === "transfer") {
         bucket.savings += fromIncome;
+        if (t.potId && sinkingPotIds.has(t.potId)) bucket.sinking += fromIncome;
         if (t.potId)
           transfersInYear.set(
             t.potId,
@@ -320,10 +344,11 @@ export const year = query({
         income: a.income + m.income,
         expense: a.expense + m.expense,
         savings: a.savings + m.savings,
+        sinking: a.sinking + m.sinking,
         leftToSpend: a.leftToSpend + m.leftToSpend,
         paidFromFunds: a.paidFromFunds + m.paidFromFunds,
       }),
-      { income: 0, expense: 0, savings: 0, leftToSpend: 0, paidFromFunds: 0 },
+      { income: 0, expense: 0, savings: 0, sinking: 0, leftToSpend: 0, paidFromFunds: 0 },
     );
 
     const bank = accounts

@@ -2,6 +2,7 @@ import { convexTest } from "convex-test";
 import { describe, expect, test } from "vitest";
 import schema from "./schema";
 import { api } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 
 const asA = (t: ReturnType<typeof convexTest>) =>
   t.withIdentity({ subject: "user-a" });
@@ -230,5 +231,118 @@ describe("net worth — the double-count trap", () => {
     const nw = await asA(t).query(api.overview.netWorth, { householdId });
     expect(nw.debt).toBe(80_000_000); // 90M owed − 10M paid
     expect(nw.netWorth).toBe(-80_000_000); // 0 bank + 0 assets − 80M
+  });
+});
+
+/**
+ * Savings splits in two without ever splitting the bar.
+ *
+ * A sinking fund is money already promised to a bill that has not arrived —
+ * deferred spending. A savings fund is a pile with nothing attached. Both come
+ * off the month you fill them, and the registration paid later out of the
+ * sinking fund must NOT come off that later month, or the same money is counted
+ * twice. So `sinking` is reported as a SLICE of `savings`, never beside it.
+ */
+describe("the savings split", () => {
+  async function setup() {
+    const t = convexTest(schema);
+    const householdId = await asA(t).mutation(api.households.create, {
+      name: "Home",
+      displayName: "Me",
+    });
+    const cats = await asA(t).query(api.categories.list, { householdId });
+    const fund = (name: string, kind: "savings" | "sinking") =>
+      asA(t).mutation(api.pots.create, {
+        householdId,
+        name,
+        kind,
+        icon: "piggy",
+        color: "#1D9E75",
+      });
+    const [cash, carStuff] = await Promise.all([
+      fund("Cash fund", "savings"),
+      fund("Car stuff", "sinking"),
+    ]);
+    await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "income",
+      amount: 200_000_00,
+      categoryId: cats.find((c) => c.kind === "income")!._id,
+      occurredOn: `${MONTH}-01`,
+    });
+    return { t, householdId, cash, carStuff };
+  }
+
+  const setAside = (
+    t: ReturnType<typeof convexTest>,
+    householdId: Id<"households">,
+    potId: Id<"pots">,
+    amount: number,
+    day: string,
+  ) =>
+    asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "transfer",
+      amount,
+      potId,
+      occurredOn: `${MONTH}-${day}`,
+    });
+
+  test("sinking is part of savings, and the identity still holds", async () => {
+    const { t, householdId, cash, carStuff } = await setup();
+    await setAside(t, householdId, cash, 13_291_00, "05");
+    await setAside(t, householdId, carStuff, 6_000_00, "06");
+
+    const m = await asA(t).query(api.overview.month, { householdId, month: MONTH });
+    expect(m.savings).toBe(19_291_00);
+    expect(m.sinking).toBe(6_000_00); // the Car stuff half
+    expect(m.savings - m.sinking).toBe(13_291_00); // the pile half
+
+    // The bar must still add up, with savings counted exactly once.
+    expect(m.income).toBe(m.expense + m.savings + m.leftToSpend);
+  });
+
+  test("spending a sinking fund later does not come off that month too", async () => {
+    const { t, householdId, carStuff } = await setup();
+    await setAside(t, householdId, carStuff, 6_000_00, "06");
+    const cats = await asA(t).query(api.categories.list, { householdId });
+
+    // The registration, paid out of the fund in a later month.
+    await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "expense",
+      amount: 6_000_00,
+      categoryId: cats.find((c) => c.name === "Car")!._id,
+      takeFromPotId: carStuff,
+      occurredOn: "2026-09-15",
+    });
+
+    const sep = await asA(t).query(api.overview.month, {
+      householdId,
+      month: "2026-09",
+    });
+    // It shows as paid from funds, and takes nothing off September.
+    expect(sep.paidFromFunds).toBe(6_000_00);
+    expect(sep.expense).toBe(0);
+    expect(sep.savings).toBe(0);
+    expect(sep.sinking).toBe(0);
+  });
+
+  test("a fund with no kind set behaves as plain savings", async () => {
+    const { t, householdId, cash } = await setup();
+    await setAside(t, householdId, cash, 5_000_00, "05");
+    const m = await asA(t).query(api.overview.month, { householdId, month: MONTH });
+    expect(m.savings).toBe(5_000_00);
+    expect(m.sinking).toBe(0);
+  });
+
+  test("the year splits it the same way", async () => {
+    const { t, householdId, cash, carStuff } = await setup();
+    await setAside(t, householdId, cash, 10_000_00, "05");
+    await setAside(t, householdId, carStuff, 4_000_00, "06");
+
+    const y = await asA(t).query(api.overview.year, { householdId, year: "2026" });
+    expect(y.totals.savings).toBe(14_000_00);
+    expect(y.totals.sinking).toBe(4_000_00);
   });
 });

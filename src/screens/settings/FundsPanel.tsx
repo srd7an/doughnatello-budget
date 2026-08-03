@@ -72,7 +72,11 @@ export function FundsPanel({ editId }: { editId?: string }) {
               editing === f._id ? (
                 <EditRow key={f._id}>
                   <PotForm
-                    initial={{ ...f, targetAmount: f.targetAmount ?? undefined }}
+                    initial={{
+                      ...f,
+                      kind: f.kind === 'savings' ? 'savings' : 'sinking',
+                      targetAmount: f.targetAmount ?? undefined,
+                    }}
                     onCancel={() => setEditing(null)}
                     onSave={async (values) => {
                       await update({ potId: f._id, ...values })
@@ -96,10 +100,7 @@ export function FundsPanel({ editId }: { editId?: string }) {
         <PotForm
           onCancel={() => setAdding(false)}
           onSave={async (values) => {
-            // Still hardcoded, and still the open question: a fund you are
-            // filling for a known bill is "sinking", one you are simply
-            // building is "savings", and nothing yet asks which.
-            await create({ householdId, kind: 'sinking', ...values })
+            await create({ householdId, ...values })
             setAdding(false)
           }}
         />
@@ -124,6 +125,7 @@ export function FundsPanel({ editId }: { editId?: string }) {
 type Fund = {
   _id: Id<'pots'>
   name: string
+  kind: string
   icon: string
   color: string
   balance: number
@@ -154,8 +156,11 @@ function FundRow({ fund, onEdit }: { fund: Fund; onEdit: () => void }) {
   )
 }
 
+type FundKind = 'savings' | 'sinking'
+
 type PotValues = {
   name: string
+  kind: FundKind
   icon: string
   color: string
   targetAmount?: number
@@ -174,6 +179,7 @@ function PotForm({
   onArchive?: () => Promise<unknown>
 }) {
   const [name, setName] = useState(initial?.name ?? '')
+  const [kind, setKind] = useState<FundKind>(initial?.kind ?? 'savings')
   const [icon, setIcon] = useState(initial?.icon ?? 'piggy')
   const [color, setColor] = useState(initial?.color ?? '#1D9E75')
   const [target, setTarget] = useState(initial?.targetAmount ?? 0)
@@ -185,6 +191,7 @@ function PotForm({
     try {
       await onSave({
         name: name.trim(),
+        kind,
         icon,
         color,
         targetAmount: target > 0 ? target : undefined,
@@ -204,6 +211,39 @@ function PotForm({
           placeholder="Car fund"
         />
       </Field>
+      {/* The question the app could not previously ask, and could therefore
+          never answer: is this a pile you are building, or a bill you are
+          getting ahead of? Both reduce what is left to spend in the month you
+          fill them — the difference is what emptying one MEANS. */}
+      <Field label="What it is for">
+        <div className="flex rounded-xl bg-stone-100 p-1">
+          {(
+            [
+              ['savings', 'Saving up'],
+              ['sinking', 'A bill coming'],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              aria-pressed={kind === k}
+              onClick={() => setKind(k)}
+              className={`h-11 flex-1 rounded-lg text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:h-10 ${
+                kind === k
+                  ? 'bg-white text-stone-900'
+                  : 'text-stone-500 hover:text-stone-700'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </Field>
+      <p className="-mt-2 px-1 text-xs text-stone-400">
+        {kind === 'savings'
+          ? 'A pile with no bill attached. Emptying it means something went wrong.'
+          : 'Money already promised to something — registration, a service. Emptying it means it did its job.'}
+      </p>
       <div className="flex gap-3">
         <Field label="Icon">
           <IconPicker value={icon} onChange={setIcon} />

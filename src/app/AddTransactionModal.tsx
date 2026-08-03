@@ -1,5 +1,17 @@
+import { useSearchParams } from 'react-router-dom'
 import { Modal } from '../ui/Modal'
 import { TransactionForm } from './TransactionForm'
+import type { Id } from '../../convex/_generated/dataModel'
+
+/**
+ * `/add?copy=<id>` prefills from an existing transaction. It is a search param
+ * rather than a route of its own because it does not change WHAT the screen is
+ * — it is still Add — only what it starts out holding.
+ */
+function useCopyOf(): Id<'transactions'> | undefined {
+  const [params] = useSearchParams()
+  return (params.get('copy') as Id<'transactions'>) ?? undefined
+}
 
 /**
  * Adding a transaction, in the two shapes the design asks for — and they are
@@ -17,14 +29,21 @@ import { TransactionForm } from './TransactionForm'
  * shoved the button left the moment it opened.
  */
 export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
+  const copyOf = useCopyOf()
   return (
-    <Modal open bare onClose={onClose} title="Add transaction">
-      <TransactionForm onDone={onClose} />
+    <Modal
+      open
+      bare
+      onClose={onClose}
+      title={copyOf ? 'Duplicate transaction' : 'Add transaction'}
+    >
+      <TransactionForm copyOf={copyOf} onDone={onClose} />
     </Modal>
   )
 }
 
 export function AddTransactionPopover({ onClose }: { onClose: () => void }) {
+  const copyOf = useCopyOf()
   return (
     <>
       {/* Anywhere else closes it, the way a popover should. */}
@@ -35,7 +54,7 @@ export function AddTransactionPopover({ onClose }: { onClose: () => void }) {
         className="fixed inset-0 z-40 cursor-default"
       />
       <div className="absolute top-full right-0 z-50 mt-2 w-[360px] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-[0px_12px_16px_6px_rgba(0,0,0,0.06)]">
-        <TransactionForm onDone={onClose} />
+        <TransactionForm copyOf={copyOf} onDone={onClose} />
       </div>
     </>
   )
