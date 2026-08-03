@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { useHousehold } from '../household/HouseholdContext'
@@ -51,6 +51,7 @@ export function TransactionsList({
 } = {}) {
   const all = useMonthRows()
   const navigate = useNavigate()
+  const location = useLocation()
 
   if (all === undefined) {
     return <p className="py-8 text-center text-sm text-stone-400">Loading…</p>
@@ -110,7 +111,7 @@ export function TransactionsList({
               <TransactionRow
                 key={row._id}
                 row={row}
-                onOpen={() => navigate(`/transactions/${row._id}`)}
+                onOpen={() => navigate({ pathname: `/transactions/${row._id}`, search: location.search })}
               />
             ))}
           </ul>

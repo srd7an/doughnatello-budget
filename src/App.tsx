@@ -62,8 +62,8 @@ function AuthedApp() {
 
   return (
     <HouseholdProvider households={households}>
-      <PeriodProvider>
-        <BrowserRouter>
+      <BrowserRouter>
+        <PeriodProvider>
           <Routes>
             <Route element={<AppShell />}>
               <Route index element={<Overview />} />
@@ -87,8 +87,8 @@ function AuthedApp() {
               <Route path="*" element={<Overview />} />
             </Route>
           </Routes>
-        </BrowserRouter>
-      </PeriodProvider>
+        </PeriodProvider>
+      </BrowserRouter>
     </HouseholdProvider>
   )
 }

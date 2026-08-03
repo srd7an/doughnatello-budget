@@ -67,6 +67,22 @@ describe('the shell', () => {
     expect(screen.getByLabelText('Amount')).toBeInTheDocument()
   })
 
+  test('the period comes from the URL, and offers the way home when it is not today', () => {
+    setFixtures(EMPTY)
+    setViewport('desktop')
+
+    const past = shell('/?p=2026-01')
+    expect(screen.getByText('January 2026')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /today/i })).toBeInTheDocument()
+    past.unmount()
+
+    // On the month today falls in there is nowhere to go, so nothing offers.
+    const now = new Date()
+    const p = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    shell(`/?p=${p}`)
+    expect(screen.queryByRole('button', { name: /today/i })).not.toBeInTheDocument()
+  })
+
   test('the period control gives up its slot to a way back on a page', () => {
     setFixtures(EMPTY)
     setViewport('desktop')

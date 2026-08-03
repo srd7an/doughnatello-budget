@@ -66,6 +66,11 @@ export function AppShell() {
 
   const isDesktop = useMediaQuery(SM)
 
+  /** Opening an overlay keeps the period in the URL, or the page behind it
+   *  would jump to today the moment you pressed Add. */
+  const open = (pathname: string) =>
+    navigate({ pathname, search: location.search })
+
   const close = () => {
     if (location.key === 'default') navigate('/', { replace: true })
     else navigate(-1)
@@ -86,7 +91,7 @@ export function AppShell() {
           {/* Row 1: brand + account */}
           <div className="flex items-center justify-between">
             <BrandMark />
-            <AvatarMenu onOpenSettings={() => navigate('/settings')} />
+            <AvatarMenu onOpenSettings={() => open('/settings')} />
           </div>
 
           {/* Row 2: period control (the nav) + add */}
@@ -98,7 +103,7 @@ export function AppShell() {
                 existing and one being display:none is how they both showed up
                 on a phone. */}
             {isDesktop && (
-              <Button variant="primary" onClick={() => navigate('/add')}>
+              <Button variant="primary" onClick={() => open('/add')}>
                 Add transaction
               </Button>
             )}
@@ -113,7 +118,7 @@ export function AppShell() {
 
       {!isDesktop && (
         <button
-          onClick={() => navigate('/add')}
+          onClick={() => open('/add')}
           aria-label="Add transaction"
           className="fixed right-4 bottom-6 z-30 grid size-14 place-items-center rounded-full bg-brand text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
         >

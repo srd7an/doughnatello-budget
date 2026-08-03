@@ -13,7 +13,8 @@ import {
  * is how you move between the two overview zoom levels.
  */
 export function PeriodControl() {
-  const { granularity, label, step, setGranularity } = usePeriod()
+  const { granularity, label, isCurrent, step, setGranularity, goToToday } =
+    usePeriod()
   const [menuOpen, setMenuOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -61,6 +62,18 @@ export function PeriodControl() {
           <span aria-live="polite">{label}</span>
         </button>
       </div>
+
+      {/* Only when you have wandered off. A "Today" that is always there is a
+          button that usually does nothing, and its absence is how you know
+          where you are. */}
+      {!isCurrent && (
+        <button
+          onClick={goToToday}
+          className="ml-2 flex h-11 items-center rounded-full px-3 text-sm text-brand hover:bg-violet-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:h-8"
+        >
+          Today
+        </button>
+      )}
 
       {menuOpen && (
         <div
