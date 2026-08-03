@@ -376,7 +376,7 @@ export function ArchivedList({
             </GhostButton>
             <ConfirmButton
               label="Delete"
-              confirmLabel="Delete for good"
+              confirmLabel="Yes, delete for good"
               onConfirm={async () => {
                 setError(null)
                 try {

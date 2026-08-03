@@ -97,7 +97,7 @@ export function Repeating() {
                     </GhostButton>
                     <ConfirmButton
                       label="Delete"
-                      confirmLabel="Delete it"
+                      confirmLabel="Yes, delete it"
                       onConfirm={() => remove({ ruleId: r._id })}
                     />
                   </div>

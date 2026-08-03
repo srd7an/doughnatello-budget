@@ -171,7 +171,7 @@ export function AccountsPanel() {
                       </GhostButton>
                       <ConfirmButton
                         label="Archive"
-                        confirmLabel="Archive it"
+                        confirmLabel="Yes, archive it"
                         onConfirm={() => archive({ accountId: a._id })}
                       />
                     </>

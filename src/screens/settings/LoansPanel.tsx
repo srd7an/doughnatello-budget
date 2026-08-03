@@ -189,7 +189,7 @@ function LoanRow({
         <GhostButton onClick={onEdit}>Edit</GhostButton>
         <ConfirmButton
           label="Archive"
-          confirmLabel="Archive it"
+          confirmLabel="Yes, archive it"
           onConfirm={onArchive}
         />
       </div>

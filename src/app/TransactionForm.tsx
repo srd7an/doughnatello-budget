@@ -419,10 +419,13 @@ export function TransactionForm({
         </div>
 
         {/* The amount is the headline: you type straight into it. */}
+        {/* The label wraps for click-to-focus, but the NAME is on the input:
+            the currency sits inside the same label, so reading the label's
+            text gave "Amount RSD". */}
         <label className="flex items-baseline gap-1">
-          <span className="sr-only">Amount</span>
           <input
             ref={amountRef}
+            aria-label="Amount"
             inputMode="decimal"
             value={amountStr}
             onChange={(e) => setAmountStr(sanitizeMoneyInput(e.target.value))}
@@ -766,7 +769,7 @@ export function TransactionForm({
             }}
             onBlur={() => setConfirmDelete(false)}
           >
-            {confirmDelete ? 'Delete it' : 'Delete'}
+            {confirmDelete ? 'Yes, delete it' : 'Delete'}
           </Button>
         )}
       </div>

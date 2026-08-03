@@ -129,7 +129,7 @@ export function InvitesPanel() {
                 </GhostButton>
                 <ConfirmButton
                   label="Withdraw"
-                  confirmLabel="Withdraw it"
+                  confirmLabel="Yes, withdraw it"
                   onConfirm={() => revoke({ inviteId: i._id })}
                 />
               </li>

@@ -105,7 +105,7 @@ export function PeoplePanel() {
                       {isAdmin && !lastAdmin && !isSelf && (
                         <ConfirmButton
                           label="Remove"
-                          confirmLabel="Remove them"
+                          confirmLabel="Yes, remove them"
                           onConfirm={() =>
                             removeMember({ householdId, userId: m.userId })
                           }

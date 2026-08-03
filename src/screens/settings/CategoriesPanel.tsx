@@ -107,7 +107,7 @@ export function CategoriesPanel() {
                       </GhostButton>
                       <ConfirmButton
                         label="Archive"
-                        confirmLabel="Archive it"
+                        confirmLabel="Yes, archive it"
                         onConfirm={() => archive({ categoryId: c._id })}
                       />
                     </div>
@@ -170,7 +170,7 @@ export function CategoriesPanel() {
                 </GhostButton>
                 <ConfirmButton
                   label="Delete"
-                  confirmLabel="Delete for good"
+                  confirmLabel="Yes, delete for good"
                   onConfirm={async () => {
                     setError(null)
                     try {
