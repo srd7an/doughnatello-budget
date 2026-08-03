@@ -1,9 +1,25 @@
 @import "tailwindcss";
 
 /* Geist + Geist Mono, self-hosted (no CDN, no external request at runtime).
-   The design sets every FIGURE in Geist Mono; body text is Geist. */
+   The design sets every FIGURE in Geist Mono; body text is Geist.
+
+   Geist Mono comes from Vercel's own `geist` package rather than Fontsource,
+   and that is not a preference. Fontsource's build strips the stylistic sets:
+   its GSUB carries only ccmp/dnom/frac/locl/numr and its single zero glyph is
+   slashed, so the diagonal cannot be turned off by any feature setting — I
+   checked the binary, and rendered all four candidate settings to be sure.
+   Vercel's ships ss01–ss11 and a `zero.ss09` alternate, which is the plain
+   zero the design asks for. */
 @import "@fontsource-variable/geist";
-@import "@fontsource-variable/geist-mono";
+
+@font-face {
+  font-family: "Geist Mono Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("../node_modules/geist/dist/fonts/geist-mono/GeistMono-Variable.woff2")
+    format("woff2");
+}
 
 /**
  * doughnatello design tokens (Tailwind v4, CSS-first).
@@ -21,9 +37,9 @@
   /* Type. Geist for text, Geist Mono for every figure — matching the design,
      where the numbers are visibly a different family, not just tabular. */
   --font-sans: "Geist Variable", system-ui, sans-serif;
-  /* Mono is for CODE, not for money — invite tokens and column names, where a
-     slashed zero helps you tell 0 from O. Amounts use the sans tabular figures
-     below; see the note on .tnum. */
+  /* Mono carries every figure in the app — amounts through .tnum/[data-money]
+     below, and code-like strings such as invite tokens, which keep the slashed
+     zero that money drops. */
   --font-mono: "Geist Mono Variable", ui-monospace, monospace;
 
   /* Brand / primary actions */
@@ -85,16 +101,20 @@
     cursor: pointer;
   }
 
-  /* The numbers are the interface: every figure is tabular so columns align.
+  /* The numbers are the interface: every figure is Geist Mono, which is what
+     the design draws them in and what makes a column of amounts read as
+     figures rather than as words.
 
-     Deliberately Geist SANS, not Geist Mono. Geist Mono's only zero glyph is
-     slashed — the font ships no stylistic sets and no alternate zero, so the
-     slash cannot be turned off, and a diagonal through every 0 is noise on a
-     screen made of amounts. Geist sans has real tabular figures (zero.tf),
-     which gives the alignment without the slash. */
+     ss09 is the whole reason the font comes from Vercel's package: it swaps
+     the slashed zero for a plain one. A diagonal through every 0 is noise on
+     a screen made of amounts. It is applied HERE and not globally on purpose —
+     an invite token is still set in mono WITHOUT ss09, because there a slashed
+     zero is doing real work telling 0 from O. */
   .tnum,
   [data-money] {
+    font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
+    font-feature-settings: "ss09" 1;
   }
 
   /* Respect reduced-motion globally. */
