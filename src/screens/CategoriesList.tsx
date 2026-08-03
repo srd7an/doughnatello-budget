@@ -1,10 +1,12 @@
 import { useState } from 'react'
+import type { Id } from '../../convex/_generated/dataModel'
 import { formatMoney, formatPercent } from '../lib/format'
 import { CaretRightIcon, CategoryIcon } from '../ui/icons'
 import { dayLabel } from '../lib/dates'
+import { TransactionDetail } from './TransactionDetail'
 
 export type CategoryRowData = {
-  _id: string
+  _id: Id<'transactions'>
   direction: string
   amount: number
   occurredOn: string
@@ -13,7 +15,12 @@ export type CategoryRowData = {
   category: { name: string; icon: string; color: string; kind: string } | null
 }
 
-type Txn = { id: string; payee: string; occurredOn: string; amount: number }
+type Txn = {
+  id: Id<'transactions'>
+  payee: string
+  occurredOn: string
+  amount: number
+}
 type CatAgg = {
   id: string
   name: string
@@ -50,6 +57,9 @@ export function CategoriesList({
   const [open, setOpen] = useState<Set<string>>(
     new Set(['group-Needs', 'group-Wants']),
   )
+  // A transaction found by drilling into a category opens the same editor as
+  // one found in the list — there is one transaction, so there is one way in.
+  const [openId, setOpenId] = useState<Id<'transactions'> | null>(null)
   const toggle = (k: string) =>
     setOpen((prev) => {
       const next = new Set(prev)
@@ -117,7 +127,7 @@ export function CategoriesList({
           label="Income"
           amount={income}
         />
-        {open.has('income') && <TxnList txns={incomeTxns} />}
+        {open.has('income') && <TxnList txns={incomeTxns} onOpen={setOpenId} />}
 
         <Group
           label="Needs"
@@ -125,6 +135,7 @@ export function CategoriesList({
           income={income}
           open={open}
           toggle={toggle}
+          onOpen={setOpenId}
         />
         <Group
           label="Wants"
@@ -132,6 +143,7 @@ export function CategoriesList({
           income={income}
           open={open}
           toggle={toggle}
+          onOpen={setOpenId}
         />
       </div>
 
@@ -140,6 +152,8 @@ export function CategoriesList({
           +{formatMoney(paidFromFunds)} paid from funds
         </p>
       )}
+
+      <TransactionDetail transactionId={openId} onClose={() => setOpenId(null)} />
     </div>
   )
 }
@@ -239,12 +253,14 @@ function Group({
   income,
   open,
   toggle,
+  onOpen,
 }: {
   label: string
   cats: CatAgg[]
   income: number
   open: Set<string>
   toggle: (k: string) => void
+  onOpen: (id: Id<'transactions'>) => void
 }) {
   const total = cats.reduce((s, c) => s + c.total, 0)
   const key = `group-${label}`
@@ -277,6 +293,7 @@ function Group({
               share={income > 0 ? c.total / income : 0}
               open={open}
               toggle={toggle}
+              onOpen={onOpen}
             />
           ))}
         </div>
@@ -290,11 +307,13 @@ function CategoryRow({
   share,
   open,
   toggle,
+  onOpen,
 }: {
   cat: CatAgg
   share: number
   open: Set<string>
   toggle: (k: string) => void
+  onOpen: (id: Id<'transactions'>) => void
 }) {
   return (
     <>
@@ -308,7 +327,7 @@ function CategoryRow({
         label={cat.name}
         amount={cat.total}
       />
-      {open.has(cat.id) && <TxnList txns={cat.txns} />}
+      {open.has(cat.id) && <TxnList txns={cat.txns} onOpen={onOpen} />}
     </>
   )
 }
@@ -321,21 +340,34 @@ function CategoryRow({
  * only works if the row owns it. The radius arrives with the fill — a row that
  * is only a line has no corners to round.
  */
-function TxnList({ txns }: { txns: Txn[] }) {
+function TxnList({
+  txns,
+  onOpen,
+}: {
+  txns: Txn[]
+  onOpen: (id: Id<'transactions'>) => void
+}) {
   return (
     <ul className="flex flex-col gap-1">
       {txns.map((t) => (
-        <li
-          key={t.id}
-          className="flex items-center gap-2 border-b border-dashed border-stone-300 py-1.5 pr-3 pl-8 text-sm hover:rounded-lg hover:border-transparent hover:bg-stone-100"
-        >
-          <span className="min-w-0 flex-1 truncate font-medium text-stone-800">
-            {t.payee}
-          </span>
-          <span className="flex-1 text-stone-600">{dayLabel(t.occurredOn)}</span>
-          <span data-money className="w-[100px] shrink-0 text-right text-stone-700">
-            {formatMoney(t.amount)}
-          </span>
+        <li key={t.id}>
+          <button
+            onClick={() => onOpen(t.id)}
+            className="flex min-h-11 w-full items-center gap-2 border-b border-dashed border-stone-300 py-1.5 pr-3 pl-8 text-left text-sm hover:rounded-lg hover:border-transparent hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:min-h-9"
+          >
+            <span className="min-w-0 flex-1 truncate font-medium text-stone-800">
+              {t.payee}
+            </span>
+            <span className="flex-1 text-stone-600">
+              {dayLabel(t.occurredOn)}
+            </span>
+            <span
+              data-money
+              className="w-[100px] shrink-0 text-right text-stone-700"
+            >
+              {formatMoney(t.amount)}
+            </span>
+          </button>
         </li>
       ))}
     </ul>
