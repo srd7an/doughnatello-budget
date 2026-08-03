@@ -107,7 +107,7 @@ export function CategoriesList({
         <BarRow
           share={1}
           showShare={false}
-          tone="bg-lime-100"
+          tone="bg-lime-100 group-hover:bg-lime-200"
           expanded={open.has('income')}
           onClick={() => toggle('income')}
           label="Income"
@@ -185,10 +185,10 @@ function BarRow({
 }) {
   const pct = Math.max(0, Math.min(share, 1)) * 100
   return (
-    <div className="relative overflow-hidden rounded-lg">
+    <div className="group relative overflow-hidden rounded-lg">
       <div
         aria-hidden
-        className={`absolute inset-y-0 left-0 ${tone}`}
+        className={`absolute inset-y-0 left-0 transition-colors ${tone}`}
         // A hairline floor so a rounding-to-zero category is still a mark
         // rather than nothing at all.
         style={{ width: `max(${pct}%, 2px)` }}
@@ -254,7 +254,11 @@ function Group({
         share={share}
         // Needs/Wants keep their own tints — this is the one view where the
         // committed/discretionary split is expressed as colour.
-        tone={label === 'Needs' ? 'bg-violet-100' : 'bg-orange-100'}
+        tone={
+          label === 'Needs'
+            ? 'bg-violet-100 group-hover:bg-violet-200'
+            : 'bg-orange-100 group-hover:bg-orange-200'
+        }
         expanded={open.has(key)}
         onClick={() => toggle(key)}
         label={label}
@@ -295,7 +299,7 @@ function CategoryRow({
     <>
       <BarRow
         share={share}
-        tone="bg-stone-100"
+        tone="bg-stone-100 group-hover:bg-stone-200"
         expanded={open.has(cat.id)}
         onClick={() => toggle(cat.id)}
         icon={cat.icon}
@@ -312,16 +316,17 @@ function CategoryRow({
  * The transactions inside a category.
  *
  * The dashed rule is a BORDER ON THE ROW, not a divider between rows: on hover
- * the row takes a filled, rounded shape and the rule goes with it, which only
- * works if the row owns it.
+ * the row takes a filled, 8px-rounded shape and the rule goes with it, which
+ * only works if the row owns it. The radius arrives with the fill — a row that
+ * is only a line has no corners to round.
  */
 function TxnList({ txns }: { txns: Txn[] }) {
   return (
-    <ul>
+    <ul className="flex flex-col gap-1">
       {txns.map((t) => (
         <li
           key={t.id}
-          className="flex items-center gap-2 rounded-lg border-b border-dashed border-stone-300 py-1.5 pr-3 pl-8 text-sm hover:border-transparent hover:bg-stone-100"
+          className="flex items-center gap-2 border-b border-dashed border-stone-300 py-1.5 pr-3 pl-8 text-sm hover:rounded-lg hover:border-transparent hover:bg-stone-100"
         >
           <span className="min-w-0 flex-1 truncate font-medium text-stone-800">
             {t.payee}

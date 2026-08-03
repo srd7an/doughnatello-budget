@@ -106,7 +106,7 @@ export function TransactionsList({
           <h3 className="mb-1 text-xs tracking-[0.24px] text-stone-600 uppercase">
             {dayLabel(g.day)}
           </h3>
-          <ul>
+          <ul className="flex flex-col gap-1">
             {g.rows.map((row) => (
               <TransactionRow
                 key={row._id}
@@ -140,12 +140,13 @@ function TransactionRow({ row, onOpen }: { row: Row; onOpen: () => void }) {
 
   return (
     <li>
-      {/* The dashed rule belongs to the ROW, not to the gap under it: hovering
-          gives the row a filled, rounded shape, and the rule has to leave with
-          it rather than cut across the fill. */}
+      {/* The dashed rule belongs to the ROW, not to the gap under it. Sitting
+          on its rule the row is square; hovering swaps the rule for a filled,
+          8px-rounded shape. The radius arrives WITH the fill — a corner on a
+          row that is only a line has nothing to round. */}
       <button
         onClick={onOpen}
-        className="flex min-h-11 w-full items-center gap-2 rounded-lg border-b border-dashed border-stone-300 px-3 py-1.5 text-left hover:border-transparent hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:min-h-9"
+        className="flex min-h-11 w-full items-center gap-2 border-b border-dashed border-stone-300 px-3 py-1.5 text-left hover:rounded-lg hover:border-transparent hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:min-h-9"
       >
         {/* A bare icon in the category's own colour. The design has no disc behind
           it — the tinted circle it replaced added weight to every single row. */}
