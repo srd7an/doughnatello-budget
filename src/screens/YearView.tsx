@@ -146,7 +146,7 @@ function Accordion({
         onClick={() => !empty && setOpen((o) => !o)}
         aria-expanded={open}
         disabled={empty}
-        className="flex min-h-11 w-full items-center gap-2 rounded-lg bg-stone-100 px-4 text-sm hover:bg-stone-200 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
+        className="flex min-h-11 w-full items-center gap-2 rounded-lg bg-stone-100 px-3 text-sm transition-colors hover:bg-stone-200 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:min-h-9"
       >
         <span className="grid w-3 shrink-0 place-items-center" aria-hidden>
           {!empty && (
@@ -163,11 +163,16 @@ function Accordion({
           paidLabel={paidLabel}
         />
       </button>
-      {open &&
-        group.items.map((it) => {
-          const cls = `mt-1 flex min-h-11 items-center gap-2 border-b border-dashed border-stone-300 py-2 pr-4 pl-9 text-sm ${
+      {/* Exactly the shapes the rest of the app uses: an open group draws a
+          rule down its left the way a category group does, and each row under
+          it is a transaction row — square on its own dashed rule, rounded and
+          filled only while hovered. */}
+      {open && (
+        <div className="mt-1 ml-4 flex flex-col gap-1 border-l border-stone-200 pl-4">
+        {group.items.map((it) => {
+          const cls = `flex min-h-11 items-center gap-2 border-b border-dashed border-stone-300 px-3 py-1.5 text-sm sm:min-h-9 ${
             linkTo
-              ? 'rounded-lg hover:border-transparent hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand'
+              ? 'hover:rounded-lg hover:border-transparent hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand'
               : ''
           }`
           const body = (
@@ -202,6 +207,8 @@ function Accordion({
             </div>
           )
         })}
+        </div>
+      )}
     </div>
   )
 }
@@ -226,7 +233,9 @@ function ChangeBalance({
           ? 'No change'
           : `${formatMoney(change, { signed: true })}${paidLabel ? ' paid' : ''}`}
       </span>
-      <span className="w-28 text-right font-medium">{formatMoney(balance)}</span>
+      <span className="w-[100px] text-right font-medium">
+        {formatMoney(balance)}
+      </span>
     </span>
   )
 }
