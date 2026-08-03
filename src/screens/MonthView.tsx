@@ -52,6 +52,13 @@ export function MonthView() {
     setLens('transactions')
   }
 
+  // Categories with spending in them, which is what that list draws — not how
+  // many categories exist. Undefined while the rows are still loading, so the
+  // tab shows no count rather than a confident zero.
+  const categoryCount = rows && new Set(
+    rows.filter((r) => r.direction === 'expense').map((r) => r.categoryId ?? 'none'),
+  ).size
+
   const now = new Date()
   const isCurrentMonth =
     year === now.getFullYear() && month === now.getMonth() + 1
@@ -165,13 +172,19 @@ export function MonthView() {
       {/* Lens row */}
       <div className="flex items-center gap-3">
         <div className="flex gap-3" role="tablist">
+          {/* How much is behind each tab, before you open it — and, on
+              Transactions, the number the filter chip is a fraction of. The
+              count is the month's, not the filtered view's: a chip that reads
+              "of 47" only means something if 47 is what the tab claims. */}
           <LensTab
             label="Transactions"
+            count={rows?.length}
             active={lens === 'transactions'}
             onClick={() => setLens('transactions')}
           />
           <LensTab
             label="Categories"
+            count={categoryCount}
             active={lens === 'categories'}
             onClick={() => setLens('categories')}
           />
@@ -278,10 +291,13 @@ function Metric({
 
 function LensTab({
   label,
+  count,
   active,
   onClick,
 }: {
   label: string
+  /** Undefined until it is known — the tab must not flash a zero. */
+  count?: number
   active: boolean
   onClick: () => void
 }) {
@@ -295,6 +311,14 @@ function LensTab({
       }`}
     >
       {label}
+      {count !== undefined && (
+        // A figure, so it wears the mono face like every other figure — and one
+        // weight lighter than the label, because it is not what the tab is
+        // called, it is how much is in it.
+        <span data-money className="ml-1 font-normal text-stone-400">
+          ({count})
+        </span>
+      )}
     </button>
   )
 }

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Popover } from '../ui/Popover'
+import { SearchField, useSearch } from '../ui/SearchField'
 import { CategoryIcon } from '../ui/icons'
 
 /**
@@ -105,39 +106,75 @@ export function PickerRow<T>({
           )
         }
       >
-        {(close) => (
-          <ul className="max-h-64 w-56 overflow-y-auto">
-            {options.map((o) => (
-              <li key={o.key}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onPick(o.value)
-                    close()
-                  }}
-                  className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2 text-left text-sm text-stone-800 hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:min-h-9"
-                >
-                  {o.icon !== undefined && (
-                    <CategoryIcon
-                      icon={o.icon}
-                      color={o.color}
-                      size={16}
-                      className="shrink-0"
-                    />
-                  )}
-                  <span className="min-w-0 flex-1 truncate">{o.text}</span>
-                  {o.hint && (
-                    <span data-money className="shrink-0 text-xs text-stone-500">
-                      {o.hint}
-                    </span>
-                  )}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+        {(close) => <Options options={options} onPick={onPick} close={close} label={label} />}
       </Popover>
     </Row>
+  )
+}
+
+/** The panel behind a PickerRow: a search field once the list is long, and the
+ *  matching options under it. Split out because the search needs state, and a
+ *  render prop is not a component. */
+function Options<T>({
+  options,
+  onPick,
+  close,
+  label,
+}: {
+  options: {
+    key: string
+    icon?: string
+    color?: string
+    text: string
+    hint?: string
+    value: T
+  }[]
+  onPick: (value: T) => void
+  close: () => void
+  label: string
+}) {
+  const { query, setQuery, show, results } = useSearch(options, (o) => o.text)
+
+  return (
+    <div className="w-56">
+      {show && (
+        <SearchField
+          value={query}
+          onChange={setQuery}
+          label={`Search ${label.toLowerCase()}`}
+          empty={results.length === 0}
+        />
+      )}
+      <ul className="max-h-64 overflow-y-auto">
+        {results.map((o) => (
+          <li key={o.key}>
+            <button
+              type="button"
+              onClick={() => {
+                onPick(o.value)
+                close()
+              }}
+              className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2 text-left text-sm text-stone-800 hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:min-h-9"
+            >
+              {o.icon !== undefined && (
+                <CategoryIcon
+                  icon={o.icon}
+                  color={o.color}
+                  size={16}
+                  className="shrink-0"
+                />
+              )}
+              <span className="min-w-0 flex-1 truncate">{o.text}</span>
+              {o.hint && (
+                <span data-money className="shrink-0 text-xs text-stone-500">
+                  {o.hint}
+                </span>
+              )}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 

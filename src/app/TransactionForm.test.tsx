@@ -159,3 +159,57 @@ describe('deleting', () => {
     ).toBeInTheDocument()
   })
 })
+
+/**
+ * A picker you can type into, once there is enough in it to be worth typing.
+ * Two dozen categories is a scroll, and scrolling to find "Štednja" when the
+ * keyboard in front of you has no Š is the case this exists for.
+ */
+describe('searching a long picker', () => {
+  const MANY = [
+    ...CATEGORIES,
+    ...['Štednja', 'Kućni računi', 'Fitness', 'Travel', 'Pets', 'Health', 'Fuel'].map(
+      (name, i) => ({
+        _id: `m${i}`,
+        name,
+        kind: 'discretionary',
+        icon: 'star',
+        color: '#78716C',
+      }),
+    ),
+  ]
+
+  test('a short list has no search field to get in the way', async () => {
+    setFixtures(READY) // three categories
+    renderScreen(<TransactionForm onDone={() => {}} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Category' }))
+
+    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
+  })
+
+  test('a long one does, and it narrows the list as you type', async () => {
+    setFixtures({ ...READY, 'categories:list': MANY })
+    renderScreen(<TransactionForm onDone={() => {}} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Category' }))
+
+    const field = screen.getByRole('searchbox')
+    await userEvent.type(field, 'ste')
+
+    // Typed without the accent, found with it.
+    expect(screen.getByRole('button', { name: 'Štednja' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Grocery' })).not.toBeInTheDocument()
+  })
+
+  test('two fragments mean both, and no match says so', async () => {
+    setFixtures({ ...READY, 'categories:list': MANY })
+    renderScreen(<TransactionForm onDone={() => {}} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Category' }))
+
+    await userEvent.type(screen.getByRole('searchbox'), 'kuc rac')
+    expect(screen.getByRole('button', { name: 'Kućni računi' })).toBeInTheDocument()
+
+    await userEvent.clear(screen.getByRole('searchbox'))
+    await userEvent.type(screen.getByRole('searchbox'), 'zzz')
+    expect(screen.getByText('Nothing matches')).toBeInTheDocument()
+  })
+})

@@ -8,6 +8,7 @@ import {
 import { Button } from '../../ui/Button'
 import { CaretRightIcon, CategoryIcon, ICON_KEYS } from '../../ui/icons'
 import { Popover } from '../../ui/Popover'
+import { SearchField, useSearch } from '../../ui/SearchField'
 
 /**
  * Shared furniture for the Settings detail panels.
@@ -245,28 +246,54 @@ export function IconPicker({
         </>
       }
     >
-      {(close) => (
-        <div className="grid max-h-64 w-64 grid-cols-6 gap-1 overflow-y-auto">
-          {ICON_KEYS.map((i) => (
-            <button
-              key={i}
-              type="button"
-              aria-label={i}
-              aria-pressed={value === i}
-              onClick={() => {
-                onChange(i)
-                close()
-              }}
-              className={`grid size-9 place-items-center rounded-lg focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand ${
-                value === i ? 'bg-violet-100' : 'hover:bg-stone-100'
-              }`}
-            >
-              <CategoryIcon icon={i} />
-            </button>
-          ))}
-        </div>
-      )}
+      {(close) => <IconGrid value={value} onChange={onChange} close={close} />}
     </Popover>
+  )
+}
+
+/** Seventy glyphs is not a grid you scan, it is a grid you give up on — so the
+ *  name each one is filed under is searchable. Split out for the state. */
+function IconGrid({
+  value,
+  onChange,
+  close,
+}: {
+  value: string
+  onChange: (icon: string) => void
+  close: () => void
+}) {
+  const { query, setQuery, show, results } = useSearch(ICON_KEYS, (i) => i)
+
+  return (
+    <div className="w-64">
+      {show && (
+        <SearchField
+          value={query}
+          onChange={setQuery}
+          label="Search icons"
+          empty={results.length === 0}
+        />
+      )}
+      <div className="grid max-h-64 grid-cols-6 gap-1 overflow-y-auto">
+        {results.map((i) => (
+          <button
+            key={i}
+            type="button"
+            aria-label={i}
+            aria-pressed={value === i}
+            onClick={() => {
+              onChange(i)
+              close()
+            }}
+            className={`grid size-9 place-items-center rounded-lg focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand ${
+              value === i ? 'bg-violet-100' : 'hover:bg-stone-100'
+            }`}
+          >
+            <CategoryIcon icon={i} />
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }
 

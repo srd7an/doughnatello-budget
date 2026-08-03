@@ -77,9 +77,16 @@ export function Popover({
     // A scroll or resize moves the trigger out from under the panel.
     window.addEventListener('scroll', place, true)
     window.addEventListener('resize', place)
+    // And the panel's own height is an input to where it goes: a panel placed
+    // ABOVE its trigger is positioned from its bottom edge, so a search field
+    // filtering twenty rows down to two would leave it floating with a gap
+    // where the list used to be.
+    const ro = new ResizeObserver(place)
+    if (panelRef.current) ro.observe(panelRef.current)
     return () => {
       window.removeEventListener('scroll', place, true)
       window.removeEventListener('resize', place)
+      ro.disconnect()
     }
   }, [open, align])
 

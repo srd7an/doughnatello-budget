@@ -44,4 +44,18 @@ if (typeof document !== 'undefined') {
   if (!HTMLInputElement.prototype.showPicker) {
     HTMLInputElement.prototype.showPicker = () => {}
   }
+
+  // The popover re-places itself when its panel changes height. jsdom has no
+  // layout, so every box is 0×0 and there is nothing an observer could report —
+  // a no-op is the honest stub, not a weaker version of the real thing.
+  if (!('ResizeObserver' in globalThis)) {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    )
+  }
 }
