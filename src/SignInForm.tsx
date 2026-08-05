@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuthActions } from '@convex-dev/auth/react'
+import { Logo } from './ui/Logo'
 
 /**
  * Turn a thrown auth error into something a person can act on.
@@ -52,7 +53,9 @@ export function SignInForm() {
     <div className="min-h-svh grid place-items-center bg-neutral-50 px-6">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <div className="text-3xl">🍩</div>
+          {/* The real mark, not the doughnut that stood in for it. Larger than
+              the header's, because here it is the only thing on the page. */}
+          <Logo className="mx-auto size-12" />
           <h1 className="mt-2 text-2xl font-semibold tracking-tight text-neutral-900">
             doughnatello
           </h1>

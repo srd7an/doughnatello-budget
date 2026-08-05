@@ -198,7 +198,13 @@ export function hexDump(bytes: Uint8Array, maxBytes = 512): string {
 }
 
 /** What the scanner can hand to the form. Absent fields are left alone. */
-export type Prefill = { amount?: number; payee?: string; occurredOn?: string }
+export type Prefill = {
+  amount?: number
+  payee?: string
+  occurredOn?: string
+  /** The till, so the shop's name can be looked up from an earlier scan. */
+  fiscalDevice?: string
+}
 
 export function toPrefill(scan: Scan): Prefill | null {
   const out: Prefill = {}
@@ -214,6 +220,7 @@ export function toPrefill(scan: Scan): Prefill | null {
     // empty your pockets on Sunday. No payee: the record holds the till's
     // identifier, never the shop's name.
     out.occurredOn = scan.invoice.occurredOn
+    out.fiscalDevice = scan.invoice.device
   }
 
   return Object.keys(out).length > 0 ? out : null

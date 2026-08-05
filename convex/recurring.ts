@@ -84,6 +84,7 @@ export const create = mutation({
     potId: v.optional(v.id("pots")), // transfer destination
     fundedFromPotId: v.optional(v.id("pots")), // expense: take from this pot
     payee: v.optional(v.string()),
+    merchant: v.optional(v.string()),
     note: v.optional(v.string()),
     cadence,
     intervalCount: v.optional(v.number()), // default 1
@@ -142,6 +143,7 @@ export const create = mutation({
       amount: args.amount,
       amountMode: args.amountMode,
       payee: args.payee,
+      merchant: args.merchant,
       note: args.note,
       cadence: args.cadence,
       intervalCount,
@@ -165,6 +167,7 @@ export const update = mutation({
     potId: v.optional(v.id("pots")),
     fundedFromPotId: v.optional(v.id("pots")),
     payee: v.optional(v.string()),
+    merchant: v.optional(v.string()),
     note: v.optional(v.string()),
     untilDate: v.optional(v.string()),
     autoPost: v.optional(v.boolean()),
@@ -260,6 +263,7 @@ export const listRules = query({
         amount: r.amount,
         amountMode: r.amountMode,
         payee: r.payee ?? null,
+        merchant: r.merchant ?? null,
         note: r.note ?? null,
         cadence: r.cadence,
         intervalCount: r.intervalCount,
@@ -326,6 +330,7 @@ export const listDue = query({
           amount: rule.amount,
           amountMode: rule.amountMode,
           payee: rule.payee ?? null,
+          merchant: rule.merchant ?? null,
           note: rule.note ?? null,
           category: summarise(category ?? undefined),
           pot: summarise(pot ?? undefined),
@@ -488,6 +493,7 @@ export const confirm = mutation({
       takeFromPotId: rule.fundedFromPotId,
       occurredOn: occurredOn ?? occurrence.dueOn,
       payee: rule.payee,
+      merchant: rule.merchant,
       note: rule.note,
       paidBy: userId,
     });

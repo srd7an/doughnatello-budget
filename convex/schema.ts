@@ -157,6 +157,15 @@ export default defineSchema({
     amount: v.number(), // para, always positive
     occurredOn: v.string(), // YYYY-MM-DD
     payee: v.optional(v.string()),
+    // WHERE the money was spent, as distinct from what it was for. "Kafa i
+    // kroasan" is a payee; "Maxi" is the merchant. Two axes, because the
+    // question "how much do I leave at that one shop" is not answerable from
+    // free-text descriptions of what was bought.
+    merchant: v.optional(v.string()),
+    // The till's own identifier, off a scanned fiscal receipt. It never
+    // changes for a given shop, so it is how a merchant name typed once is
+    // recognised the next time — the receipt itself carries no name.
+    fiscalDevice: v.optional(v.string()),
     note: v.optional(v.string()),
     // On a transfer: the destination fund. On an expense: the debt pot this
     // payment pays down. Never set on income.
@@ -179,7 +188,11 @@ export default defineSchema({
     .index("by_household_date", ["householdId", "occurredOn"])
     .index("by_household_category", ["householdId", "categoryId"])
     .index("by_household_pot", ["householdId", "potId"])
-    .index("by_household_from_pot", ["householdId", "fromPotId"]),
+    .index("by_household_from_pot", ["householdId", "fromPotId"])
+    // Filtering a merchant's spending, and finding what a till was called last
+    // time. Both are lookups by an exact string, which is what an index is for.
+    .index("by_household_merchant", ["householdId", "merchant"])
+    .index("by_household_device", ["householdId", "fiscalDevice"]),
 
   // The heart of the two counting rules. potId undefined => funded by this
   // month's income (reduces left to spend). potId set => funded from a pot
@@ -209,6 +222,7 @@ export default defineSchema({
     amount: v.number(), // para
     amountMode: v.union(v.literal("exact"), v.literal("estimate")),
     payee: v.optional(v.string()),
+    merchant: v.optional(v.string()),
     note: v.optional(v.string()),
     cadence: v.union(
       v.literal("weekly"),

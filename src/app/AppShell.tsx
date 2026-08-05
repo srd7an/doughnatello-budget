@@ -174,9 +174,12 @@ function BrandMark() {
     <Link
       to="/"
       aria-label="doughnatello — home"
-      className="grid size-11 shrink-0 place-items-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:size-8"
+      // The same box as the avatar at the other end of the header, at both
+      // breakpoints: 44px for a thumb, 32px for a pointer. They sit on one row
+      // and any difference between them reads as a mistake.
+      className="block size-11 shrink-0 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:size-8"
     >
-      <Logo size={28} />
+      <Logo className="size-full" />
     </Link>
   )
 }

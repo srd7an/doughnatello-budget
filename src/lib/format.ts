@@ -155,3 +155,34 @@ export function initials(name: string): string {
   if (parts.length === 1) return parts[0].slice(0, 1).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
+
+/**
+ * Group the thousands as you type: "44413,5" reads back as "44.413,5".
+ *
+ * Grouping only the INTEGER part, and only when it is complete enough to group
+ * — the decimals keep whatever you have typed so far, untouched. A field that
+ * rewrote "1234,5" into "1.234,50" while you were still typing the 5 would be
+ * correcting you mid-word.
+ *
+ * A trailing separator survives: the moment after you press "," there are no
+ * decimals yet, and dropping the comma would make the key appear not to work.
+ */
+export function groupMoneyInput(text: string): string {
+  const clean = sanitizeMoneyInput(text);
+  if (!clean) return "";
+
+  // Whatever separator arrangement was typed, parseMoney has already decided
+  // which one was decimal — but for DISPLAY only the last one matters, and only
+  // when a decimal comma has actually been typed.
+  const at = clean.lastIndexOf(",");
+  const whole = at === -1 ? clean : clean.slice(0, at);
+  const rest = at === -1 ? null : clean.slice(at + 1);
+
+  // Strip the grouping that is already there before regrouping, or every
+  // keystroke would add another dot.
+  const digits = whole.replace(/\./g, "");
+  if (!digits) return at === -1 ? "" : `,${rest}`;
+
+  const grouped = digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return rest === null ? grouped : `${grouped},${rest}`;
+}

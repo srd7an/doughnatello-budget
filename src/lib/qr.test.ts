@@ -82,11 +82,14 @@ describe('a real fiscal receipt', () => {
     expect(s.invoice?.device).toBe('SEGNUN3N')
   })
 
-  test('the prefill carries the amount and the date, and no payee', () => {
-    // The record holds the till's identifier, never the shop's name.
+  test('the prefill carries the amount, the date and the till — never a payee', () => {
+    // The record holds the till's identifier and no shop name at all, which is
+    // exactly why the identifier is worth keeping: the name gets attached to it
+    // once, by hand, and comes back on every later scan at the same shop.
     expect(toPrefill(parseQr(REAL))).toEqual({
       amount: 4_599_00,
       occurredOn: '2026-06-16',
+      fiscalDevice: 'SEGNUN3N',
     })
   })
 })

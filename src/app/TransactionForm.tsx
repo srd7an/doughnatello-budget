@@ -7,8 +7,8 @@ import { useHousehold } from '../household/HouseholdContext'
 import {
   formatMoney,
   inputToPara,
+  groupMoneyInput,
   paraToInput,
-  sanitizeMoneyInput,
 } from '../lib/format'
 import { formatDayMonthYear } from '../lib/dates'
 import { ConvexError } from 'convex/values'
@@ -164,6 +164,16 @@ export function TransactionForm({
   const [paysOff, setPaysOff] = useState<Id<'pots'> | null>(null)
   const [occurredOn, setOccurredOn] = useState(todayISO())
   const [payee, setPayee] = useState('')
+  const [merchant, setMerchant] = useState('')
+  // Only ever set by a scan. It is what lets the shop's name be remembered
+  // against the till, since the receipt itself never carries one.
+  const [fiscalDevice, setFiscalDevice] = useState<string | null>(null)
+  // What this till was called last time. Skipped until a scan names one, so an
+  // ordinary hand-typed transaction asks the server nothing.
+  const knownMerchant = useQuery(
+    api.transactions.merchantForDevice,
+    fiscalDevice ? { householdId, fiscalDevice } : 'skip',
+  )
   const [note, setNote] = useState('')
   const [accountId, setAccountId] = useState<Id<'accounts'> | null>(null)
   const [repeat, setRepeat] = useState<Repeat>('once')
@@ -188,7 +198,7 @@ export function TransactionForm({
   useEffect(() => {
     if (!detail) return
     setDirection(detail.direction)
-    setAmountStr(paraToInput(detail.amount))
+    setAmountStr(groupMoneyInput(paraToInput(detail.amount)))
     setCategoryId(detail.categoryId)
     setPotId(detail.direction === 'transfer' ? detail.potId : null)
     setPaysOff(detail.direction === 'expense' ? detail.potId : null)
@@ -202,11 +212,19 @@ export function TransactionForm({
     // A copy happens today; only an edit keeps the original's date.
     if (isEdit) setOccurredOn(detail.occurredOn)
     setPayee(detail.payee ?? '')
+    setMerchant(detail.merchant ?? '')
     setNote(detail.note ?? '')
     setAccountId(detail.accountId)
     setError(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail?._id])
+
+  // A remembered shop fills the field, but never overwrites what you typed —
+  // the answer arrives a moment after the scan, and landing on top of your own
+  // correction would be worse than not knowing.
+  useEffect(() => {
+    if (knownMerchant) setMerchant((m) => m || knownMerchant)
+  }, [knownMerchant])
 
   // Adding: focus the amount, because that is always the first thing typed.
   // Editing: leave focus alone — the field you came to change is rarely it.
@@ -363,6 +381,7 @@ export function TransactionForm({
           clearDestination: direction === 'transfer' && !shared.potId,
           // Empty means empty here — the field was cleared on purpose.
           payee: payee.trim(),
+          merchant: direction === 'transfer' ? '' : merchant.trim(),
           note: note.trim(),
         })
       } else {
@@ -370,10 +389,19 @@ export function TransactionForm({
           payee: payee.trim() || undefined,
           note: note.trim() || undefined,
         }
+        // Kept out of `text` because a transfer has no shop, and because the
+        // device id belongs to the transaction that was scanned, not to a rule
+        // that will post more of them later.
+        const where =
+          direction === 'transfer'
+            ? {}
+            : { merchant: merchant.trim() || undefined }
         await create({
           householdId,
           ...shared,
           ...text,
+          ...where,
+          fiscalDevice: fiscalDevice ?? undefined,
           takeFromPotId,
           fromPotId,
           occurredOn,
@@ -383,6 +411,7 @@ export function TransactionForm({
             householdId,
             ...shared,
             ...text,
+            ...where,
             fundedFromPotId: takeFromPotId,
             amountMode: estimate ? 'estimate' : 'exact',
             cadence: repeat,
@@ -492,7 +521,7 @@ export function TransactionForm({
             aria-label="Amount"
             inputMode="decimal"
             value={amountStr}
-            onChange={(e) => setAmountStr(sanitizeMoneyInput(e.target.value))}
+            onChange={(e) => setAmountStr(groupMoneyInput(e.target.value))}
             placeholder="0"
             data-money
             className="min-w-px flex-1 border-0 bg-transparent p-0 text-[40px] leading-8 tracking-[-0.8px] text-stone-900 outline-none placeholder:text-stone-400"
@@ -579,6 +608,17 @@ export function TransactionForm({
             onChange={setPayee}
             placeholder="Enter payee"
           />
+
+          {/* Where, as opposed to what for. Not offered on a transfer: moving
+              money between your own funds happens at no shop. */}
+          {direction !== 'transfer' && (
+            <TextRow
+              label="Merchant"
+              value={merchant}
+              onChange={setMerchant}
+              placeholder="Where"
+            />
+          )}
 
           {/* Where the money comes from. On an expense it is a fund it is
               spent out of; on a transfer, a fund it is moved out of. Both
@@ -867,12 +907,16 @@ export function TransactionForm({
             const result = parseQr(text)
             const prefill = toPrefill(result)
             if (prefill) {
-              if (prefill.amount) setAmountStr(paraToInput(prefill.amount))
+              if (prefill.amount)
+                setAmountStr(groupMoneyInput(paraToInput(prefill.amount)))
               // Only fill an empty payee: a code read second must not wipe what
               // you typed first.
               if (prefill.payee) setPayee((p) => p || prefill.payee!)
               // A receipt knows the day it happened, and it is often not today.
               if (prefill.occurredOn) setOccurredOn(prefill.occurredOn)
+              // Remembering the till is what makes the second scan at a shop
+              // better than the first: the name typed once comes back.
+              if (prefill.fiscalDevice) setFiscalDevice(prefill.fiscalDevice)
               setScan(null)
             } else {
               setScan(result)

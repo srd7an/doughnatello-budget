@@ -10,17 +10,12 @@
  * inherit anything, and this is small enough that inlining it costs less than
  * the request would.
  */
-export function Logo({
-  size = 32,
-  className,
-}: {
-  size?: number
-  className?: string
-}) {
+export function Logo({ className = 'size-8' }: { className?: string }) {
   return (
+    // Sized by className, never by width/height attributes: the header wants it
+    // to match the avatar exactly, and the avatar's size is two Tailwind steps
+    // at two breakpoints. A number prop cannot say "44 then 32".
     <svg
-      width={size}
-      height={size}
       viewBox="0 0 32 32"
       fill="none"
       className={className}

@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import {
   formatMoney,
+  groupMoneyInput,
   formatPercent,
   inputToPara,
   paraToInput,
@@ -94,5 +95,39 @@ describe('money input', () => {
     expect(paraToInput(123456)).toBe('1234,56')
     expect(paraToInput(200000)).toBe('2000')
     expect(paraToInput(0)).toBe('')
+  })
+})
+
+describe('groupMoneyInput', () => {
+  test('groups thousands with dots, Serbian style', () => {
+    expect(groupMoneyInput('44413')).toBe('44.413')
+    expect(groupMoneyInput('1234567')).toBe('1.234.567')
+    expect(groupMoneyInput('999')).toBe('999')
+  })
+
+  test('leaves the decimals exactly as typed', () => {
+    // Not "44.413,50" — you are still typing the 5.
+    expect(groupMoneyInput('44413,5')).toBe('44.413,5')
+    expect(groupMoneyInput('44413,50')).toBe('44.413,50')
+  })
+
+  test('a just-pressed comma survives', () => {
+    expect(groupMoneyInput('1234,')).toBe('1.234,')
+  })
+
+  test('regrouping is idempotent — typing does not pile up dots', () => {
+    expect(groupMoneyInput('44.413')).toBe('44.413')
+    expect(groupMoneyInput(groupMoneyInput('1234567'))).toBe('1.234.567')
+  })
+
+  test('and what comes out still parses back to what went in', () => {
+    expect(inputToPara(groupMoneyInput('44413,5'))).toBe(inputToPara('44413,5'))
+    expect(inputToPara(groupMoneyInput('1234567'))).toBe(1_234_567_00)
+  })
+
+  test('empty and separator-only input do not become junk', () => {
+    expect(groupMoneyInput('')).toBe('')
+    expect(groupMoneyInput(',')).toBe(',')
+    expect(groupMoneyInput(',50')).toBe(',50')
   })
 })

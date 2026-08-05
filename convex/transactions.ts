@@ -39,6 +39,8 @@ export const create = mutation({
     takeFromPotId: v.optional(v.id("pots")), // expense: fund from this pot
     occurredOn: v.string(), // YYYY-MM-DD
     payee: v.optional(v.string()),
+    merchant: v.optional(v.string()),
+    fiscalDevice: v.optional(v.string()),
     note: v.optional(v.string()),
     paidBy: v.optional(v.string()), // defaults to the caller
     accountId: v.optional(v.id("accounts")), // defaults to the primary account
@@ -59,6 +61,8 @@ export type TransactionInput = {
   takeFromPotId?: Id<"pots">;
   occurredOn: string;
   payee?: string;
+  merchant?: string;
+  fiscalDevice?: string;
   note?: string;
   paidBy?: string;
   accountId?: Id<"accounts">;
@@ -148,6 +152,8 @@ export async function insertTransaction(
     amount: args.amount,
     occurredOn: args.occurredOn,
     payee: args.payee,
+    merchant: args.merchant,
+    fiscalDevice: args.fiscalDevice,
     note: args.note,
     // Transfer: the destination fund. Expense: the loan it pays down.
     potId: args.direction === "income" ? undefined : args.potId,
@@ -369,6 +375,7 @@ export async function enrichRows(
         amount: t.amount,
         occurredOn: t.occurredOn,
         payee: t.payee ?? null,
+        merchant: t.merchant ?? null,
         note: t.note ?? null,
         categoryId: t.categoryId ?? null,
         potId: t.potId ?? null,
@@ -479,6 +486,7 @@ export const update = mutation({
     clearDestination: v.optional(v.boolean()), // a move becomes a release
     occurredOn: v.optional(v.string()),
     payee: v.optional(v.string()),
+    merchant: v.optional(v.string()),
     note: v.optional(v.string()),
     paidBy: v.optional(v.string()),
     accountId: v.optional(v.id("accounts")),
@@ -580,6 +588,10 @@ export const update = mutation({
       // An omitted field keeps what is there; an EMPTY one clears it. Without
       // the distinction, deleting a payee in the form silently put it back.
       payee: args.payee === "" ? undefined : (args.payee ?? doc.payee),
+      // Same empty-string rule as payee: "" means clear it, absent means leave
+      // it alone. Without the distinction, deleting it in the form put it back.
+      merchant:
+        args.merchant === "" ? undefined : (args.merchant ?? doc.merchant),
       note: args.note === "" ? undefined : (args.note ?? doc.note),
       paidBy: args.paidBy ?? doc.paidBy,
       accountId: args.accountId ?? doc.accountId,
@@ -637,6 +649,7 @@ export const detail = query({
       amount: doc.amount,
       occurredOn: doc.occurredOn,
       payee: doc.payee ?? null,
+      merchant: doc.merchant ?? null,
       note: doc.note ?? null,
       categoryId: doc.categoryId ?? null,
       potId: doc.potId ?? null,
@@ -660,5 +673,51 @@ export const detail = query({
         potName: f.potId ? (potById.get(f.potId)?.name ?? null) : null,
       })),
     };
+  },
+});
+
+/**
+ * What this till was called last time.
+ *
+ * A fiscal receipt carries no shop name — only the device's own identifier,
+ * which never changes. So the name is learned: type "Maxi" once against a
+ * device and every later scan at that till knows it. That is the whole reason
+ * `fiscalDevice` is stored, and it is why scanning gets better with use rather
+ * than staying as thin as the receipt itself.
+ */
+export const merchantForDevice = query({
+  args: { householdId: v.id("households"), fiscalDevice: v.string() },
+  handler: async (ctx, { householdId, fiscalDevice }) => {
+    await requireMember(ctx, householdId);
+    const rows = await ctx.db
+      .query("transactions")
+      .withIndex("by_household_device", (q) =>
+        q.eq("householdId", householdId).eq("fiscalDevice", fiscalDevice),
+      )
+      .collect();
+    // The most recent naming wins: a shop that was renamed should stay renamed.
+    const named = rows
+      .filter((t) => t.merchant)
+      .sort((a, b) => b.createdAt - a.createdAt);
+    return named[0]?.merchant ?? null;
+  },
+});
+
+/** Every merchant this household has named, most-used first — the picker's list. */
+export const merchants = query({
+  args: { householdId: v.id("households") },
+  handler: async (ctx, { householdId }) => {
+    await requireMember(ctx, householdId);
+    const rows = await ctx.db
+      .query("transactions")
+      .withIndex("by_household_date", (q) => q.eq("householdId", householdId))
+      .collect();
+    const counts = new Map<string, number>();
+    for (const t of rows) {
+      if (t.merchant) counts.set(t.merchant, (counts.get(t.merchant) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([name, count]) => ({ name, count }));
   },
 });

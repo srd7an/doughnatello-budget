@@ -237,7 +237,8 @@ describe('duplicating a transaction', () => {
     setFixtures({ ...READY, 'transactions:detail': DETAIL })
     renderScreen(<TransactionForm copyOf={'t1' as never} onDone={() => {}} />)
 
-    expect(await screen.findByLabelText('Amount')).toHaveValue('2500')
+    // Grouped, as the field now shows every amount.
+    expect(await screen.findByLabelText('Amount')).toHaveValue('2.500')
     expect(screen.getByRole('button', { name: 'Category' })).toHaveTextContent(
       'Grocery',
     )
@@ -290,5 +291,21 @@ describe('scanning', () => {
     expect(
       screen.queryByRole('button', { name: 'Scan a QR code' }),
     ).not.toBeInTheDocument()
+  })
+})
+
+describe('the amount field', () => {
+  test('groups thousands as you type, and still parses back', async () => {
+    setFixtures(READY)
+    renderScreen(<TransactionForm onDone={() => {}} />)
+    const amount = screen.getByLabelText('Amount')
+
+    await userEvent.type(amount, '44413')
+    expect(amount).toHaveValue('44.413')
+
+    // The decimals stay exactly as typed — no field rewrites "5" into "50"
+    // while your finger is still on the way to the next key.
+    await userEvent.type(amount, ',5')
+    expect(amount).toHaveValue('44.413,5')
   })
 })
