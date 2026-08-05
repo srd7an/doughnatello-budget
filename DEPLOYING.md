@@ -46,3 +46,26 @@ JSON has no comments, which is why this file exists.
   Fine for a household; revisit before sharing the URL widely.
 - The nightly recurring sweep (`convex/crons.ts`, 02:00 UTC) runs on whichever
   deployment it was pushed to — production included, once deployed.
+
+## Node and the audit
+
+The repo pins **Node 22** — `.nvmrc` and `engines` in package.json, which is
+also what Vercel reads. It is not a preference: Node 20.17 held Vitest at 2,
+and Vitest 2 carried a nested Vite 5 and esbuild that between them accounted
+for most of `npm audit`'s findings, including its only critical.
+
+`npm audit` reports **two high findings against react-router, and they are not
+reachable from this app.** The advisory is *RSC Mode CSRF Bypass Allows Action
+Execution Before 400 Response*: it needs React Server Components mode, and it
+needs route `action`s, which need a data router. This app mounts a plain
+`<BrowserRouter>` with `<Routes>`/`<Route>` and imports nothing else — no
+`createBrowserRouter`, no `unstable_RSC*`, no actions or loaders anywhere.
+
+There is also nowhere to go. React Router 8 does not exist; the advisory names
+`>=8.3.0` as fixed, and the only thing `npm audit fix` can actually do is move
+BACKWARDS to 7.11.0. Downgrading a working router to dodge a vulnerability the
+app cannot reach is worse than carrying the warning, so the warning is carried
+— knowingly, and written down here so it is not re-litigated every few months.
+
+Re-check the reasoning if the app ever adopts a data router, route actions, or
+server components. Until then, two highs in `npm audit` is the expected state.
