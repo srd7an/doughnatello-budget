@@ -309,3 +309,47 @@ describe('the amount field', () => {
     expect(amount).toHaveValue('44.413,5')
   })
 })
+
+/**
+ * Save is dead until something really changed — which means the change check
+ * has to know about every editable field. Merchant was added to the form and
+ * not to the check, and editing it alone left Save disabled: the form insisted
+ * nothing had happened while you were looking at what you had just typed.
+ */
+describe('what counts as a change', () => {
+  const DETAIL = {
+    _id: 't1',
+    direction: 'expense',
+    amount: 1_000_00,
+    categoryId: 'c1',
+    occurredOn: '2026-01-15',
+    payee: 'Idea',
+    merchant: '',
+    note: '',
+    accountId: 'a1',
+    funding: [{ potId: undefined, amount: 1_000_00 }],
+  }
+
+  const open = async () => {
+    setFixtures({ ...READY, 'transactions:detail': DETAIL })
+    renderScreen(<TransactionForm transactionId={'t1' as never} onDone={() => {}} />)
+    await screen.findByRole('button', { name: /delete/i })
+    return screen.getByRole('button', { name: /^save$/i })
+  }
+
+  test('an untouched form cannot be saved', async () => {
+    expect(await open()).toBeDisabled()
+  })
+
+  test('typing a merchant is a change', async () => {
+    const save = await open()
+    await userEvent.type(screen.getByLabelText('Merchant'), 'Maxi')
+    expect(save).toBeEnabled()
+  })
+
+  test('so is typing a payee, still', async () => {
+    const save = await open()
+    await userEvent.type(screen.getByLabelText('Payee'), ' more')
+    expect(save).toBeEnabled()
+  })
+})

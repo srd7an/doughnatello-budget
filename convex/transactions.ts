@@ -695,10 +695,15 @@ export const merchantForDevice = query({
         q.eq("householdId", householdId).eq("fiscalDevice", fiscalDevice),
       )
       .collect();
-    // The most recent naming wins: a shop that was renamed should stay renamed.
+    // The most recent naming wins, so a shop that was renamed stays renamed.
+    //
+    // Sorted on _creationTime rather than our own createdAt: the latter is
+    // Date.now(), which has millisecond resolution, and two transactions saved
+    // in the same millisecond tie — leaving which name won up to the order the
+    // rows happened to come back in. Convex's own stamp is finer and unique.
     const named = rows
       .filter((t) => t.merchant)
-      .sort((a, b) => b.createdAt - a.createdAt);
+      .sort((a, b) => b._creationTime - a._creationTime);
     return named[0]?.merchant ?? null;
   },
 });

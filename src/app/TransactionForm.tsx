@@ -271,6 +271,11 @@ export function TransactionForm({
 
   // What the form would save, flattened — compared against the same shape read
   // back off the transaction, so Save is dead until something really changed.
+  //
+  // EVERY editable field has to appear here. A field left out is not merely
+  // missing from a check: changing it alone leaves Save disabled, and the form
+  // silently insists nothing happened. Merchant was added and this was not,
+  // which is exactly how that felt.
   const shape = [
     direction,
     amountPara,
@@ -281,6 +286,7 @@ export function TransactionForm({
     direction === 'expense' ? (paysOff ?? '') : '',
     occurredOn,
     payee.trim(),
+    merchant.trim(),
     note.trim(),
     accountId ?? '',
   ].join('|')
@@ -297,6 +303,7 @@ export function TransactionForm({
         detail.direction === 'expense' ? (detail.potId ?? '') : '',
         detail.occurredOn,
         detail.payee ?? '',
+        detail.merchant ?? '',
         detail.note ?? '',
         detail.accountId,
       ].join('|')
@@ -610,13 +617,20 @@ export function TransactionForm({
           />
 
           {/* Where, as opposed to what for. Not offered on a transfer: moving
-              money between your own funds happens at no shop. */}
+              money between your own funds happens at no shop.
+
+              A scan of a till nobody has named yet says so in the placeholder.
+              The receipt carries no shop name, so the first one is typed — and
+              nothing in an empty field would otherwise tell you that doing it
+              once is all it takes. */}
           {direction !== 'transfer' && (
             <TextRow
               label="Merchant"
               value={merchant}
               onChange={setMerchant}
-              placeholder="Where"
+              placeholder={
+                fiscalDevice && knownMerchant === null ? 'Name it once' : 'Where'
+              }
             />
           )}
 

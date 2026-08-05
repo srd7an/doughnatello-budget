@@ -425,3 +425,134 @@ describe("isolation", () => {
     ).rejects.toThrow(/Not a member/);
   });
 });
+
+/**
+ * A fiscal receipt carries no shop name, only the till's identifier. So the
+ * name is learned: typed once against a till, returned on every later scan
+ * there. This pins the whole loop, because until a scan is actually saved
+ * nothing in the app can demonstrate that it works.
+ */
+describe("remembering a shop by its till", () => {
+  const buy = (
+    t: ReturnType<typeof convexTest>,
+    householdId: Id<"households">,
+    categoryId: Id<"categories">,
+    extra: { merchant?: string; fiscalDevice?: string },
+    day = "01",
+  ) =>
+    asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "expense",
+      amount: 4_599_00,
+      categoryId,
+      occurredOn: `2026-07-${day}`,
+      ...extra,
+    });
+
+  test("the till and the name are both stored", async () => {
+    const { t, householdId, groceryCat } = await setup();
+    const id = await buy(t, householdId, groceryCat, {
+      merchant: "Maxi",
+      fiscalDevice: "SEGNUN3N",
+    });
+
+    const doc = await asA(t).query(api.transactions.detail, { transactionId: id });
+    expect(doc.merchant).toBe("Maxi");
+  });
+
+  test("a later scan at the same till finds the name", async () => {
+    const { t, householdId, groceryCat } = await setup();
+    await buy(t, householdId, groceryCat, {
+      merchant: "Maxi",
+      fiscalDevice: "SEGNUN3N",
+    });
+
+    expect(
+      await asA(t).query(api.transactions.merchantForDevice, {
+        householdId,
+        fiscalDevice: "SEGNUN3N",
+      }),
+    ).toBe("Maxi");
+  });
+
+  test("a till nobody has named yet returns nothing, rather than a guess", async () => {
+    const { t, householdId, groceryCat } = await setup();
+    // Saved from a scan, but with the field left empty — which is what the
+    // FIRST visit to a shop looks like.
+    await buy(t, householdId, groceryCat, { fiscalDevice: "SEGNUN3N" });
+
+    expect(
+      await asA(t).query(api.transactions.merchantForDevice, {
+        householdId,
+        fiscalDevice: "SEGNUN3N",
+      }),
+    ).toBeNull();
+  });
+
+  test("a different till is a different shop", async () => {
+    const { t, householdId, groceryCat } = await setup();
+    await buy(t, householdId, groceryCat, {
+      merchant: "Maxi",
+      fiscalDevice: "SEGNUN3N",
+    });
+
+    expect(
+      await asA(t).query(api.transactions.merchantForDevice, {
+        householdId,
+        fiscalDevice: "OTHER123",
+      }),
+    ).toBeNull();
+  });
+
+  test("the most recent naming wins, so a renamed shop stays renamed", async () => {
+    const { t, householdId, groceryCat } = await setup();
+    await buy(t, householdId, groceryCat, {
+      merchant: "Maxi",
+      fiscalDevice: "SEGNUN3N",
+    }, "01");
+    await buy(t, householdId, groceryCat, {
+      merchant: "Maxi Vračar",
+      fiscalDevice: "SEGNUN3N",
+    }, "20");
+
+    expect(
+      await asA(t).query(api.transactions.merchantForDevice, {
+        householdId,
+        fiscalDevice: "SEGNUN3N",
+      }),
+    ).toBe("Maxi Vračar");
+  });
+
+  test("editing a transaction can clear the merchant, and can set one", async () => {
+    const { t, householdId, groceryCat } = await setup();
+    const id = await buy(t, householdId, groceryCat, { merchant: "Maxi" });
+
+    await asA(t).mutation(api.transactions.update, {
+      transactionId: id,
+      merchant: "",
+    });
+    let doc = await asA(t).query(api.transactions.detail, { transactionId: id });
+    expect(doc.merchant).toBeNull();
+
+    await asA(t).mutation(api.transactions.update, {
+      transactionId: id,
+      merchant: "Univerexport",
+    });
+    doc = await asA(t).query(api.transactions.detail, { transactionId: id });
+    expect(doc.merchant).toBe("Univerexport");
+  });
+
+  test("the merchant list counts how often each was used", async () => {
+    const { t, householdId, groceryCat } = await setup();
+    await buy(t, householdId, groceryCat, { merchant: "Maxi" }, "01");
+    await buy(t, householdId, groceryCat, { merchant: "Maxi" }, "02");
+    await buy(t, householdId, groceryCat, { merchant: "Lidl" }, "03");
+
+    expect(
+      await asA(t).query(api.transactions.merchants, { householdId }),
+    ).toEqual([
+      { name: "Maxi", count: 2 },
+      { name: "Lidl", count: 1 },
+    ]);
+  });
+});
