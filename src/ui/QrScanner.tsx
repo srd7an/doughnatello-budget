@@ -4,12 +4,48 @@ import { Button } from './Button'
 import { XIcon } from './icons'
 
 /**
+ * ZXing, compiled to WebAssembly, loaded on demand.
+ *
+ * It replaced jsQR, which is a small and honest decoder that simply runs out of
+ * road on a dense code: an IPS slip at ~40 modules read instantly and a fiscal
+ * receipt at ~140 would not read at all, on any resolution, at any distance.
+ * ZXing is the mature implementation and its binariser and perspective
+ * correction are in a different class. That is the whole reason for the swap.
+ *
+ * The .wasm is bundled and served from our own origin. Left to itself the
+ * package fetches it from a CDN at first use, which is a network dependency in
+ * the middle of a scan and a third party in the middle of a receipt.
+ */
+let decoderPromise: Promise<typeof import('zxing-wasm/reader')> | null = null
+function decoder() {
+  decoderPromise ??= (async () => {
+    const [mod, wasm] = await Promise.all([
+      import('zxing-wasm/reader'),
+      import('zxing-wasm/reader/zxing_reader.wasm?url'),
+    ])
+    mod.prepareZXingModule({
+      overrides: { locateFile: () => wasm.default },
+      fireImmediately: true,
+    })
+    return mod
+  })()
+  return decoderPromise
+}
+
+/** QR only, and let ZXing work for it — tryHarder is the whole point of the
+ *  swap, and a frame this app throws away every 16ms can afford it. */
+const QR_ONLY: import('zxing-wasm/reader').ReaderOptions = {
+  formats: ['QRCode'],
+  tryHarder: true,
+}
+
+/**
  * The camera, pointed at a QR code.
  *
- * Two decoders, in order. `BarcodeDetector` is native, hardware-accelerated and
- * markedly better on a dense code — but it does not exist on iOS, so `jsqr` is
- * loaded behind it. jsqr is imported dynamically: it is only ever needed once
- * the camera is actually open, and it has no business in the main bundle.
+ * Three ways in, because a dense fiscal code defeated the first one on its own:
+ * point the camera, photograph it, or paste the link. The last cannot fail —
+ * the phone's own camera app reads any QR natively and hands you the URL — so
+ * there is always a way to record a receipt.
  *
  * The torch is not a flourish. A fiscal receipt is thermal paper, it fades
  * within weeks, and a faded code under kitchen light is exactly the one that
@@ -37,6 +73,7 @@ export function QrScanner({
   const [resolution, setResolution] = useState<string | null>(null)
   const [photoBusy, setPhotoBusy] = useState(false)
   const [photoFailed, setPhotoFailed] = useState(false)
+  const [pasteFailed, setPasteFailed] = useState(false)
 
   // In a ref, not state: the decode loop reads it every frame, and a stale
   // closure would keep scanning after a hit and fire onRead twice.
@@ -127,28 +164,21 @@ export function QrScanner({
         setResolution(`${settings.width}×${settings.height}`)
       }
 
-      const detector =
-        'BarcodeDetector' in window
-          ? // @ts-expect-error — not in lib.dom yet, and absent on iOS.
-            new window.BarcodeDetector({ formats: ['qr_code'] })
-          : null
-      const jsQR = detector ? null : (await import('jsqr')).default
+      // ZXing everywhere, including where BarcodeDetector exists. Two decoders
+      // meant two sets of behaviour to reason about, and the native one was
+      // never the one failing.
+      const zxing = await decoder()
       const canvas = document.createElement('canvas')
       const ctx = canvas.getContext('2d', { willReadFrequently: true })
 
-      // How much of the frame jsQR is given, cycled tick by tick.
+      // How much of the frame the decoder is given, cycled tick by tick.
       //
-      // A dense fiscal code needs its resolution kept, so the frame is CROPPED
-      // rather than scaled — and cropping is also the speed-up. jsQR is pure
-      // JavaScript and its cost is per pixel: a whole 1920×1080 frame is two
-      // million of them and buys perhaps three attempts a second, which is why
-      // scanning felt like hunting. A centred square is half that, and a
-      // tighter one a fifth.
-      //
-      // Two crops rather than one because they answer different distances: the
-      // wide one finds a receipt held back far enough to fit, the tight one a
-      // code brought close enough to fill the middle. Alternating tries both
-      // several times a second instead of betting on either.
+      // Cropped rather than scaled, because a dense code cannot spare the
+      // resolution — and cropping is also the speed-up, since the cost is per
+      // pixel. Two crops because they answer different distances: the wide one
+      // finds a receipt held back far enough to fit, the tighter one a code
+      // brought closer. Alternating tries both several times a second instead
+      // of betting on either.
       // 1.0 is the whole centred square; 0.8 is for a code brought closer. The
       // tighter 0.6 that was here cut a large fiscal code in half, which is
       // worse than useless — half a QR is not a QR, and it cost every other
@@ -164,30 +194,20 @@ export function QrScanner({
 
       const tick = async () => {
         if (doneRef.current || cancelled) return
-        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        if (video.readyState === video.HAVE_ENOUGH_DATA && ctx) {
           try {
-            if (detector) {
-              const codes = await detector.detect(video)
-              if (codes[0]?.rawValue) return hit(codes[0].rawValue)
-            } else if (jsQR && ctx) {
-              const vw = video.videoWidth
-              const vh = video.videoHeight
-              const side = Math.floor(Math.min(vw, vh) * crops[pass++ % crops.length])
-              const sx = Math.floor((vw - side) / 2)
-              const sy = Math.floor((vh - side) / 2)
+            const vw = video.videoWidth
+            const vh = video.videoHeight
+            const side = Math.floor(Math.min(vw, vh) * crops[pass++ % crops.length])
+            const sx = Math.floor((vw - side) / 2)
+            const sy = Math.floor((vh - side) / 2)
 
-              canvas.width = side
-              canvas.height = side
-              ctx.drawImage(video, sx, sy, side, side, 0, 0, side, side)
-              const img = ctx.getImageData(0, 0, side, side)
-              // "dontInvert" rather than "attemptBoth": trying both doubles the
-              // work every frame to catch a light-on-dark code, which a printed
-              // receipt never is. The frames saved are worth more than the case.
-              const found = jsQR(img.data, side, side, {
-                inversionAttempts: 'dontInvert',
-              })
-              if (found?.data) return hit(found.data)
-            }
+            canvas.width = side
+            canvas.height = side
+            ctx.drawImage(video, sx, sy, side, side, 0, 0, side, side)
+            const img = ctx.getImageData(0, 0, side, side)
+            const found = await zxing.readBarcodes(img, QR_ONLY)
+            if (found[0]?.text) return hit(found[0].text)
           } catch {
             // A single failed frame means nothing — the next one is 16ms away.
           }
@@ -222,29 +242,14 @@ export function QrScanner({
     setPhotoBusy(true)
     setPhotoFailed(false)
     try {
-      const bitmap = await createImageBitmap(file)
-      const canvas = document.createElement('canvas')
-      const ctx = canvas.getContext('2d', { willReadFrequently: true })
-      if (!ctx) return
-
-      // Full size first, then halves. A twelve-megapixel frame can be more than
-      // jsQR wants in one go, and a smaller copy of a very large code is still
-      // far denser than any video frame.
-      const jsQR = (await import('jsqr')).default
-      for (const scale of [1, 0.5, 0.25]) {
-        const w = Math.round(bitmap.width * scale)
-        const h = Math.round(bitmap.height * scale)
-        if (w < 200 || h < 200) break
-        canvas.width = w
-        canvas.height = h
-        ctx.drawImage(bitmap, 0, 0, w, h)
-        const img = ctx.getImageData(0, 0, w, h)
-        const found = jsQR(img.data, w, h, { inversionAttempts: 'attemptBoth' })
-        if (found?.data) {
-          stop()
-          onRead(found.data)
-          return
-        }
+      // The file goes in whole. ZXing decodes a Blob itself, at the sensor's
+      // own resolution, with no canvas in the middle to lose anything.
+      const zxing = await decoder()
+      const found = await zxing.readBarcodes(file, QR_ONLY)
+      if (found[0]?.text) {
+        stop()
+        onRead(found[0].text)
+        return
       }
       setPhotoFailed(true)
     } catch {
@@ -252,6 +257,31 @@ export function QrScanner({
     } finally {
       setPhotoBusy(false)
     }
+  }
+
+  /**
+   * The path that cannot fail: paste the link.
+   *
+   * Every phone's own camera app reads a QR natively — hardware-accelerated,
+   * full sensor, and better than anything that will ever run in this page. Point
+   * it at the receipt, tap the banner it offers, copy the address, come back.
+   *
+   * Clumsy, and deliberately last. But it means a receipt can always be
+   * recorded, whatever the camera in here makes of it.
+   */
+  const pasteLink = async () => {
+    setPasteFailed(false)
+    try {
+      const text = await navigator.clipboard.readText()
+      if (text.trim()) {
+        stop()
+        onRead(text.trim())
+        return
+      }
+    } catch {
+      // Refused, or no clipboard permission.
+    }
+    setPasteFailed(true)
   }
 
   const toggleTorch = async () => {
@@ -326,7 +356,7 @@ export function QrScanner({
           {/* A label, not a button: the input has to be the thing that is
               clicked for the camera to open on iOS. */}
           <label className="inline-flex min-h-11 cursor-pointer items-center rounded-full border border-white/40 px-4 text-sm text-white hover:bg-white/10 sm:min-h-9">
-            {photoBusy ? 'Reading…' : 'Take a photo instead'}
+            {photoBusy ? 'Reading…' : 'Photo'}
             <input
               type="file"
               accept="image/*"
@@ -339,7 +369,18 @@ export function QrScanner({
               }}
             />
           </label>
+
+          <Button variant="secondary" onClick={pasteLink}>
+            Paste link
+          </Button>
         </div>
+
+        {pasteFailed && (
+          <p className="max-w-xs text-center text-xs text-white">
+            Nothing to paste. Scan the receipt with the phone’s own Camera app,
+            copy the address it offers, then come back and press this.
+          </p>
+        )}
 
         {photoFailed && (
           <p className="text-center text-xs text-white">
