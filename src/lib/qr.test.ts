@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { hexDump, parseQr, toPrefill } from './qr'
+import { applyScan, hexDump, parseQr, toPrefill } from './qr'
 
 /**
  * IPS is pinned tightly because it is parsed offline and its output goes
@@ -42,13 +42,16 @@ describe('IPS payment slips', () => {
     const s = parseQr('K:PR|V:01|C:1|R:265|N:Firma')
     if (s.kind !== 'ips') return
     expect(s.amount).toBeNull()
-    expect(toPrefill(s)).toEqual({ payee: 'Firma' })
+    expect(toPrefill(s)).toEqual({ merchant: 'Firma' })
   })
 
-  test('the prefill carries amount and payee, and nothing else', () => {
+  test('the recipient is the merchant, and the purpose is the description', () => {
+    // A utility you are paying is a merchant in exactly the sense a shop is:
+    // it is WHERE the money went. What it was FOR is the purpose line.
     expect(toPrefill(parseQr(slip))).toEqual({
       amount: 4_235_50,
-      payee: 'EPS SNABDEVANJE DOO',
+      merchant: 'EPS SNABDEVANJE DOO',
+      payee: 'Utrosena elektricna energija',
     })
   })
 })
@@ -160,5 +163,35 @@ describe('hexDump', () => {
   test('a long payload is truncated with a count of what is left', () => {
     const d = hexDump(new Uint8Array(600), 512)
     expect(d).toContain('88 more bytes')
+  })
+})
+
+describe('applyScan — who owns what is in the field', () => {
+  test('an empty field takes whatever the scan says', () => {
+    expect(applyScan('', undefined, 'EPS')).toBe('EPS')
+  })
+
+  test('a value an earlier scan wrote is replaced', () => {
+    expect(applyScan('EPS', 'EPS', 'Maxi')).toBe('Maxi')
+  })
+
+  test('a value you typed is never touched', () => {
+    expect(applyScan('My shop', 'EPS', 'Maxi')).toBe('My shop')
+    expect(applyScan('My shop', undefined, 'Maxi')).toBe('My shop')
+  })
+
+  test('an edited machine value counts as yours', () => {
+    // The scan wrote "EPS", you made it "EPS Beograd" — that is now typed.
+    expect(applyScan('EPS Beograd', 'EPS', 'Maxi')).toBe('EPS Beograd')
+  })
+
+  test('a scan with nothing to say CLEARS what a machine wrote', () => {
+    // The receipt case: no shop name in it, so the slip's utility has to go —
+    // otherwise it poses as this receipt's shop and blocks the lookup.
+    expect(applyScan('EPS', 'EPS', undefined)).toBe('')
+  })
+
+  test('but never clears what you typed', () => {
+    expect(applyScan('My shop', 'EPS', undefined)).toBe('My shop')
   })
 })

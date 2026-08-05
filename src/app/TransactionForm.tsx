@@ -14,7 +14,7 @@ import { formatDayMonthYear } from '../lib/dates'
 import { ConvexError } from 'convex/values'
 import { CalendarDotsIcon, QrCodeIcon, RepeatIcon, XIcon } from '../ui/icons'
 import { QrScanner } from '../ui/QrScanner'
-import { hexDump, parseQr, toPrefill, type Scan } from '../lib/qr'
+import { applyScan, hexDump, parseQr, toPrefill, type Scan } from '../lib/qr'
 import { Button } from '../ui/Button'
 import { Popover } from '../ui/Popover'
 import {
@@ -172,6 +172,16 @@ export function TransactionForm({
   // up. Cleared afterwards so a re-render cannot ask the tax portal twice.
   const [scanUrl, setScanUrl] = useState<string | null>(null)
   const [lookingUp, setLookingUp] = useState(false)
+  /**
+   * Exactly what the last scan wrote into each text field.
+   *
+   * "Do not overwrite what is already there" is too blunt a rule: scanning a
+   * payment slip and then a receipt left the slip's description sitting above
+   * the shop's name, because the second scan politely declined to touch it.
+   * A scan may replace what a scan put there; it may never replace what you
+   * typed. A ref rather than state — nothing renders from it.
+   */
+  const scanWrote = useRef<{ payee?: string; merchant?: string }>({})
   // What this till was called last time. Skipped until a scan names one, so an
   // ordinary hand-typed transaction asks the server nothing.
   const knownMerchant = useQuery(
@@ -239,7 +249,11 @@ export function TransactionForm({
    */
   useEffect(() => {
     if (knownMerchant) {
-      setMerchant((m) => m || knownMerchant)
+      setMerchant((m) => {
+        if (m && m !== scanWrote.current.merchant) return m
+        scanWrote.current.merchant = knownMerchant
+        return knownMerchant
+      })
       setScanUrl(null)
       return
     }
@@ -251,7 +265,12 @@ export function TransactionForm({
     setLookingUp(true)
     lookupReceipt({ url: scanUrl })
       .then((r) => {
-        if (!cancelled && r?.merchant) setMerchant((m) => m || r.merchant)
+        if (cancelled || !r?.merchant) return
+        setMerchant((m) => {
+          if (m && m !== scanWrote.current.merchant) return m
+          scanWrote.current.merchant = r.merchant
+          return r.merchant
+        })
       })
       // A failed lookup is not an error worth showing: the amount and the date
       // came off the code itself and the shop can be typed.
@@ -968,9 +987,15 @@ export function TransactionForm({
             if (prefill) {
               if (prefill.amount)
                 setAmountStr(groupMoneyInput(paraToInput(prefill.amount)))
-              // Only fill an empty payee: a code read second must not wipe what
-              // you typed first.
-              if (prefill.payee) setPayee((p) => p || prefill.payee!)
+
+              setPayee((p) => applyScan(p, scanWrote.current.payee, prefill.payee))
+              setMerchant((m) =>
+                applyScan(m, scanWrote.current.merchant, prefill.merchant),
+              )
+              scanWrote.current = {
+                payee: prefill.payee,
+                merchant: prefill.merchant,
+              }
               // A receipt knows the day it happened, and it is often not today.
               if (prefill.occurredOn) setOccurredOn(prefill.occurredOn)
               // Remembering the till is what makes the second scan at a shop

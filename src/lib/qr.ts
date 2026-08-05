@@ -200,7 +200,10 @@ export function hexDump(bytes: Uint8Array, maxBytes = 512): string {
 /** What the scanner can hand to the form. Absent fields are left alone. */
 export type Prefill = {
   amount?: number
+  /** What it was FOR. A slip's purpose line; a receipt has none. */
   payee?: string
+  /** WHERE it went. The utility on a slip, the shop on a receipt. */
+  merchant?: string
   occurredOn?: string
   /** The till, so the shop's name can be looked up from an earlier scan. */
   fiscalDevice?: string
@@ -211,9 +214,13 @@ export function toPrefill(scan: Scan): Prefill | null {
 
   if (scan.kind === 'ips') {
     if (scan.amount) out.amount = scan.amount
-    // The purpose describes the bill better than the utility's legal name does,
-    // but the name is what you would recognise in a list, so it wins.
-    if (scan.payee) out.payee = scan.payee
+    // The recipient is a company you are paying — EPS, Infostan — which is the
+    // merchant, exactly as a shop is. It used to land in Payee, which put the
+    // utility's name where the description belongs and left nothing to say
+    // WHERE the money went.
+    if (scan.payee) out.merchant = scan.payee
+    // And the purpose line is the description: "Utrošena električna energija".
+    if (scan.purpose) out.payee = scan.purpose
   } else if (scan.kind === 'fiscal' && scan.invoice) {
     out.amount = scan.invoice.amount
     // A receipt carries the day it happened, and it is often not today — you
@@ -224,4 +231,31 @@ export function toPrefill(scan: Scan): Prefill | null {
   }
 
   return Object.keys(out).length > 0 ? out : null
+}
+
+/**
+ * What a text field should become when a scan arrives.
+ *
+ * "Never overwrite a filled field" is too blunt a rule, and reading a payment
+ * slip and then a receipt is what showed it: the slip's utility stayed in
+ * Merchant as though it were the receipt's shop, because the second scan
+ * politely declined to touch it.
+ *
+ * The distinction that matters is not full-versus-empty but WHO put it there.
+ * A machine — an earlier scan, a remembered name, a lookup off the tax portal —
+ * may have its answer replaced by the next machine. What a person typed is
+ * never touched.
+ *
+ * `incoming` being absent CLEARS a machine-written value rather than leaving
+ * it: a fiscal receipt carries no shop name, so scanning one after a slip has
+ * to take the utility away, or it sits there looking like an answer and blocks
+ * the lookup that would find the real one.
+ */
+export function applyScan(
+  current: string,
+  machineWrote: string | undefined,
+  incoming: string | undefined,
+): string {
+  const machines = current === '' || current === machineWrote
+  return machines ? (incoming ?? '') : current
 }
