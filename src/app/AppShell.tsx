@@ -12,6 +12,7 @@ import { Button } from '../ui/Button'
 import { SM, useMediaQuery } from '../lib/useMediaQuery'
 import { useKeepPeriod } from '../period/PeriodContext'
 import { PlusIcon } from '../ui/icons'
+import { Logo } from '../ui/Logo'
 import { useHousehold } from '../household/HouseholdContext'
 import { AvatarMenu } from './AvatarMenu'
 import { PeriodControl } from './PeriodControl'
@@ -173,7 +174,9 @@ function BrandMark() {
     <Link
       to="/"
       aria-label="doughnatello — home"
-      className="block h-6 w-8 rounded-full border-[6px] border-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-    />
+      className="grid size-11 shrink-0 place-items-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:size-8"
+    >
+      <Logo size={28} />
+    </Link>
   )
 }

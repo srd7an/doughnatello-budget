@@ -871,6 +871,8 @@ export function TransactionForm({
               // Only fill an empty payee: a code read second must not wipe what
               // you typed first.
               if (prefill.payee) setPayee((p) => p || prefill.payee!)
+              // A receipt knows the day it happened, and it is often not today.
+              if (prefill.occurredOn) setOccurredOn(prefill.occurredOn)
               setScan(null)
             } else {
               setScan(result)

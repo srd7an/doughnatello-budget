@@ -53,6 +53,44 @@ describe('IPS payment slips', () => {
   })
 })
 
+/** A real receipt: total 4.599,00 RSD, 16 June 2026. Everything about the
+ *  fiscal layout is pinned against this one, because it is the only thing that
+ *  proved it. */
+const REAL =
+  'https://suf.purs.gov.rs/v/?vl=A1NFR05VTjNOU0VHTlVOM07kGAEA/hIBAHDAvQIAAAAAAAABntEvVmgAAABAIxsFS7Ys9frBYoJj6fiYKzBSMxQkzMIKZRAx4uSR+k+rWDHWCIw+C7Ky4VmqtyRdcFZ5vSl1Sgc2lXeMeLD1gifqU/WSyFS5TUySyca7F+YGoJmYSNR2F/epOsPNlIzU7ceqHONRpmOg2AhenDZPPXB70ubWUmeeDtAInhl58v6wF/0KJ4XlBSqeT9nZsxnsZjE9dGoZ2eI2LlzfBGRGC0oJUexyBNi1lZ/BLgIPZvqj51gpTVSpst/xDpchwYyuhz8HkhYm18KZysDqfTCmYxRzIPTbOp0A2AKEjlWml1nrVzmi/PHX8rS8E16NbSOg2Q6fQeoxI6o/QPOjX7BOskDsThs0VLoxARvNRX+eXk8i2uVNhtBmHkGfLd1hrsUAsl2Le/Q7YAbmMwxP1eM3sNIw/9h92gjaZDmJjQLuEiFrrYhbnsfxQS9OMSv0XnO7oPOhfipDPldqW6LQmhEVgQEkUelBNKcAZqo4Uw4XkS6312UNzrPRXRWzS8EwkujmzHihYi2eo5ApUhRzwPiHikw+Yld+D4pIoQ6dx3hRKrXFMEpnlQAZuV7Wov1riQGuEsr9tEr7+O+St8DPOnsL2yEwC3U6wqyXONCQBu7DHF0H08PxkNVNr0clOqAfXIWfdfiUaiXVuC7w3cSvNyAsfdHJs9dv38qLj1dTFyRVbeu/imSZTqXvvKvMzIimdWc='
+
+describe('a real fiscal receipt', () => {
+  test('reads the total, in para', () => {
+    const s = parseQr(REAL)
+    expect(s.kind).toBe('fiscal')
+    if (s.kind !== 'fiscal') return
+    // 45.990.000 at a scale of 10.000 is 4.599,00 RSD.
+    expect(s.invoice?.amount).toBe(4_599_00)
+  })
+
+  test('reads the day it happened', () => {
+    const s = parseQr(REAL)
+    if (s.kind !== 'fiscal') return
+    expect(s.invoice?.occurredOn).toBe('2026-06-16')
+  })
+
+  test('reads the counters printed on the paper', () => {
+    const s = parseQr(REAL)
+    if (s.kind !== 'fiscal') return
+    expect(s.invoice?.counter).toBe(71_908)
+    expect(s.invoice?.typeCounter).toBe(70_398)
+    expect(s.invoice?.device).toBe('SEGNUN3N')
+  })
+
+  test('the prefill carries the amount and the date, and no payee', () => {
+    // The record holds the till's identifier, never the shop's name.
+    expect(toPrefill(parseQr(REAL))).toEqual({
+      amount: 4_599_00,
+      occurredOn: '2026-06-16',
+    })
+  })
+})
+
 describe('fiscal receipts', () => {
   // Not a real receipt — "hello" in base64 — because the point of this test is
   // the recognising and the handing back, not the layout.
@@ -66,8 +104,18 @@ describe('fiscal receipts', () => {
     expect(new TextDecoder().decode(s.bytes!)).toBe('hello')
   })
 
-  test('no amount is claimed from a layout nobody has confirmed', () => {
+  test('a payload too short to be a receipt yields no amount', () => {
     expect(toPrefill(parseQr(url))).toBeNull()
+  })
+
+  test('an unknown version is refused rather than misread', () => {
+    // Same bytes, version byte bumped to 4.
+    const bytes = new Uint8Array(64)
+    bytes[0] = 4
+    const b64 = Buffer.from(bytes).toString('base64')
+    const s = parseQr(`https://suf.purs.gov.rs/v/?vl=${b64}`)
+    if (s.kind !== 'fiscal') return
+    expect(s.invoice).toBeNull()
   })
 
   test('a malformed payload does not throw', () => {

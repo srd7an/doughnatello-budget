@@ -1,4 +1,5 @@
 import { parseMoney } from './format'
+import { localISO } from './dates'
 
 /**
  * Reading what a scanned QR code says.
@@ -11,13 +12,15 @@ import { parseMoney } from './format'
  *
  *   Fiscal (ПУРС) — on every shop receipt since fiscalisation. The code holds a
  *   verification URL whose `vl` parameter is base64 of a BINARY record of the
- *   invoice. Its layout is not documented here and is not guessed at: this
- *   module recognises the code and hands back the decoded bytes, and the
- *   scanner shows them. Filling in an amount read out of a structure nobody has
- *   confirmed would be worse than filling in nothing.
+ *   invoice, carrying the total and the moment of sale. The layout is written
+ *   out at `parseFiscal`; it was worked out from a real receipt rather than
+ *   from a specification, so anything that does not match it exactly is
+ *   returned unparsed rather than approximated.
  *
- * Everything else is returned as `unknown` with its text intact, for the same
- * reason — so the thing that was scanned can be looked at rather than guessed.
+ * A code that cannot be turned into an amount keeps its bytes, and the scanner
+ * shows them — which is how the layout above came to be known, and how the next
+ * variant will be. Everything else is returned as `unknown` with its text
+ * intact, for the same reason.
  */
 
 export type Scan =
@@ -29,13 +32,82 @@ export type Scan =
       payee: string | null
       purpose: string | null
     }
-  | { kind: 'fiscal'; raw: string; url: string; bytes: Uint8Array | null }
+  | {
+      kind: 'fiscal'
+      raw: string
+      url: string
+      bytes: Uint8Array | null
+      /** Null when the record is a version or shape this does not know. */
+      invoice: FiscalInvoice | null
+    }
   | { kind: 'unknown'; raw: string }
 
-/** base64url → bytes. Returns null rather than throwing on malformed input. */
+export type FiscalInvoice = {
+  /** Para, like every other amount in this app. */
+  amount: number
+  /** YYYY-MM-DD, in local time — the receipt's own clock, not UTC's. */
+  occurredOn: string
+  /** The two numbers printed as "Бројач рачуна: 86204/92097". */
+  counter: number
+  typeCounter: number
+  /** The fiscal device's identifier. Not the shop's name — there isn't one. */
+  device: string
+}
+
+/**
+ * The fiscal record, worked out from a receipt whose total was known.
+ *
+ *   0      version, 3
+ *   1–8    requestedBy   ASCII, the device's ЈИД
+ *   9–16   signedBy      ASCII
+ *   17–20  u32 LE        invoice counter
+ *   21–24  u32 LE        counter within the transaction type
+ *   25–32  u64 LE        total, scaled by 10.000
+ *   33–40  u64 BE        milliseconds since the epoch
+ *   41…    signature
+ *
+ * The mixed endianness is not a typo — the counters and the total are
+ * little-endian and the timestamp is big-endian. The timestamp is also what
+ * proves the layout: no other offset in the header yields a date this century,
+ * and an eight-byte field landing inside a ten-year window by chance is not
+ * something that happens.
+ *
+ * The scale is 10.000 (a .NET `currency`), while this app counts para, so the
+ * conversion is a division by 100 — confirmed against a receipt reading
+ * 4.599,00 whose record held 45.990.000.
+ */
+function parseFiscal(b: Uint8Array): FiscalInvoice | null {
+  if (b.length < 41 || b[0] !== 3) return null
+  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength)
+
+  const amount = Math.round(Number(dv.getBigUint64(25, true)) / 100)
+  const ms = Number(dv.getBigUint64(33, false))
+  // A receipt older than fiscalisation, or dated after tomorrow, means the
+  // offsets are being read out of something that is not a receipt.
+  if (!Number.isFinite(amount) || amount <= 0) return null
+  if (ms < Date.UTC(2021, 0, 1) || ms > Date.now() + 86_400_000) return null
+
+  return {
+    amount,
+    occurredOn: localISO(new Date(ms)),
+    counter: dv.getUint32(17, true),
+    typeCounter: dv.getUint32(21, true),
+    device: new TextDecoder().decode(b.slice(1, 9)).replace(/\0+$/, ''),
+  }
+}
+
+/**
+ * base64 → bytes. Returns null rather than throwing on malformed input.
+ *
+ * Spaces are turned back into `+` first. A query string is form-encoded, so
+ * `URLSearchParams` decodes every `+` in it as a space — and a fiscal payload
+ * is plain base64, full of them. Base64 has no space in its alphabet, so the
+ * reverse is unambiguous. Without this the record decodes to noise and every
+ * receipt looks like an unknown version.
+ */
 function decodeBase64(input: string): Uint8Array | null {
   try {
-    const padded = input.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = input.replace(/ /g, '+').replace(/-/g, '+').replace(/_/g, '/')
     const binary = atob(padded + '='.repeat((4 - (padded.length % 4)) % 4))
     const out = new Uint8Array(binary.length)
     for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i)
@@ -89,7 +161,14 @@ export function parseQr(raw: string): Scan {
       const url = new URL(text)
       if (/(^|\.)purs\.gov\.rs$/i.test(url.hostname)) {
         const vl = url.searchParams.get('vl')
-        return { kind: 'fiscal', raw: text, url: text, bytes: vl ? decodeBase64(vl) : null }
+        const bytes = vl ? decodeBase64(vl) : null
+        return {
+          kind: 'fiscal',
+          raw: text,
+          url: text,
+          bytes,
+          invoice: bytes ? parseFiscal(bytes) : null,
+        }
       }
     } catch {
       // Not a URL after all; fall through.
@@ -119,14 +198,23 @@ export function hexDump(bytes: Uint8Array, maxBytes = 512): string {
 }
 
 /** What the scanner can hand to the form. Absent fields are left alone. */
-export type Prefill = { amount?: number; payee?: string }
+export type Prefill = { amount?: number; payee?: string; occurredOn?: string }
 
 export function toPrefill(scan: Scan): Prefill | null {
-  if (scan.kind !== 'ips') return null
   const out: Prefill = {}
-  if (scan.amount) out.amount = scan.amount
-  // The purpose describes the bill better than the utility's legal name does,
-  // but the name is what you would recognise in a list, so it wins.
-  if (scan.payee) out.payee = scan.payee
+
+  if (scan.kind === 'ips') {
+    if (scan.amount) out.amount = scan.amount
+    // The purpose describes the bill better than the utility's legal name does,
+    // but the name is what you would recognise in a list, so it wins.
+    if (scan.payee) out.payee = scan.payee
+  } else if (scan.kind === 'fiscal' && scan.invoice) {
+    out.amount = scan.invoice.amount
+    // A receipt carries the day it happened, and it is often not today — you
+    // empty your pockets on Sunday. No payee: the record holds the till's
+    // identifier, never the shop's name.
+    out.occurredOn = scan.invoice.occurredOn
+  }
+
   return Object.keys(out).length > 0 ? out : null
 }
