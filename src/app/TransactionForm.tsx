@@ -12,7 +12,9 @@ import {
 } from '../lib/format'
 import { formatDayMonthYear } from '../lib/dates'
 import { ConvexError } from 'convex/values'
-import { CalendarDotsIcon, RepeatIcon, XIcon } from '../ui/icons'
+import { CalendarDotsIcon, QrCodeIcon, RepeatIcon, XIcon } from '../ui/icons'
+import { QrScanner } from '../ui/QrScanner'
+import { hexDump, parseQr, toPrefill, type Scan } from '../lib/qr'
 import { Button } from '../ui/Button'
 import { Popover } from '../ui/Popover'
 import {
@@ -175,6 +177,11 @@ export function TransactionForm({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const amountRef = useRef<HTMLInputElement>(null)
+  const [scanning, setScanning] = useState(false)
+  // What a scan produced when it could not be turned into an amount. Kept so
+  // the code can be LOOKED AT rather than silently discarded — which is how
+  // the fiscal receipt layout gets worked out at all.
+  const [scan, setScan] = useState<Scan | null>(null)
 
   // Load the transaction being edited into the form. Keyed on its id, so
   // opening a different one reloads rather than merging.
@@ -441,7 +448,7 @@ export function TransactionForm({
 
         {/* Date sits above the amount and carries no label — it is when this
             happened, which is part of the headline, not one of the fields. */}
-        <div className="flex">
+        <div className="flex items-center gap-1.5">
           <label className={`${PILL} relative cursor-pointer`}>
             <CalendarDotsIcon size={16} aria-hidden />
             {formatDayMonthYear(occurredOn)}
@@ -454,6 +461,25 @@ export function TransactionForm({
               className="absolute inset-0 cursor-pointer opacity-0"
             />
           </label>
+
+          {/* Scanning fills the amount, so it belongs on the headline beside
+              the date rather than down among the fields. Editing is left out:
+              a code describes a purchase, and re-reading one over a
+              transaction that already exists is not a thing anyone does. */}
+          {!isEdit && (
+            <button
+              type="button"
+              onClick={() => {
+                setScan(null)
+                setScanning(true)
+              }}
+              className={`${PILL} shrink-0`}
+              aria-label="Scan a QR code"
+            >
+              <QrCodeIcon size={16} aria-hidden />
+              Scan
+            </button>
+          )}
         </div>
 
         {/* The amount is the headline: you type straight into it. */}
@@ -475,6 +501,53 @@ export function TransactionForm({
             {household.baseCurrency}
           </span>
         </label>
+
+        {/* A code was read but carried no amount we are willing to trust. It is
+            shown rather than swallowed: for a fiscal receipt this dump IS the
+            specification, and copying one from a real receipt is how the layout
+            gets decoded. */}
+        {scan && (
+          <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm font-medium text-stone-800">
+                {scan.kind === 'fiscal'
+                  ? 'Fiscal receipt — amount not readable yet'
+                  : 'Scanned, but not a payment code'}
+              </p>
+              <button
+                type="button"
+                onClick={() => setScan(null)}
+                aria-label="Dismiss"
+                className="grid size-8 shrink-0 place-items-center rounded-full text-stone-500 hover:bg-stone-200"
+              >
+                <XIcon size={16} aria-hidden />
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-stone-500">
+              {scan.kind === 'fiscal'
+                ? 'Type the total in yourself for now. Copy what is below and this will learn to read it.'
+                : 'Nothing here looked like an amount.'}
+            </p>
+            <pre className="mt-2 max-h-40 overflow-auto rounded-lg bg-white p-2 text-[10px] leading-tight whitespace-pre text-stone-600">
+              {scan.kind === 'fiscal' && scan.bytes
+                ? `${scan.url}\n\n${hexDump(scan.bytes)}`
+                : scan.raw}
+            </pre>
+            <button
+              type="button"
+              onClick={() => {
+                const text =
+                  scan.kind === 'fiscal' && scan.bytes
+                    ? `${scan.url}\n\n${hexDump(scan.bytes)}`
+                    : scan.raw
+                navigator.clipboard?.writeText(text)
+              }}
+              className="mt-2 text-xs text-brand hover:underline"
+            >
+              Copy
+            </button>
+          </div>
+        )}
 
         <div className="flex flex-col">
           {!ready ? (
@@ -785,6 +858,26 @@ export function TransactionForm({
 
         {error && <p className="text-sm text-debt">{error}</p>}
       </div>
+
+      {scanning && (
+        <QrScanner
+          onClose={() => setScanning(false)}
+          onRead={(text) => {
+            setScanning(false)
+            const result = parseQr(text)
+            const prefill = toPrefill(result)
+            if (prefill) {
+              if (prefill.amount) setAmountStr(paraToInput(prefill.amount))
+              // Only fill an empty payee: a code read second must not wipe what
+              // you typed first.
+              if (prefill.payee) setPayee((p) => p || prefill.payee!)
+              setScan(null)
+            } else {
+              setScan(result)
+            }
+          }}
+        />
+      )}
 
       <div className="flex flex-col gap-2 px-4 pb-4">
         <Button variant="primary" full onClick={save} disabled={!canSave}>

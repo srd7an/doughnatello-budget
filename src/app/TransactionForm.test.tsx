@@ -263,3 +263,32 @@ describe('duplicating a transaction', () => {
     expect(screen.getByRole('button', { name: /delete/i })).toBeInTheDocument()
   })
 })
+
+describe('scanning', () => {
+  test('adding offers the scanner', () => {
+    setFixtures(READY)
+    renderScreen(<TransactionForm onDone={() => {}} />)
+    expect(screen.getByRole('button', { name: 'Scan a QR code' })).toBeInTheDocument()
+  })
+
+  test('editing does not — a code describes a purchase, not a correction', async () => {
+    setFixtures({
+      ...READY,
+      'transactions:detail': {
+        _id: 't1',
+        direction: 'expense',
+        amount: 1_000_00,
+        categoryId: 'c1',
+        occurredOn: '2026-01-15',
+        payee: 'Idea',
+        accountId: 'a1',
+        funding: [{ potId: undefined, amount: 1_000_00 }],
+      },
+    })
+    renderScreen(<TransactionForm transactionId={'t1' as never} onDone={() => {}} />)
+    await screen.findByRole('button', { name: /delete/i })
+    expect(
+      screen.queryByRole('button', { name: 'Scan a QR code' }),
+    ).not.toBeInTheDocument()
+  })
+})
