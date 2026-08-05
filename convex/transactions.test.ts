@@ -556,3 +556,39 @@ describe("remembering a shop by its till", () => {
     ]);
   });
 });
+
+describe("free text has a ceiling", () => {
+  test("an absurd payee is cut rather than stored whole", async () => {
+    const { t, householdId, groceryCat } = await setup();
+    const id = await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "expense",
+      amount: 1_000_00,
+      categoryId: groceryCat,
+      occurredOn: "2026-07-01",
+      // An import or a scan can write this; a person typing never would.
+      payee: "x".repeat(5_000),
+      merchant: "y".repeat(5_000),
+      note: "z".repeat(50_000),
+    });
+
+    const doc = await asA(t).query(api.transactions.detail, { transactionId: id });
+    expect(doc.payee).toHaveLength(200);
+    expect(doc.merchant).toHaveLength(200);
+    expect(doc.note).toHaveLength(2000);
+  });
+
+  test("an ordinary name is untouched", async () => {
+    const { t, householdId, groceryCat } = await setup();
+    const id = await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "expense",
+      amount: 1_000_00,
+      categoryId: groceryCat,
+      occurredOn: "2026-07-01",
+      merchant: "Pet Network SRB veterinarska apoteka",
+    });
+    const doc = await asA(t).query(api.transactions.detail, { transactionId: id });
+    expect(doc.merchant).toBe("Pet Network SRB veterinarska apoteka");
+  });
+})

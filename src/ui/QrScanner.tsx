@@ -47,6 +47,17 @@ const QR_ONLY: import('zxing-wasm/reader').ReaderOptions = {
  * focused, where a video frame is a compromise the camera makes for frame rate —
  * which is the difference on a dense fiscal code.
  *
+ * Two decoders, and which one runs is not a guess. `BarcodeDetector` is built
+ * into Chrome on Android: hardware-backed, and zero bytes to download, which is
+ * the whole point — a phone that already has a decoder should not be sent half
+ * a megabyte of WebAssembly to get another. It does not exist on iOS at all.
+ *
+ * But the native one is used on trust rather than on faith. A dense fiscal code
+ * is exactly what a weak implementation fails at, and some Android builds ship a
+ * BarcodeDetector that is present and unhelpful — so if it has not read anything
+ * after a few seconds, ZXing is fetched and takes over mid-scan. You get the
+ * free decoder when it works and the good one when it does not.
+ *
  * The torch is not a flourish. A fiscal receipt is thermal paper, it fades
  * within weeks, and a faded code under kitchen light is exactly the one that
  * will not read — the lamp is often the difference between scanning and typing.
@@ -163,10 +174,28 @@ export function QrScanner({
         setResolution(`${settings.width}×${settings.height}`)
       }
 
-      // ZXing everywhere, including where BarcodeDetector exists. Two decoders
-      // meant two sets of behaviour to reason about, and the native one was
-      // never the one failing.
-      const zxing = await decoder()
+      // The native decoder, if this browser has one that does QR at all —
+      // `in window` is not enough, since a BarcodeDetector may exist and not
+      // support the format.
+      let native: { detect: (v: HTMLVideoElement) => Promise<{ rawValue: string }[]> } | null =
+        null
+      try {
+        // @ts-expect-error — not in lib.dom, and absent on iOS.
+        const BD = window.BarcodeDetector
+        if (BD && (await BD.getSupportedFormats()).includes('qr_code')) {
+          native = new BD({ formats: ['qr_code'] })
+        }
+      } catch {
+        native = null
+      }
+
+      // Loaded straight away when there is no native decoder; otherwise only if
+      // the native one turns out not to be getting there.
+      let zxing = native ? null : await decoder()
+      let loadingZxing = false
+      const startedAt = Date.now()
+      const GIVE_NATIVE = 4000 // ms before fetching the heavier decoder
+
       const canvas = document.createElement('canvas')
       const ctx = canvas.getContext('2d', { willReadFrequently: true })
 
@@ -195,6 +224,24 @@ export function QrScanner({
         if (doneRef.current || cancelled) return
         if (video.readyState === video.HAVE_ENOUGH_DATA && ctx) {
           try {
+            if (native) {
+              const codes = await native.detect(video)
+              if (codes[0]?.rawValue) return hit(codes[0].rawValue)
+
+              // Still nothing. Bring in the decoder that reads what this one
+              // cannot, and keep scanning with both until one of them does.
+              if (!zxing && !loadingZxing && Date.now() - startedAt > GIVE_NATIVE) {
+                loadingZxing = true
+                decoder().then((m) => {
+                  if (!cancelled) zxing = m
+                })
+              }
+              if (!zxing) {
+                raf = requestAnimationFrame(tick)
+                return
+              }
+            }
+
             const vw = video.videoWidth
             const vh = video.videoHeight
             const side = Math.floor(Math.min(vw, vh) * crops[pass++ % crops.length])
@@ -205,7 +252,7 @@ export function QrScanner({
             canvas.height = side
             ctx.drawImage(video, sx, sy, side, side, 0, 0, side, side)
             const img = ctx.getImageData(0, 0, side, side)
-            const found = await zxing.readBarcodes(img, QR_ONLY)
+            const found = await zxing!.readBarcodes(img, QR_ONLY)
             if (found[0]?.text) return hit(found[0].text)
           } catch {
             // A single failed frame means nothing — the next one is 16ms away.

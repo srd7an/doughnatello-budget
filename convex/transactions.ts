@@ -11,6 +11,21 @@ const direction = v.union(
 );
 
 /**
+ * A ceiling on free text, applied where it is written rather than where it is
+ * typed. The form has its own limits, but an import reads a file and a scan
+ * reads a QR — neither is a person who noticed the field was getting long.
+ *
+ * Convex caps a document at a megabyte, so this is not the difference between
+ * safe and unsafe; it is the difference between a payee you can read in a list
+ * and one that makes every row in the month useless. 200 is longer than any
+ * shop name and shorter than an accident.
+ */
+const MAX_TEXT = 200;
+const MAX_NOTE = 2000;
+const clamp = (s: string | undefined, max: number) =>
+  s === undefined ? undefined : s.slice(0, max);
+
+/**
  * Create a transaction and its funding rows — the heart of the two counting
  * rules (see the build spec).
  *
@@ -151,10 +166,10 @@ export async function insertTransaction(
     direction: args.direction,
     amount: args.amount,
     occurredOn: args.occurredOn,
-    payee: args.payee,
-    merchant: args.merchant,
-    fiscalDevice: args.fiscalDevice,
-    note: args.note,
+    payee: clamp(args.payee, MAX_TEXT),
+    merchant: clamp(args.merchant, MAX_TEXT),
+    fiscalDevice: clamp(args.fiscalDevice, MAX_TEXT),
+    note: clamp(args.note, MAX_NOTE),
     // Transfer: the destination fund. Expense: the loan it pays down.
     potId: args.direction === "income" ? undefined : args.potId,
     fromPotId: args.direction === "transfer" ? args.fromPotId : undefined,
@@ -587,12 +602,15 @@ export const update = mutation({
       occurredOn: args.occurredOn ?? doc.occurredOn,
       // An omitted field keeps what is there; an EMPTY one clears it. Without
       // the distinction, deleting a payee in the form silently put it back.
-      payee: args.payee === "" ? undefined : (args.payee ?? doc.payee),
+      payee:
+        args.payee === "" ? undefined : clamp(args.payee ?? doc.payee, MAX_TEXT),
       // Same empty-string rule as payee: "" means clear it, absent means leave
       // it alone. Without the distinction, deleting it in the form put it back.
       merchant:
-        args.merchant === "" ? undefined : (args.merchant ?? doc.merchant),
-      note: args.note === "" ? undefined : (args.note ?? doc.note),
+        args.merchant === ""
+          ? undefined
+          : clamp(args.merchant ?? doc.merchant, MAX_TEXT),
+      note: args.note === "" ? undefined : clamp(args.note ?? doc.note, MAX_NOTE),
       paidBy: args.paidBy ?? doc.paidBy,
       accountId: args.accountId ?? doc.accountId,
     });

@@ -1,5 +1,6 @@
 import { action } from "./_generated/server";
 import { v } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 /**
  * Looking up a fiscal receipt's shop from the tax administration.
@@ -20,6 +21,14 @@ import { v } from "convex/values";
  * whose lookup fails still has its amount and its date from the code itself,
  * and the shop can still be typed. This must never be the reason a receipt
  * cannot be recorded.
+ *
+ * It takes NO householdId and reads no household data, so there is nothing here
+ * to be a member of — but it still demands a signed-in caller. A public
+ * endpoint that makes an outbound request is an unauthenticated proxy: anyone
+ * who learned this deployment's URL could point our backend at the tax portal
+ * as often as they liked, from our address and against our quota. Restricting
+ * the HOST stops it being aimed anywhere else; requiring a caller stops it
+ * being aimed at all by people who are not using this app.
  */
 
 /** Only the tax administration, ever. A client hands us this URL. */
@@ -94,7 +103,8 @@ function companyFromJournal(html: string, tin: string | null): string | null {
 
 export const lookup = action({
   args: { url: v.string() },
-  handler: async (_ctx, { url }) => {
+  handler: async (ctx, { url }) => {
+    if (!(await getAuthUserId(ctx))) throw new Error("Not authenticated");
     const target = assertPurs(url);
 
     let html: string;
