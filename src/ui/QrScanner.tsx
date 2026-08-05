@@ -42,10 +42,10 @@ const QR_ONLY: import('zxing-wasm/reader').ReaderOptions = {
 /**
  * The camera, pointed at a QR code.
  *
- * Three ways in, because a dense fiscal code defeated the first one on its own:
- * point the camera, photograph it, or paste the link. The last cannot fail —
- * the phone's own camera app reads any QR natively and hands you the URL — so
- * there is always a way to record a receipt.
+ * Two ways in: point the camera, or photograph the code. The photo exists
+ * because a still comes back at the sensor's real resolution and properly
+ * focused, where a video frame is a compromise the camera makes for frame rate —
+ * which is the difference on a dense fiscal code.
  *
  * The torch is not a flourish. A fiscal receipt is thermal paper, it fades
  * within weeks, and a faded code under kitchen light is exactly the one that
@@ -73,7 +73,6 @@ export function QrScanner({
   const [resolution, setResolution] = useState<string | null>(null)
   const [photoBusy, setPhotoBusy] = useState(false)
   const [photoFailed, setPhotoFailed] = useState(false)
-  const [pasteFailed, setPasteFailed] = useState(false)
 
   // In a ref, not state: the decode loop reads it every frame, and a stale
   // closure would keep scanning after a hit and fire onRead twice.
@@ -259,31 +258,6 @@ export function QrScanner({
     }
   }
 
-  /**
-   * The path that cannot fail: paste the link.
-   *
-   * Every phone's own camera app reads a QR natively — hardware-accelerated,
-   * full sensor, and better than anything that will ever run in this page. Point
-   * it at the receipt, tap the banner it offers, copy the address, come back.
-   *
-   * Clumsy, and deliberately last. But it means a receipt can always be
-   * recorded, whatever the camera in here makes of it.
-   */
-  const pasteLink = async () => {
-    setPasteFailed(false)
-    try {
-      const text = await navigator.clipboard.readText()
-      if (text.trim()) {
-        stop()
-        onRead(text.trim())
-        return
-      }
-    } catch {
-      // Refused, or no clipboard permission.
-    }
-    setPasteFailed(true)
-  }
-
   const toggleTorch = async () => {
     const track = streamRef.current?.getVideoTracks()[0]
     if (!track) return
@@ -356,7 +330,7 @@ export function QrScanner({
           {/* A label, not a button: the input has to be the thing that is
               clicked for the camera to open on iOS. */}
           <label className="inline-flex min-h-11 cursor-pointer items-center rounded-full border border-white/40 px-4 text-sm text-white hover:bg-white/10 sm:min-h-9">
-            {photoBusy ? 'Reading…' : 'Photo'}
+            {photoBusy ? 'Reading…' : 'Take a photo'}
             <input
               type="file"
               accept="image/*"
@@ -369,18 +343,7 @@ export function QrScanner({
               }}
             />
           </label>
-
-          <Button variant="secondary" onClick={pasteLink}>
-            Paste link
-          </Button>
         </div>
-
-        {pasteFailed && (
-          <p className="max-w-xs text-center text-xs text-white">
-            Nothing to paste. Scan the receipt with the phone’s own Camera app,
-            copy the address it offers, then come back and press this.
-          </p>
-        )}
 
         {photoFailed && (
           <p className="text-center text-xs text-white">
