@@ -2,12 +2,28 @@
 <html lang="sr-RS">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover is what makes env(safe-area-inset-*) mean anything.
+         Added to the Home Screen there is no browser chrome at all, so without
+         it the header sits underneath the clock and the notch. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- Full bleed, no rounding of its own: iOS masks a home-screen icon into
+         its own squircle, so artwork that arrives already round is masked twice
+         and ends up floating in a white frame. -->
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <!-- The band that carries the app's own colour, so the phone's chrome
-         matches the header instead of fighting it. -->
-    <meta name="theme-color" content="#7c3aed" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- White, matching the page and the header. Violet here put a coloured
+         band above a white header, which reads as a seam rather than a brand. -->
+    <meta name="theme-color" content="#ffffff" />
+    <!-- iOS takes `display` from the manifest since 16.4 but still reads the
+         status bar's appearance here. `default` keeps dark text, which is what
+         a white header needs. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="doughnatello" />
     <title>doughnatello</title>
   </head>
   <body>

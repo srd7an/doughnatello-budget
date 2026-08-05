@@ -58,8 +58,17 @@ export function Modal({
         // Tall content scrolls inside the panel rather than off the screen —
         // the transaction form runs past a phone's viewport once a repeat or
         // the funding breakdown is showing.
+        // The bottom inset only matters on a phone, where this IS the bottom
+        // edge: installed to the Home Screen the last row of the form would
+        // otherwise sit under the home indicator. From sm up the panel floats
+        // in the middle and there is nothing to clear. It is folded into the
+        // padding rather than added beside it, because two classes both setting
+        // padding-bottom is a fight decided by stylesheet order, not by which
+        // one was meant.
         className={`max-h-[90svh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white outline-none sm:max-h-[85svh] sm:rounded-2xl sm:border sm:border-stone-200 ${
-          bare ? '' : 'p-5'
+          bare
+            ? 'pb-[env(safe-area-inset-bottom)] sm:pb-0'
+            : 'p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:pb-5'
         }`}
       >
         {!bare && (

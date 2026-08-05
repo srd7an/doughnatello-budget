@@ -112,6 +112,22 @@ export function QrScanner({
       const canvas = document.createElement('canvas')
       const ctx = canvas.getContext('2d', { willReadFrequently: true })
 
+      // How much of the frame jsQR is given, cycled tick by tick.
+      //
+      // A dense fiscal code needs its resolution kept, so the frame is CROPPED
+      // rather than scaled — and cropping is also the speed-up. jsQR is pure
+      // JavaScript and its cost is per pixel: a whole 1920×1080 frame is two
+      // million of them and buys perhaps three attempts a second, which is why
+      // scanning felt like hunting. A centred square is half that, and a
+      // tighter one a fifth.
+      //
+      // Two crops rather than one because they answer different distances: the
+      // wide one finds a receipt held back far enough to fit, the tight one a
+      // code brought close enough to fill the middle. Alternating tries both
+      // several times a second instead of betting on either.
+      const crops = [1, 0.6]
+      let pass = 0
+
       const hit = (text: string) => {
         if (doneRef.current || !text) return
         stop()
@@ -126,14 +142,21 @@ export function QrScanner({
               const codes = await detector.detect(video)
               if (codes[0]?.rawValue) return hit(codes[0].rawValue)
             } else if (jsQR && ctx) {
-              canvas.width = video.videoWidth
-              canvas.height = video.videoHeight
-              ctx.drawImage(video, 0, 0)
-              const img = ctx.getImageData(0, 0, canvas.width, canvas.height)
-              // Both inversions: a receipt is dark-on-light, but a code on a
-              // screen is often the other way round.
-              const found = jsQR(img.data, img.width, img.height, {
-                inversionAttempts: 'attemptBoth',
+              const vw = video.videoWidth
+              const vh = video.videoHeight
+              const side = Math.floor(Math.min(vw, vh) * crops[pass++ % crops.length])
+              const sx = Math.floor((vw - side) / 2)
+              const sy = Math.floor((vh - side) / 2)
+
+              canvas.width = side
+              canvas.height = side
+              ctx.drawImage(video, sx, sy, side, side, 0, 0, side, side)
+              const img = ctx.getImageData(0, 0, side, side)
+              // "dontInvert" rather than "attemptBoth": trying both doubles the
+              // work every frame to catch a light-on-dark code, which a printed
+              // receipt never is. The frames saved are worth more than the case.
+              const found = jsQR(img.data, side, side, {
+                inversionAttempts: 'dontInvert',
               })
               if (found?.data) return hit(found.data)
             }
@@ -170,7 +193,9 @@ export function QrScanner({
 
   return createPortal(
     <div className="fixed inset-0 z-[70] flex flex-col bg-stone-900">
-      <div className="flex items-center justify-between px-4 py-3">
+      {/* Full screen means full screen — the notch and the home indicator are
+          this component's problem, not the browser's. */}
+      <div className="flex items-center justify-between px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))]">
         <h2 className="text-base font-medium text-white">Scan a code</h2>
         <button
           onClick={() => {
@@ -191,15 +216,16 @@ export function QrScanner({
           playsInline
           className="size-full object-cover"
         />
-        {/* A frame to aim with. Nothing is cropped to it — the whole picture is
-            decoded — but a code held at arm's length reads far better than one
-            filling the lens, and a target is how you say that without words. */}
+        {/* The box is now the truth: the decoder is given the centre of the
+            frame, so a code outside it is a code that will not be read. It is
+            drawn large because a fiscal code is dense enough that filling this
+            square is roughly what it takes. */}
         {!error && (
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0 grid place-items-center"
           >
-            <div className="size-64 max-w-[70vw] rounded-2xl border-2 border-white/80" />
+            <div className="aspect-square w-[78%] max-w-80 rounded-2xl border-2 border-white/90" />
           </div>
         )}
         {error && (
@@ -209,14 +235,14 @@ export function QrScanner({
         )}
       </div>
 
-      <div className="flex items-center justify-center gap-3 px-4 pb-8 pt-4">
+      <div className="flex items-center justify-center gap-3 px-4 pt-4 pb-[calc(2rem+env(safe-area-inset-bottom))]">
         {hasTorch && (
           <Button variant="secondary" onClick={toggleTorch}>
             {torchOn ? 'Light off' : 'Light on'}
           </Button>
         )}
         <p className="text-center text-xs text-white/70">
-          A receipt or a payment slip. Hold it flat and fill the frame.
+          Fill the square. Hold it flat, and pull back until it focuses.
         </p>
       </div>
     </div>,

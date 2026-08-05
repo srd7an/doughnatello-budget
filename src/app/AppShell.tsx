@@ -88,7 +88,10 @@ export function AppShell() {
 
   return (
     <div className="min-h-svh bg-white text-stone-800">
-      <header className="sticky top-0 z-30 bg-white/90 px-4 pt-3 pb-2 backdrop-blur">
+      {/* pt carries the notch: installed to the Home Screen there is no
+          browser chrome, so row one starts at y=0 — under the clock. The inset
+          is 0 in a browser tab, so this is the same header in both. */}
+      <header className="sticky top-0 z-30 bg-white/90 px-4 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-2 backdrop-blur">
         <div className="mx-auto max-w-[800px]">
           {/* Row 1: brand + account */}
           <div className="flex items-center justify-between">
@@ -122,7 +125,7 @@ export function AppShell() {
         <button
           onClick={() => open('/add')}
           aria-label="Add transaction"
-          className="fixed right-4 bottom-6 z-30 grid size-14 place-items-center rounded-full bg-brand text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+          className="fixed right-4 bottom-[calc(1.5rem+env(safe-area-inset-bottom))] z-30 grid size-14 place-items-center rounded-full bg-brand text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
         >
           <PlusIcon className="size-6" />
         </button>
