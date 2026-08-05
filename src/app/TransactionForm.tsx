@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useMutation, useQuery } from 'convex/react'
+import { useAction, useMutation, useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { useHousehold } from '../household/HouseholdContext'
@@ -168,6 +168,10 @@ export function TransactionForm({
   // Only ever set by a scan. It is what lets the shop's name be remembered
   // against the till, since the receipt itself never carries one.
   const [fiscalDevice, setFiscalDevice] = useState<string | null>(null)
+  // The receipt's verification URL, held only until the shop has been looked
+  // up. Cleared afterwards so a re-render cannot ask the tax portal twice.
+  const [scanUrl, setScanUrl] = useState<string | null>(null)
+  const [lookingUp, setLookingUp] = useState(false)
   // What this till was called last time. Skipped until a scan names one, so an
   // ordinary hand-typed transaction asks the server nothing.
   const knownMerchant = useQuery(
@@ -219,12 +223,49 @@ export function TransactionForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail?._id])
 
-  // A remembered shop fills the field, but never overwrites what you typed —
-  // the answer arrives a moment after the scan, and landing on top of your own
-  // correction would be worse than not knowing.
+  const lookupReceipt = useAction(api.fiscal.lookup)
+
+  /**
+   * Where the shop's name comes from, in order.
+   *
+   * 1. What you called this till last time. It wins outright: the portal's name
+   *    is a legal entity — "Pet Network SRB veterinarska apoteka" — and yours is
+   *    whatever you actually call the place.
+   * 2. Failing that, the tax administration's page for this receipt.
+   *
+   * Neither ever overwrites what you have typed. Both answers arrive after the
+   * scan, and landing on top of your own correction would be worse than not
+   * knowing at all.
+   */
   useEffect(() => {
-    if (knownMerchant) setMerchant((m) => m || knownMerchant)
-  }, [knownMerchant])
+    if (knownMerchant) {
+      setMerchant((m) => m || knownMerchant)
+      setScanUrl(null)
+      return
+    }
+    // undefined means the query has not answered yet; null means it has, and
+    // this till has never been named.
+    if (knownMerchant !== null || !scanUrl) return
+
+    let cancelled = false
+    setLookingUp(true)
+    lookupReceipt({ url: scanUrl })
+      .then((r) => {
+        if (!cancelled && r?.merchant) setMerchant((m) => m || r.merchant)
+      })
+      // A failed lookup is not an error worth showing: the amount and the date
+      // came off the code itself and the shop can be typed.
+      .catch(() => {})
+      .finally(() => {
+        if (cancelled) return
+        setLookingUp(false)
+        setScanUrl(null)
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [knownMerchant, scanUrl])
 
   // Adding: focus the amount, because that is always the first thing typed.
   // Editing: leave focus alone — the field you came to change is rarely it.
@@ -629,7 +670,11 @@ export function TransactionForm({
               value={merchant}
               onChange={setMerchant}
               placeholder={
-                fiscalDevice && knownMerchant === null ? 'Name it once' : 'Where'
+                lookingUp
+                  ? 'Looking up…'
+                  : fiscalDevice && knownMerchant === null
+                    ? 'Name it once'
+                    : 'Where'
               }
             />
           )}
@@ -931,6 +976,8 @@ export function TransactionForm({
               // Remembering the till is what makes the second scan at a shop
               // better than the first: the name typed once comes back.
               if (prefill.fiscalDevice) setFiscalDevice(prefill.fiscalDevice)
+              // Kept so the shop can be looked up if this till is a new one.
+              if (result.kind === 'fiscal') setScanUrl(result.url)
               setScan(null)
             } else {
               setScan(result)

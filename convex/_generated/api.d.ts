@@ -15,6 +15,7 @@ import type * as categories from "../categories.js";
 import type * as crons from "../crons.js";
 import type * as devSeed from "../devSeed.js";
 import type * as exports from "../exports.js";
+import type * as fiscal from "../fiscal.js";
 import type * as households from "../households.js";
 import type * as http from "../http.js";
 import type * as imports from "../imports.js";
@@ -44,6 +45,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   devSeed: typeof devSeed;
   exports: typeof exports;
+  fiscal: typeof fiscal;
   households: typeof households;
   http: typeof http;
   imports: typeof imports;
