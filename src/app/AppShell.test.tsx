@@ -156,3 +156,17 @@ describe('hiding the amounts', () => {
     expect(document.documentElement).toHaveAttribute('data-private')
   })
 })
+
+describe('the avatar', () => {
+  test('goes straight to settings, with no menu in between', async () => {
+    setFixtures(EMPTY)
+    shell('/')
+
+    const avatar = screen.getByRole('button', { name: 'Settings' })
+    // Not a menu button any more: nothing to expand, nothing to pop up.
+    expect(avatar).not.toHaveAttribute('aria-haspopup')
+
+    await userEvent.click(avatar)
+    expect(await screen.findByRole('dialog', { name: 'Settings' })).toBeInTheDocument()
+  })
+})

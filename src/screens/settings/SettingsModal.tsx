@@ -7,10 +7,11 @@ import {
   type ReactNode,
 } from 'react'
 import { useAuthActions } from '@convex-dev/auth/react'
+import { useHousehold } from '../../household/HouseholdContext'
 import { useNavigate } from 'react-router-dom'
 import { useKeepPeriod } from '../../period/PeriodContext'
 import { Button } from '../../ui/Button'
-import { SignOutIcon, XIcon } from '../../ui/icons'
+import { CheckIcon, SignOutIcon, XIcon } from '../../ui/icons'
 import { AccountsPanel } from './AccountsPanel'
 import { FundsPanel } from './FundsPanel'
 import { AssetsPanel } from './AssetsPanel'
@@ -156,6 +157,7 @@ export function SettingsModal({
   onClose: () => void
 }) {
   const { signOut } = useAuthActions()
+  const { household, all, setActive } = useHousehold()
   const navigate = useNavigate()
   const keepPeriod = useKeepPeriod()
   // The URL is the source of truth for which section is showing, so a link to
@@ -226,13 +228,39 @@ export function SettingsModal({
             </div>
           ))}
 
-          <button
-            onClick={() => void signOut()}
-            className="mt-auto flex min-h-11 sm:min-h-9 shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-stone-800 hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
-          >
-            <SignOutIcon size={20} aria-hidden />
-            Sign out
-          </button>
+          {/* Switching household used to live in a dropdown under the avatar,
+              which was otherwise a menu of two items that both exist here. It
+              belongs beside Sign out: both answer "which account am I in", and
+              neither is a section of settings. Shown only when there is more
+              than one, since a switcher with one option is a label. */}
+          <div className="mt-auto shrink-0">
+            {all.length > 1 && (
+              <div className="mb-1">
+                <p className="px-3 pb-1 text-xs text-stone-400">Households</p>
+                {all.map((h) => (
+                  <button
+                    key={h._id}
+                    aria-current={h._id === household._id}
+                    onClick={() => setActive(h._id)}
+                    className="flex min-h-11 w-full items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-left text-sm text-stone-800 hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:min-h-9"
+                  >
+                    <span className="min-w-0 truncate">{h.name}</span>
+                    {h._id === household._id && (
+                      <CheckIcon size={16} className="shrink-0 text-brand" aria-hidden />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={() => void signOut()}
+              className="flex min-h-11 w-full shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-stone-800 hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:min-h-9"
+            >
+              <SignOutIcon size={20} aria-hidden />
+              Sign out
+            </button>
+          </div>
         </nav>
 
         <div className="flex min-w-0 flex-1 flex-col">
