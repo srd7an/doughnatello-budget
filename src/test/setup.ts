@@ -23,6 +23,11 @@ if (typeof document !== 'undefined') {
   afterEach(() => {
     cleanup()
     setViewport('phone')
+    // The privacy curtain lives on <html> and in localStorage, both of which
+    // outlive a render. One test turning it on would otherwise blur every test
+    // after it — and worse, pass while doing so.
+    document.documentElement.removeAttribute('data-private')
+    localStorage.clear()
   })
 
   vi.stubGlobal(

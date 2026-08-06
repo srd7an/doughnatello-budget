@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { ConvexReactClient } from 'convex/react'
 import { ConvexAuthProvider } from '@convex-dev/auth/react'
 import './index.css'
+import { initPrivacy } from './lib/privacy'
 import App from './App.tsx'
 
 // Vite inlines this at BUILD time, so a deployment built without it produces a
@@ -17,6 +18,10 @@ if (!convexUrl) {
     '<code>npx convex dev</code> locally to write it into .env.local) and build again.</p>'
   throw new Error('VITE_CONVEX_URL is not set')
 }
+
+// Before the first paint, or the figures flash into view for a frame — which
+// on this feature is the whole failure.
+initPrivacy()
 
 const convex = new ConvexReactClient(convexUrl)
 

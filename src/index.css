@@ -101,6 +101,25 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* The privacy curtain.
+     
+     Every figure in the app already carries [data-money] or .tnum, so one rule
+     covers all of them — which is the point. Blurring only the headline while
+     a list of transactions sits underneath it protects nothing; the person
+     beside you on the tram can read either.
+
+     Inputs are exempt. The amount field is a figure too, and blurring what
+     somebody is in the middle of typing would be a bug wearing a feature's
+     clothes.
+
+     `select-none` matters more than it looks: blurred text is still text, and
+     a long-press that selects it hands over exactly what was being hidden. */
+  [data-private] :is([data-money], .tnum):not(input) {
+    filter: blur(7px);
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
   /* Respect reduced-motion globally. */
   @media (prefers-reduced-motion: reduce) {
     *,

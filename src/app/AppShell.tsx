@@ -13,6 +13,8 @@ import { SM, useMediaQuery } from '../lib/useMediaQuery'
 import { useKeepPeriod } from '../period/PeriodContext'
 import { PlusIcon } from '../ui/icons'
 import { Logo } from '../ui/Logo'
+import { EyeIcon, EyeSlashIcon } from '../ui/icons'
+import { usePrivacy } from '../lib/privacy'
 import { useHousehold } from '../household/HouseholdContext'
 import { AvatarMenu } from './AvatarMenu'
 import { PeriodControl } from './PeriodControl'
@@ -96,7 +98,10 @@ export function AppShell() {
           {/* Row 1: brand + account */}
           <div className="flex items-center justify-between">
             <BrandMark />
-            <AvatarMenu onOpenSettings={() => open('/settings')} />
+            <div className="flex items-center gap-1">
+              <PrivacyToggle />
+              <AvatarMenu onOpenSettings={() => open('/settings')} />
+            </div>
           </div>
 
           {/* Row 2: period control (the nav) + add */}
@@ -172,6 +177,32 @@ function BackLink() {
  * It links home, the convention every site shares. That alone is too quiet to
  * be the ONLY way back, which is why Settings also carries an explicit link.
  */
+/**
+ * The curtain over the figures.
+ *
+ * In the header rather than in Settings, because it is not a preference you set
+ * once — it is something you reach for as somebody sits down next to you, and a
+ * control you have to go and find is one you will not reach in time.
+ */
+function PrivacyToggle() {
+  const { hidden, toggle } = usePrivacy()
+  return (
+    <button
+      onClick={toggle}
+      aria-pressed={hidden}
+      aria-label={hidden ? 'Show amounts' : 'Hide amounts'}
+      title={hidden ? 'Show amounts' : 'Hide amounts'}
+      className="grid size-11 shrink-0 place-items-center rounded-full text-stone-500 hover:bg-stone-100 hover:text-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:size-8"
+    >
+      {hidden ? (
+        <EyeSlashIcon size={20} aria-hidden />
+      ) : (
+        <EyeIcon size={20} aria-hidden />
+      )}
+    </button>
+  )
+}
+
 function BrandMark() {
   return (
     <Link

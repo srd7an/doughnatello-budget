@@ -132,3 +132,27 @@ describe('when something throws', () => {
     ).toBeInTheDocument()
   })
 })
+
+/**
+ * The curtain over the figures. What is pinned is that the control is in the
+ * HEADER and reachable from anywhere — not that CSS blurs, which is CSS's job.
+ */
+describe('hiding the amounts', () => {
+  test('the toggle is in the header, and says which way it will go', async () => {
+    setFixtures(EMPTY)
+    shell('/')
+
+    const hide = screen.getByRole('button', { name: 'Hide amounts' })
+    expect(hide).toHaveAttribute('aria-pressed', 'false')
+
+    await userEvent.click(hide)
+
+    const show = screen.getByRole('button', { name: 'Show amounts' })
+    expect(show).toHaveAttribute('aria-pressed', 'true')
+    // And the page is actually marked, which is what the stylesheet keys off.
+    expect(document.documentElement).toHaveAttribute('data-private')
+
+    await userEvent.click(show)
+    expect(document.documentElement).not.toHaveAttribute('data-private')
+  })
+})

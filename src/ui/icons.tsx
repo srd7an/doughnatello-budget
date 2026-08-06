@@ -44,6 +44,8 @@ import { WalletIcon } from '@phosphor-icons/react/dist/csr/Wallet'
 import { XIcon } from '@phosphor-icons/react/dist/csr/X'
 import { MagnifyingGlassIcon } from '@phosphor-icons/react/dist/csr/MagnifyingGlass'
 import { QrCodeIcon } from '@phosphor-icons/react/dist/csr/QrCode'
+import { EyeIcon } from '@phosphor-icons/react/dist/csr/Eye'
+import { EyeSlashIcon } from '@phosphor-icons/react/dist/csr/EyeSlash'
 import { ShoppingCartIcon } from '@phosphor-icons/react/dist/csr/ShoppingCart'
 import { CoffeeIcon } from '@phosphor-icons/react/dist/csr/Coffee'
 import { BeerSteinIcon } from '@phosphor-icons/react/dist/csr/BeerStein'
@@ -243,6 +245,8 @@ export {
   CheckIcon,
   MagnifyingGlassIcon,
   QrCodeIcon,
+  EyeIcon,
+  EyeSlashIcon,
 }
 
 export function PlusIcon({ className }: { className?: string }) {
