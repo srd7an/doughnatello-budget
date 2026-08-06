@@ -3,33 +3,25 @@ import { useSyncExternalStore } from 'react'
 /**
  * Hiding the figures, for when someone is looking over your shoulder.
  *
- * This is a CURTAIN, not a lock. The numbers are already in the page — blurred
- * in CSS, readable to anyone who opens the developer tools. It defends against
- * a person beside you on a tram, which is the threat it is for, and against
- * nothing else. Anything stronger has to happen before the data is fetched.
+ * Hidden every time the app opens, and NOT remembered. That is the whole
+ * design: a setting that persists has to be right, and the moment it is wrong
+ * it is wrong in the direction that shows your money to a room. Starting
+ * covered can only ever cost one tap; starting uncovered can cost the thing
+ * this exists to protect. There is also nothing to restore, so nothing that can
+ * be restored late — the figures are never briefly visible on a slow start.
  *
- * The setting is remembered, and remembered ON: someone who turned this on once
- * did not mean "until I next open the app". Kept in localStorage rather than in
- * the household, because it belongs to this device — the phone you read on the
- * tram, not the laptop at home.
+ * This is a CURTAIN, not a lock. The numbers are already in the page, blurred
+ * in CSS and readable to anyone who opens the developer tools. It defends
+ * against a person beside you on a tram, which is the threat it is for, and
+ * against nothing else. A real lock has to act before the data is fetched — see
+ * the note on locking the app.
  *
  * State lives outside React so the toggle and the page cannot disagree, and so
- * the class is on <html> before the first paint rather than a frame after it.
+ * the attribute is on <html> before the first paint rather than a frame after.
  */
 
-const KEY = 'doughnatello:private'
-
 const listeners = new Set<() => void>()
-let hidden = read()
-
-function read(): boolean {
-  try {
-    return localStorage.getItem(KEY) === '1'
-  } catch {
-    // Private browsing, or storage denied. Not a reason to fail.
-    return false
-  }
-}
+let hidden = true
 
 /** The attribute the stylesheet keys off. */
 function apply(value: boolean) {
@@ -38,11 +30,6 @@ function apply(value: boolean) {
 
 export function setHidden(value: boolean) {
   hidden = value
-  try {
-    localStorage.setItem(KEY, value ? '1' : '0')
-  } catch {
-    // The toggle still works for this session.
-  }
   apply(value)
   for (const l of listeners) l()
 }
@@ -59,7 +46,7 @@ export function usePrivacy(): { hidden: boolean; toggle: () => void } {
       return () => listeners.delete(notify)
     },
     () => hidden,
-    () => false,
+    () => true,
   )
   return { hidden: value, toggle: () => setHidden(!value) }
 }

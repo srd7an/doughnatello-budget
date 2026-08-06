@@ -134,25 +134,25 @@ describe('when something throws', () => {
 })
 
 /**
- * The curtain over the figures. What is pinned is that the control is in the
- * HEADER and reachable from anywhere — not that CSS blurs, which is CSS's job.
+ * The curtain over the figures. What is pinned is where the control is and
+ * which way it starts — not that CSS blurs, which is CSS's job.
  */
 describe('hiding the amounts', () => {
-  test('the toggle is in the header, and says which way it will go', async () => {
+  test('the app opens covered, and one tap uncovers it', async () => {
     setFixtures(EMPTY)
     shell('/')
 
-    const hide = screen.getByRole('button', { name: 'Hide amounts' })
-    expect(hide).toHaveAttribute('aria-pressed', 'false')
-
-    await userEvent.click(hide)
-
+    // Covered from the first paint. A default that persists would eventually
+    // be wrong in the direction that shows your money to a room.
+    expect(document.documentElement).toHaveAttribute('data-private')
     const show = screen.getByRole('button', { name: 'Show amounts' })
     expect(show).toHaveAttribute('aria-pressed', 'true')
-    // And the page is actually marked, which is what the stylesheet keys off.
-    expect(document.documentElement).toHaveAttribute('data-private')
 
     await userEvent.click(show)
     expect(document.documentElement).not.toHaveAttribute('data-private')
+
+    // And back, from the header, wherever you are.
+    await userEvent.click(screen.getByRole('button', { name: 'Hide amounts' }))
+    expect(document.documentElement).toHaveAttribute('data-private')
   })
 })

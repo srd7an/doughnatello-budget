@@ -19,15 +19,16 @@ export function setViewport(size: 'phone' | 'desktop') {
 
 if (typeof document !== 'undefined') {
   await import('@testing-library/jest-dom/vitest')
+  const { setHidden } = await import('../lib/privacy')
   const { cleanup } = await import('@testing-library/react')
   afterEach(() => {
     cleanup()
     setViewport('phone')
-    // The privacy curtain lives on <html> and in localStorage, both of which
-    // outlive a render. One test turning it on would otherwise blur every test
-    // after it — and worse, pass while doing so.
-    document.documentElement.removeAttribute('data-private')
-    localStorage.clear()
+    // The privacy curtain is module state and an attribute on <html>, both of
+    // which outlive a render. Back to its start — hidden — or one test that
+    // revealed the figures would leave every test after it revealed too, and
+    // pass while doing so.
+    setHidden(true)
   })
 
   vi.stubGlobal(
