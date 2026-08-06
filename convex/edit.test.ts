@@ -453,7 +453,7 @@ describe("detail", () => {
     const d = await asA(t).query(api.transactions.detail, { transactionId: id });
     expect(d.payee).toBe("Idea");
     expect(d.category?.name).toBe("Grocery");
-    expect(d.accountName).toBe("Main");
+    expect(d.accountName).toBe("Main account");
     expect(d.paidByName).toBe("Me");
     expect(d.funding).toHaveLength(2);
     expect(d.funding.find((f) => f.potName === "Car fund")!.amount).toBe(5_000_00);

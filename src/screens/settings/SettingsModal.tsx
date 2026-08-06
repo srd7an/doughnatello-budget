@@ -107,13 +107,35 @@ export function useSettingsFooter(state: FooterState) {
   const set = useContext(FooterContext)
   const dirty = state?.dirty ?? false
   const saving = state?.saving ?? false
-  // Deliberately keyed on the flags, not the callbacks: panels rebuild their
-  // handlers every render, and depending on those would loop.
+
+  // The panel rebuilds its handlers on every render, so they cannot go in the
+  // dependency list — publishing a new object each render would loop.
+  //
+  // But keying the effect on the flags alone published the handlers CAPTURED at
+  // the moment `dirty` first turned true, which is the first keystroke. Every
+  // character after that was invisible to the footer: Save ran a commit that
+  // still saw the draft as it had been one letter in. Renaming an account
+  // reverted, because clearing the field first made that captured draft empty,
+  // which the commit skips — and then it cleared the draft anyway.
+  //
+  // So the flags still drive the effect, and the handlers are called THROUGH a
+  // ref that every render refreshes. Fresh callbacks, no loop.
+  const latest = useRef(state)
+  latest.current = state
+
   useEffect(() => {
-    set(state)
+    if (!latest.current) {
+      set(null)
+      return
+    }
+    set({
+      dirty,
+      saving,
+      onSave: () => latest.current?.onSave(),
+      onDiscard: () => latest.current?.onDiscard(),
+    })
     return () => set(null)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dirty, saving])
+  }, [dirty, saving, set])
 }
 
 const SECTION_IDS = new Set(GROUPS.flatMap((g) => g.items).map((i) => i.id))

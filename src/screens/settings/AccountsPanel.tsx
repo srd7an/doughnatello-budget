@@ -10,6 +10,7 @@ import { PlusIcon } from '../../ui/icons'
 import {
   ConfirmButton,
   GhostButton,
+  IconPicker,
   Loading,
   Note,
   Panel,
@@ -37,6 +38,7 @@ export function AccountsPanel() {
   const accounts = useQuery(api.accounts.list, { householdId })
   const create = useMutation(api.accounts.create)
   const rename = useMutation(api.accounts.rename)
+  const setIcon = useMutation(api.accounts.setIcon)
   const setBalance = useMutation(api.accounts.setBalance)
   const adjustBalance = useMutation(api.accounts.adjustBalance)
   const setPrimary = useMutation(api.accounts.setPrimary)
@@ -128,11 +130,20 @@ export function AccountsPanel() {
               {i > 0 && <hr className="border-stone-200" />}
 
               <Row label="Account name">
-                <input
-                  value={draft.name}
-                  onChange={(e) => edit(a._id, { name: e.target.value }, draft)}
-                  className={inputClass}
-                />
+                {/* The icon saves on pick rather than waiting for the footer:
+                    it is one choice from a closed list, not something you are
+                    part-way through typing, so there is nothing to confirm. */}
+                <div className="flex items-center gap-2">
+                  <IconPicker
+                    value={a.icon}
+                    onChange={(icon) => setIcon({ accountId: a._id, icon })}
+                  />
+                  <input
+                    value={draft.name}
+                    onChange={(e) => edit(a._id, { name: e.target.value }, draft)}
+                    className={inputClass}
+                  />
+                </div>
               </Row>
 
               <Row label="Total balance">

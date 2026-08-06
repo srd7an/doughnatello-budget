@@ -83,6 +83,9 @@ export default defineSchema({
   accounts: defineTable({
     householdId: v.id("households"),
     name: v.string(),
+    // Optional because accounts predate it. Everything that reads it falls back
+    // to "bank", so an account written before this existed still draws.
+    icon: v.optional(v.string()),
     bankBalance: v.number(), // para, entered manually
     isPrimary: v.boolean(),
     isArchived: v.boolean(),

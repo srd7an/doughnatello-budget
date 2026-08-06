@@ -5,7 +5,8 @@ import { requireMember, requireDoc } from "./lib/auth";
 import { insertTransaction } from "./transactions";
 
 /**
- * Real bank accounts. A household starts with one ("Main") and can add more.
+ * Real bank accounts. A household starts with one ("Main account") and can add
+ * more.
  *
  * `bankBalance` is what the BANK says, typed in by a person — the app cannot see
  * your bank, and it is deliberately not derived from the transaction list (there
@@ -59,6 +60,9 @@ export const list = query({
       .map((a) => ({
         _id: a._id,
         name: a.name,
+        // Accounts predate the icon, so everything reading it falls back here
+        // rather than in five places downstream.
+        icon: a.icon ?? "bank",
         bankBalance: a.bankBalance,
         isPrimary: a.isPrimary,
         isArchived: a.isArchived,
@@ -72,9 +76,10 @@ export const create = mutation({
   args: {
     householdId: v.id("households"),
     name: v.string(),
+    icon: v.optional(v.string()),
     bankBalance: v.optional(v.number()),
   },
-  handler: async (ctx, { householdId, name, bankBalance }) => {
+  handler: async (ctx, { householdId, name, icon, bankBalance }) => {
     await requireMember(ctx, householdId);
     const trimmed = name.trim();
     if (!trimmed) throw new Error("An account needs a name");
@@ -87,6 +92,7 @@ export const create = mutation({
     return await ctx.db.insert("accounts", {
       householdId,
       name: trimmed,
+      icon: icon ?? "bank",
       bankBalance: bankBalance ?? 0,
       // The first account a household ever has must be primary, or there is
       // nothing for a transaction to default to.
@@ -200,6 +206,14 @@ async function adjustmentCategory(
     isArchived: false,
   });
 }
+
+export const setIcon = mutation({
+  args: { accountId: v.id("accounts"), icon: v.string() },
+  handler: async (ctx, { accountId, icon }) => {
+    await requireDoc(ctx, "accounts", accountId);
+    await ctx.db.patch(accountId, { icon });
+  },
+});
 
 export const rename = mutation({
   args: { accountId: v.id("accounts"), name: v.string() },

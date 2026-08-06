@@ -31,7 +31,7 @@ async function setup() {
 describe("multiple accounts", () => {
   test("a household starts with one primary account", async () => {
     const { main } = await setup();
-    expect(main.name).toBe("Main");
+    expect(main.name).toBe("Main account");
     expect(main.isPrimary).toBe(true);
     expect(main.transactionCount).toBe(0);
   });
@@ -261,3 +261,35 @@ describe("cross-household isolation for accounts", () => {
     ).rejects.toThrow(/Account not found/);
   });
 });
+
+describe("the account's own glyph", () => {
+  test("a household's first account gets one, and it can be changed", async () => {
+    const { t, householdId, main } = await setup();
+    expect(main.icon).toBe("bank");
+
+    await asA(t).mutation(api.accounts.setIcon, {
+      accountId: main._id,
+      icon: "piggy",
+    });
+    const [after] = await asA(t).query(api.accounts.list, { householdId });
+    expect(after.icon).toBe("piggy");
+  });
+
+  test("an account written before icons existed still draws one", async () => {
+    // The field is optional in the schema, so a document from before it has no
+    // icon at all. The fallback lives in the query rather than in every screen
+    // that reads it.
+    const t = convexTest(schema);
+    const householdId = await asA(t).mutation(api.households.create, {
+      name: "Home",
+      displayName: "Me",
+    });
+    const [acc] = await asA(t).query(api.accounts.list, { householdId });
+    await t.run(async (ctx) => {
+      await ctx.db.patch(acc._id, { icon: undefined });
+    });
+
+    const [after] = await asA(t).query(api.accounts.list, { householdId });
+    expect(after.icon).toBe("bank");
+  });
+})

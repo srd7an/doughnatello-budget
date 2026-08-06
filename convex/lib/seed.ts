@@ -45,7 +45,8 @@ export async function seedHousehold(
 ) {
   await ctx.db.insert("accounts", {
     householdId,
-    name: "Main",
+    name: "Main account",
+    icon: "bank",
     bankBalance: 0,
     isPrimary: true,
     isArchived: false,

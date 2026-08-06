@@ -21,7 +21,7 @@ describe("seeding on household creation", () => {
     const { t, householdId } = await newHousehold("user-a");
 
     const account = await asA(t).query(api.accounts.getPrimary, { householdId });
-    expect(account?.name).toBe("Main");
+    expect(account?.name).toBe("Main account");
     expect(account?.isPrimary).toBe(true);
     expect(account?.bankBalance).toBe(0);
 
