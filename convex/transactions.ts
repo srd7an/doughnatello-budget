@@ -54,7 +54,6 @@ export const create = mutation({
     takeFromPotId: v.optional(v.id("pots")), // expense: fund from this pot
     occurredOn: v.string(), // YYYY-MM-DD
     payee: v.optional(v.string()),
-    merchant: v.optional(v.string()),
     fiscalDevice: v.optional(v.string()),
     note: v.optional(v.string()),
     paidBy: v.optional(v.string()), // defaults to the caller
@@ -76,7 +75,6 @@ export type TransactionInput = {
   takeFromPotId?: Id<"pots">;
   occurredOn: string;
   payee?: string;
-  merchant?: string;
   fiscalDevice?: string;
   note?: string;
   paidBy?: string;
@@ -167,7 +165,6 @@ export async function insertTransaction(
     amount: args.amount,
     occurredOn: args.occurredOn,
     payee: clamp(args.payee, MAX_TEXT),
-    merchant: clamp(args.merchant, MAX_TEXT),
     fiscalDevice: clamp(args.fiscalDevice, MAX_TEXT),
     note: clamp(args.note, MAX_NOTE),
     // Transfer: the destination fund. Expense: the loan it pays down.
@@ -390,7 +387,6 @@ export async function enrichRows(
         amount: t.amount,
         occurredOn: t.occurredOn,
         payee: t.payee ?? null,
-        merchant: t.merchant ?? null,
         note: t.note ?? null,
         categoryId: t.categoryId ?? null,
         potId: t.potId ?? null,
@@ -501,7 +497,6 @@ export const update = mutation({
     clearDestination: v.optional(v.boolean()), // a move becomes a release
     occurredOn: v.optional(v.string()),
     payee: v.optional(v.string()),
-    merchant: v.optional(v.string()),
     note: v.optional(v.string()),
     paidBy: v.optional(v.string()),
     accountId: v.optional(v.id("accounts")),
@@ -604,12 +599,6 @@ export const update = mutation({
       // the distinction, deleting a payee in the form silently put it back.
       payee:
         args.payee === "" ? undefined : clamp(args.payee ?? doc.payee, MAX_TEXT),
-      // Same empty-string rule as payee: "" means clear it, absent means leave
-      // it alone. Without the distinction, deleting it in the form put it back.
-      merchant:
-        args.merchant === ""
-          ? undefined
-          : clamp(args.merchant ?? doc.merchant, MAX_TEXT),
       note: args.note === "" ? undefined : clamp(args.note ?? doc.note, MAX_NOTE),
       paidBy: args.paidBy ?? doc.paidBy,
       accountId: args.accountId ?? doc.accountId,
@@ -667,7 +656,6 @@ export const detail = query({
       amount: doc.amount,
       occurredOn: doc.occurredOn,
       payee: doc.payee ?? null,
-      merchant: doc.merchant ?? null,
       note: doc.note ?? null,
       categoryId: doc.categoryId ?? null,
       potId: doc.potId ?? null,
@@ -698,12 +686,12 @@ export const detail = query({
  * What this till was called last time.
  *
  * A fiscal receipt carries no shop name — only the device's own identifier,
- * which never changes. So the name is learned: type "Maxi" once against a
- * device and every later scan at that till knows it. That is the whole reason
- * `fiscalDevice` is stored, and it is why scanning gets better with use rather
- * than staying as thin as the receipt itself.
+ * which never changes. So the name is learned: type "Lidl" once against a till
+ * and every later scan there knows it. That is the whole reason `fiscalDevice`
+ * is stored, and it is why scanning gets better with use rather than staying as
+ * thin as the receipt itself.
  */
-export const merchantForDevice = query({
+export const payeeForDevice = query({
   args: { householdId: v.id("households"), fiscalDevice: v.string() },
   handler: async (ctx, { householdId, fiscalDevice }) => {
     await requireMember(ctx, householdId);
@@ -720,14 +708,14 @@ export const merchantForDevice = query({
     // in the same millisecond tie — leaving which name won up to the order the
     // rows happened to come back in. Convex's own stamp is finer and unique.
     const named = rows
-      .filter((t) => t.merchant)
+      .filter((t) => t.payee)
       .sort((a, b) => b._creationTime - a._creationTime);
-    return named[0]?.merchant ?? null;
+    return named[0]?.payee ?? null;
   },
 });
 
-/** Every merchant this household has named, most-used first — the picker's list. */
-export const merchants = query({
+/** Every payee this household has used, most-used first — the picker's list. */
+export const payees = query({
   args: { householdId: v.id("households") },
   handler: async (ctx, { householdId }) => {
     await requireMember(ctx, householdId);
@@ -737,7 +725,7 @@ export const merchants = query({
       .collect();
     const counts = new Map<string, number>();
     for (const t of rows) {
-      if (t.merchant) counts.set(t.merchant, (counts.get(t.merchant) ?? 0) + 1);
+      if (t.payee) counts.set(t.payee, (counts.get(t.payee) ?? 0) + 1);
     }
     return [...counts.entries()]
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))

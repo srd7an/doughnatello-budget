@@ -164,7 +164,6 @@ export function TransactionForm({
   const [paysOff, setPaysOff] = useState<Id<'pots'> | null>(null)
   const [occurredOn, setOccurredOn] = useState(todayISO())
   const [payee, setPayee] = useState('')
-  const [merchant, setMerchant] = useState('')
   // Only ever set by a scan. It is what lets the shop's name be remembered
   // against the till, since the receipt itself never carries one.
   const [fiscalDevice, setFiscalDevice] = useState<string | null>(null)
@@ -181,11 +180,11 @@ export function TransactionForm({
    * A scan may replace what a scan put there; it may never replace what you
    * typed. A ref rather than state — nothing renders from it.
    */
-  const scanWrote = useRef<{ payee?: string; merchant?: string }>({})
+  const scanWrote = useRef<{ payee?: string; note?: string }>({})
   // What this till was called last time. Skipped until a scan names one, so an
   // ordinary hand-typed transaction asks the server nothing.
-  const knownMerchant = useQuery(
-    api.transactions.merchantForDevice,
+  const knownPayee = useQuery(
+    api.transactions.payeeForDevice,
     fiscalDevice ? { householdId, fiscalDevice } : 'skip',
   )
   const [note, setNote] = useState('')
@@ -226,7 +225,6 @@ export function TransactionForm({
     // A copy happens today; only an edit keeps the original's date.
     if (isEdit) setOccurredOn(detail.occurredOn)
     setPayee(detail.payee ?? '')
-    setMerchant(detail.merchant ?? '')
     setNote(detail.note ?? '')
     setAccountId(detail.accountId)
     setError(null)
@@ -248,27 +246,27 @@ export function TransactionForm({
    * knowing at all.
    */
   useEffect(() => {
-    if (knownMerchant) {
-      setMerchant((m) => {
-        if (m && m !== scanWrote.current.merchant) return m
-        scanWrote.current.merchant = knownMerchant
-        return knownMerchant
+    if (knownPayee) {
+      setPayee((p) => {
+        if (p && p !== scanWrote.current.payee) return p
+        scanWrote.current.payee = knownPayee
+        return knownPayee
       })
       setScanUrl(null)
       return
     }
     // undefined means the query has not answered yet; null means it has, and
     // this till has never been named.
-    if (knownMerchant !== null || !scanUrl) return
+    if (knownPayee !== null || !scanUrl) return
 
     let cancelled = false
     setLookingUp(true)
     lookupReceipt({ url: scanUrl })
       .then((r) => {
         if (cancelled || !r?.merchant) return
-        setMerchant((m) => {
-          if (m && m !== scanWrote.current.merchant) return m
-          scanWrote.current.merchant = r.merchant
+        setPayee((p) => {
+          if (p && p !== scanWrote.current.payee) return p
+          scanWrote.current.payee = r.merchant
           return r.merchant
         })
       })
@@ -284,7 +282,7 @@ export function TransactionForm({
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [knownMerchant, scanUrl])
+  }, [knownPayee, scanUrl])
 
   // Adding: focus the amount, because that is always the first thing typed.
   // Editing: leave focus alone — the field you came to change is rarely it.
@@ -346,7 +344,6 @@ export function TransactionForm({
     direction === 'expense' ? (paysOff ?? '') : '',
     occurredOn,
     payee.trim(),
-    merchant.trim(),
     note.trim(),
     accountId ?? '',
   ].join('|')
@@ -363,7 +360,6 @@ export function TransactionForm({
         detail.direction === 'expense' ? (detail.potId ?? '') : '',
         detail.occurredOn,
         detail.payee ?? '',
-        detail.merchant ?? '',
         detail.note ?? '',
         detail.accountId,
       ].join('|')
@@ -448,7 +444,6 @@ export function TransactionForm({
           clearDestination: direction === 'transfer' && !shared.potId,
           // Empty means empty here — the field was cleared on purpose.
           payee: payee.trim(),
-          merchant: direction === 'transfer' ? '' : merchant.trim(),
           note: note.trim(),
         })
       } else {
@@ -456,18 +451,10 @@ export function TransactionForm({
           payee: payee.trim() || undefined,
           note: note.trim() || undefined,
         }
-        // Kept out of `text` because a transfer has no shop, and because the
-        // device id belongs to the transaction that was scanned, not to a rule
-        // that will post more of them later.
-        const where =
-          direction === 'transfer'
-            ? {}
-            : { merchant: merchant.trim() || undefined }
         await create({
           householdId,
           ...shared,
           ...text,
-          ...where,
           fiscalDevice: fiscalDevice ?? undefined,
           takeFromPotId,
           fromPotId,
@@ -478,7 +465,6 @@ export function TransactionForm({
             householdId,
             ...shared,
             ...text,
-            ...where,
             fundedFromPotId: takeFromPotId,
             amountMode: estimate ? 'estimate' : 'exact',
             cadence: repeat,
@@ -673,30 +659,14 @@ export function TransactionForm({
             label="Payee"
             value={payee}
             onChange={setPayee}
-            placeholder="Enter payee"
+            placeholder={
+              lookingUp
+                ? 'Looking up…'
+                : fiscalDevice && knownPayee === null
+                  ? 'Name it once'
+                  : 'Enter payee'
+            }
           />
-
-          {/* Where, as opposed to what for. Not offered on a transfer: moving
-              money between your own funds happens at no shop.
-
-              A scan of a till nobody has named yet says so in the placeholder.
-              The receipt carries no shop name, so the first one is typed — and
-              nothing in an empty field would otherwise tell you that doing it
-              once is all it takes. */}
-          {direction !== 'transfer' && (
-            <TextRow
-              label="Merchant"
-              value={merchant}
-              onChange={setMerchant}
-              placeholder={
-                lookingUp
-                  ? 'Looking up…'
-                  : fiscalDevice && knownMerchant === null
-                    ? 'Name it once'
-                    : 'Where'
-              }
-            />
-          )}
 
           {/* Where the money comes from. On an expense it is a fund it is
               spent out of; on a transfer, a fund it is moved out of. Both
@@ -989,13 +959,8 @@ export function TransactionForm({
                 setAmountStr(groupMoneyInput(paraToInput(prefill.amount)))
 
               setPayee((p) => applyScan(p, scanWrote.current.payee, prefill.payee))
-              setMerchant((m) =>
-                applyScan(m, scanWrote.current.merchant, prefill.merchant),
-              )
-              scanWrote.current = {
-                payee: prefill.payee,
-                merchant: prefill.merchant,
-              }
+              setNote((n) => applyScan(n, scanWrote.current.note, prefill.note))
+              scanWrote.current = { payee: prefill.payee, note: prefill.note }
               // A receipt knows the day it happened, and it is often not today.
               if (prefill.occurredOn) setOccurredOn(prefill.occurredOn)
               // Remembering the till is what makes the second scan at a shop

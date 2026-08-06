@@ -431,13 +431,17 @@ describe("isolation", () => {
  * name is learned: typed once against a till, returned on every later scan
  * there. This pins the whole loop, because until a scan is actually saved
  * nothing in the app can demonstrate that it works.
+ *
+ * The name is the PAYEE. A separate `merchant` field was tried and removed —
+ * 400 transactions already had a payee and its commonest values were Lidl,
+ * Idea, DM, Metro, so this field had always been the merchant.
  */
 describe("remembering a shop by its till", () => {
   const buy = (
     t: ReturnType<typeof convexTest>,
     householdId: Id<"households">,
     categoryId: Id<"categories">,
-    extra: { merchant?: string; fiscalDevice?: string },
+    extra: { payee?: string; fiscalDevice?: string },
     day = "01",
   ) =>
     asA(t).mutation(api.transactions.create, {
@@ -452,27 +456,27 @@ describe("remembering a shop by its till", () => {
   test("the till and the name are both stored", async () => {
     const { t, householdId, groceryCat } = await setup();
     const id = await buy(t, householdId, groceryCat, {
-      merchant: "Maxi",
+      payee: "Lidl",
       fiscalDevice: "SEGNUN3N",
     });
 
     const doc = await asA(t).query(api.transactions.detail, { transactionId: id });
-    expect(doc.merchant).toBe("Maxi");
+    expect(doc.payee).toBe("Lidl");
   });
 
   test("a later scan at the same till finds the name", async () => {
     const { t, householdId, groceryCat } = await setup();
     await buy(t, householdId, groceryCat, {
-      merchant: "Maxi",
+      payee: "Lidl",
       fiscalDevice: "SEGNUN3N",
     });
 
     expect(
-      await asA(t).query(api.transactions.merchantForDevice, {
+      await asA(t).query(api.transactions.payeeForDevice, {
         householdId,
         fiscalDevice: "SEGNUN3N",
       }),
-    ).toBe("Maxi");
+    ).toBe("Lidl");
   });
 
   test("a till nobody has named yet returns nothing, rather than a guess", async () => {
@@ -482,7 +486,7 @@ describe("remembering a shop by its till", () => {
     await buy(t, householdId, groceryCat, { fiscalDevice: "SEGNUN3N" });
 
     expect(
-      await asA(t).query(api.transactions.merchantForDevice, {
+      await asA(t).query(api.transactions.payeeForDevice, {
         householdId,
         fiscalDevice: "SEGNUN3N",
       }),
@@ -492,12 +496,12 @@ describe("remembering a shop by its till", () => {
   test("a different till is a different shop", async () => {
     const { t, householdId, groceryCat } = await setup();
     await buy(t, householdId, groceryCat, {
-      merchant: "Maxi",
+      payee: "Lidl",
       fiscalDevice: "SEGNUN3N",
     });
 
     expect(
-      await asA(t).query(api.transactions.merchantForDevice, {
+      await asA(t).query(api.transactions.payeeForDevice, {
         householdId,
         fiscalDevice: "OTHER123",
       }),
@@ -507,52 +511,50 @@ describe("remembering a shop by its till", () => {
   test("the most recent naming wins, so a renamed shop stays renamed", async () => {
     const { t, householdId, groceryCat } = await setup();
     await buy(t, householdId, groceryCat, {
-      merchant: "Maxi",
+      payee: "Lidl",
       fiscalDevice: "SEGNUN3N",
     }, "01");
     await buy(t, householdId, groceryCat, {
-      merchant: "Maxi Vračar",
+      payee: "Lidl Vračar",
       fiscalDevice: "SEGNUN3N",
     }, "20");
 
     expect(
-      await asA(t).query(api.transactions.merchantForDevice, {
+      await asA(t).query(api.transactions.payeeForDevice, {
         householdId,
         fiscalDevice: "SEGNUN3N",
       }),
-    ).toBe("Maxi Vračar");
+    ).toBe("Lidl Vračar");
   });
 
-  test("editing a transaction can clear the merchant, and can set one", async () => {
+  test("editing can clear the payee, and can set one", async () => {
     const { t, householdId, groceryCat } = await setup();
-    const id = await buy(t, householdId, groceryCat, { merchant: "Maxi" });
+    const id = await buy(t, householdId, groceryCat, { payee: "Lidl" });
 
     await asA(t).mutation(api.transactions.update, {
       transactionId: id,
-      merchant: "",
+      payee: "",
     });
     let doc = await asA(t).query(api.transactions.detail, { transactionId: id });
-    expect(doc.merchant).toBeNull();
+    expect(doc.payee).toBeNull();
 
     await asA(t).mutation(api.transactions.update, {
       transactionId: id,
-      merchant: "Univerexport",
+      payee: "Univerexport",
     });
     doc = await asA(t).query(api.transactions.detail, { transactionId: id });
-    expect(doc.merchant).toBe("Univerexport");
+    expect(doc.payee).toBe("Univerexport");
   });
 
-  test("the merchant list counts how often each was used", async () => {
+  test("the payee list counts how often each was used", async () => {
     const { t, householdId, groceryCat } = await setup();
-    await buy(t, householdId, groceryCat, { merchant: "Maxi" }, "01");
-    await buy(t, householdId, groceryCat, { merchant: "Maxi" }, "02");
-    await buy(t, householdId, groceryCat, { merchant: "Lidl" }, "03");
+    await buy(t, householdId, groceryCat, { payee: "Lidl" }, "01");
+    await buy(t, householdId, groceryCat, { payee: "Lidl" }, "02");
+    await buy(t, householdId, groceryCat, { payee: "Idea" }, "03");
 
-    expect(
-      await asA(t).query(api.transactions.merchants, { householdId }),
-    ).toEqual([
-      { name: "Maxi", count: 2 },
-      { name: "Lidl", count: 1 },
+    expect(await asA(t).query(api.transactions.payees, { householdId })).toEqual([
+      { name: "Lidl", count: 2 },
+      { name: "Idea", count: 1 },
     ]);
   });
 });
@@ -568,13 +570,11 @@ describe("free text has a ceiling", () => {
       occurredOn: "2026-07-01",
       // An import or a scan can write this; a person typing never would.
       payee: "x".repeat(5_000),
-      merchant: "y".repeat(5_000),
       note: "z".repeat(50_000),
     });
 
     const doc = await asA(t).query(api.transactions.detail, { transactionId: id });
     expect(doc.payee).toHaveLength(200);
-    expect(doc.merchant).toHaveLength(200);
     expect(doc.note).toHaveLength(2000);
   });
 
@@ -586,9 +586,9 @@ describe("free text has a ceiling", () => {
       amount: 1_000_00,
       categoryId: groceryCat,
       occurredOn: "2026-07-01",
-      merchant: "Pet Network SRB veterinarska apoteka",
+      payee: "Pet Network SRB veterinarska apoteka",
     });
     const doc = await asA(t).query(api.transactions.detail, { transactionId: id });
-    expect(doc.merchant).toBe("Pet Network SRB veterinarska apoteka");
+    expect(doc.payee).toBe("Pet Network SRB veterinarska apoteka");
   });
 })

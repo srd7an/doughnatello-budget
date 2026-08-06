@@ -324,7 +324,6 @@ describe('what counts as a change', () => {
     categoryId: 'c1',
     occurredOn: '2026-01-15',
     payee: 'Idea',
-    merchant: '',
     note: '',
     accountId: 'a1',
     funding: [{ potId: undefined, amount: 1_000_00 }],
@@ -341,13 +340,7 @@ describe('what counts as a change', () => {
     expect(await open()).toBeDisabled()
   })
 
-  test('typing a merchant is a change', async () => {
-    const save = await open()
-    await userEvent.type(screen.getByLabelText('Merchant'), 'Maxi')
-    expect(save).toBeEnabled()
-  })
-
-  test('so is typing a payee, still', async () => {
+  test('typing a payee is a change', async () => {
     const save = await open()
     await userEvent.type(screen.getByLabelText('Payee'), ' more')
     expect(save).toBeEnabled()

@@ -156,15 +156,15 @@ export default defineSchema({
     direction,
     amount: v.number(), // para, always positive
     occurredOn: v.string(), // YYYY-MM-DD
+    // Who the money went to, and what the row is CALLED everywhere it appears.
+    // A separate `merchant` was tried and removed: 400 transactions already had
+    // a payee and its commonest values were Lidl, Idea, DM, Metro — this field
+    // had always been the merchant, and the second one only split the same
+    // answer across two columns.
     payee: v.optional(v.string()),
-    // WHERE the money was spent, as distinct from what it was for. "Kafa i
-    // kroasan" is a payee; "Maxi" is the merchant. Two axes, because the
-    // question "how much do I leave at that one shop" is not answerable from
-    // free-text descriptions of what was bought.
-    merchant: v.optional(v.string()),
-    // The till's own identifier, off a scanned fiscal receipt. It never
-    // changes for a given shop, so it is how a merchant name typed once is
-    // recognised the next time — the receipt itself carries no name.
+    // The till's own identifier, off a scanned fiscal receipt. It never changes
+    // for a given shop, so it is how a name typed once is recognised the next
+    // time — the receipt itself carries none.
     fiscalDevice: v.optional(v.string()),
     note: v.optional(v.string()),
     // On a transfer: the destination fund. On an expense: the debt pot this
@@ -189,9 +189,9 @@ export default defineSchema({
     .index("by_household_category", ["householdId", "categoryId"])
     .index("by_household_pot", ["householdId", "potId"])
     .index("by_household_from_pot", ["householdId", "fromPotId"])
-    // Filtering a merchant's spending, and finding what a till was called last
-    // time. Both are lookups by an exact string, which is what an index is for.
-    .index("by_household_merchant", ["householdId", "merchant"])
+    // "How much do I leave at Lidl", and what a till was called last time.
+    // Both are lookups by an exact string, which is what an index is for.
+    .index("by_household_payee", ["householdId", "payee"])
     .index("by_household_device", ["householdId", "fiscalDevice"]),
 
   // The heart of the two counting rules. potId undefined => funded by this
@@ -222,7 +222,6 @@ export default defineSchema({
     amount: v.number(), // para
     amountMode: v.union(v.literal("exact"), v.literal("estimate")),
     payee: v.optional(v.string()),
-    merchant: v.optional(v.string()),
     note: v.optional(v.string()),
     cadence: v.union(
       v.literal("weekly"),

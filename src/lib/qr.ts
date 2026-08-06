@@ -200,10 +200,10 @@ export function hexDump(bytes: Uint8Array, maxBytes = 512): string {
 /** What the scanner can hand to the form. Absent fields are left alone. */
 export type Prefill = {
   amount?: number
-  /** What it was FOR. A slip's purpose line; a receipt has none. */
+  /** Who it went to — the utility on a slip, the shop on a receipt. */
   payee?: string
-  /** WHERE it went. The utility on a slip, the shop on a receipt. */
-  merchant?: string
+  /** A slip's purpose line. A receipt has none. */
+  note?: string
   occurredOn?: string
   /** The till, so the shop's name can be looked up from an earlier scan. */
   fiscalDevice?: string
@@ -214,13 +214,12 @@ export function toPrefill(scan: Scan): Prefill | null {
 
   if (scan.kind === 'ips') {
     if (scan.amount) out.amount = scan.amount
-    // The recipient is a company you are paying — EPS, Infostan — which is the
-    // merchant, exactly as a shop is. It used to land in Payee, which put the
-    // utility's name where the description belongs and left nothing to say
-    // WHERE the money went.
-    if (scan.payee) out.merchant = scan.payee
-    // And the purpose line is the description: "Utrošena električna energija".
-    if (scan.purpose) out.payee = scan.purpose
+    // The recipient — EPS, Infostan — is who you paid, which is what Payee
+    // holds and what the row is called in every list.
+    if (scan.payee) out.payee = scan.payee
+    // The purpose line describes it: "Utrošena električna energija". That is a
+    // note, not a name, and it is far too long to title a row with.
+    if (scan.purpose) out.note = scan.purpose
   } else if (scan.kind === 'fiscal' && scan.invoice) {
     out.amount = scan.invoice.amount
     // A receipt carries the day it happened, and it is often not today — you

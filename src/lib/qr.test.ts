@@ -42,16 +42,16 @@ describe('IPS payment slips', () => {
     const s = parseQr('K:PR|V:01|C:1|R:265|N:Firma')
     if (s.kind !== 'ips') return
     expect(s.amount).toBeNull()
-    expect(toPrefill(s)).toEqual({ merchant: 'Firma' })
+    expect(toPrefill(s)).toEqual({ payee: 'Firma' })
   })
 
-  test('the recipient is the merchant, and the purpose is the description', () => {
-    // A utility you are paying is a merchant in exactly the sense a shop is:
-    // it is WHERE the money went. What it was FOR is the purpose line.
+  test('the recipient names the row, and the purpose becomes a note', () => {
+    // Payee is who you paid AND what the row is called in every list, so the
+    // utility goes there. The purpose is a sentence — a note, not a title.
     expect(toPrefill(parseQr(slip))).toEqual({
       amount: 4_235_50,
-      merchant: 'EPS SNABDEVANJE DOO',
-      payee: 'Utrosena elektricna energija',
+      payee: 'EPS SNABDEVANJE DOO',
+      note: 'Utrosena elektricna energija',
     })
   })
 })
