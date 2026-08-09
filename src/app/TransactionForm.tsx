@@ -703,7 +703,11 @@ export function TransactionForm({
           </div>
         )}
 
-        <div className="flex flex-col">
+        {/* 4px between rows, the same as the transaction list and the category
+            list. It is what gives the hover fill somewhere to be: rows packed
+            edge to edge leave the rounded shape touching its neighbours, and
+            the radius stops reading as a shape at all. */}
+        <div className="flex flex-col gap-1">
           {!ready ? (
             SKELETON[direction].map((label, i, all) => (
               <SkeletonRow key={label} last={i === all.length - 1} />
