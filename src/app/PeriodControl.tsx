@@ -78,7 +78,9 @@ export function PeriodControl() {
       {menuOpen && (
         <div
           role="menu"
-          className="absolute left-0 top-full z-40 mt-2 w-36 rounded-xl border border-stone-200 bg-white p-1"
+          // Upward: this control sits at the foot of the screen now, and a
+          // menu dropping from there is a menu below the fold.
+          className="absolute bottom-full left-0 z-40 mb-2 w-36 rounded-xl border border-stone-200 bg-white p-1 shadow-[0px_6px_10px_-4px_rgba(0,0,0,0.1)]"
         >
           <MenuItem
             active={granularity === 'month'}

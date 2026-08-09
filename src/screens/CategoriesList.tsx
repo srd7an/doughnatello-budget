@@ -289,14 +289,14 @@ function Group({
         label={label}
         amount={total}
       />
-      {/* Indent alone marks what is inside a group. A rule down the left was
-          there too, and with the row backgrounds now filling the full width it
-          became a second edge fighting the first — the nesting was already
-          legible without it.
+      {/* Nothing marks the nesting but the rows themselves: no rule, no
+          indent. Both were fighting the row backgrounds, which now run the full
+          width and are the thing carrying the proportion — an indented row is a
+          shorter bar, and a shorter bar reads as a smaller number.
           group ends is a line you can see rather than an indent you infer. It
           spans the categories AND any transactions opened under them. */}
       {open.has(key) && (
-        <div className="ml-4 flex flex-col gap-1 pl-4">
+        <div className="flex flex-col gap-1">
           {cats.map((c) => (
             <CategoryRow
               key={c.id}
@@ -365,7 +365,7 @@ function TxnList({
   onOpen: (id: Id<'transactions'>) => void
 }) {
   return (
-    <ul className="ml-4 flex flex-col gap-1 pl-4">
+    <ul className="flex flex-col gap-1">
       {txns.map((t) => (
         <li key={t.id}>
           <button

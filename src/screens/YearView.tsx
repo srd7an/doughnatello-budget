@@ -188,12 +188,14 @@ function Accordion({
           paidLabel={paidLabel}
         />
       </button>
-      {/* Exactly the shapes the rest of the app uses: an open group draws a
-          rule down its left the way a category group does, and each row under
-          it is a transaction row — square on its own dashed rule, rounded and
-          filled only while hovered. */}
+      {/* Each row under an open group is a transaction row — square on its own
+          dashed rule, rounded and filled only while hovered.
+
+          In line with the group above it rather than indented: these rows carry
+          numeric columns that have to align down the whole table, and an indent
+          breaks that alignment for exactly the rows you most want to compare. */}
       {open && (
-        <div className="mt-1 ml-4 flex flex-col gap-1 border-l border-stone-200 pl-4">
+        <div className="mt-1 flex flex-col gap-1">
         {group.items.map((it) => {
           const cls = `flex min-h-11 items-center gap-2 border-b border-dashed border-stone-300 px-3 py-1.5 text-sm sm:min-h-9 ${
             linkTo
