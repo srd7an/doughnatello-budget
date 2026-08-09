@@ -273,12 +273,14 @@ describe("pay from, paying off, and moving between funds", () => {
 
     const pots = await asA(t).query(api.pots.balances, { householdId });
     expect(pots.find((p) => p._id === fund)!.balance).toBe(30_000_00);
-    // Spent from a fund, so it does NOT come off the month: setting the money
-    // aside was the outflow, and it was counted then.
+    // Spent from a fund: it IS spending, and the same amount comes back off
+    // savings because setting it aside was already the outflow. What the month
+    // has left is untouched either way.
     const m = await asA(t).query(api.overview.month, { householdId, month: "2026-07" });
-    expect(m.savings).toBe(50_000_00);
-    expect(m.expense).toBe(0);
-    expect(m.paidFromFunds).toBe(20_000_00);
+    expect(m.expense).toBe(20_000_00);
+    expect(m.savings).toBe(50_000_00 - 20_000_00);
+    expect(m.setAside).toBe(50_000_00);
+    expect(m.leftToSpend).toBe(m.income - 50_000_00);
   });
 
   test("an instalment can name the loan it pays down", async () => {

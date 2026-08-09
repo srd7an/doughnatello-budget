@@ -87,10 +87,7 @@ export function YearView() {
         <h2 className="mb-3 text-base font-medium tracking-[-0.16px] text-stone-800">
           Categories
         </h2>
-        <CategoriesList
-          rows={rows ?? []}
-          paidFromFunds={data.totals.paidFromFunds}
-        />
+        <CategoriesList rows={rows ?? []} />
       </section>
     </div>
   )

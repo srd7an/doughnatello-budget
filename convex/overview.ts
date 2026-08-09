@@ -6,22 +6,36 @@ import { potBalance, debtOwed } from "./lib/balances";
 
 /**
  * The month's headline numbers — a single pass over the month's transactions
- * and their funding rows. This is where the two counting rules pay off.
+ * and their funding rows.
  *
- *   income               = Σ income transactions
- *   expense (composition)= Σ funding(potId: undefined) on EXPENSE txns
- *   savings              = Σ funding(potId: undefined) on TRANSFER txns
- *                          (setting money aside — reduces leftToSpend)
- *   paidFromFunds        = Σ funding(potId: set) on EXPENSE txns
- *                          (pot spending — does NOT reduce leftToSpend)
+ *   income      = Σ income transactions
+ *   expense     = Σ ALL funding on EXPENSE txns — from income and from funds
+ *   savings     = Σ funding(potId: undefined) on TRANSFER txns   (set aside)
+ *               − Σ funding(potId: set) on EXPENSE txns          (drawn down)
  *
  *   leftToSpend = income − expense − savings
- *              (= income − all income-funded outflows). Pot-funded spending is
- *              absent by construction, so it never double-counts.
  *
- * income = expense + savings + leftToSpend, which is exactly the composition
- * bar. `leftToSpend` is labelled "Left to spend" for the current month and
- * "Leftover" for a finished one — same number, the UI picks the word.
+ * SAVINGS CAN BE NEGATIVE, and that is the point. Money set aside in March and
+ * spent in September is a positive saving in March and a negative one in
+ * September, so over the year it nets to nothing and the spending shows once,
+ * in the month it happened. The model this replaced left pot-funded spending
+ * out of `expense` entirely, which meant the year claimed you had SAVED 6.000
+ * you had actually spent on the car.
+ *
+ * Two things it deliberately does not change:
+ *
+ * `leftToSpend` is arithmetically identical. Writing Ei for spending funded by
+ * income, Ep for spending funded by a fund and S for money set aside, it was
+ * income − Ei − S and is now income − (Ei + Ep) − (S − Ep). Ep cancels. "How
+ * much may I still spend" was right before and is the same number now.
+ *
+ * The identity income = expense + savings + leftToSpend still holds by
+ * construction, which is what the composition bar draws. When savings is
+ * negative the bar is WIDER than income by that amount — the month spent past
+ * what it earned, and the picture says so without a word.
+ *
+ * A move between funds stays neutral: its funding row carries a potId but sits
+ * on a TRANSFER, and only expense transactions contribute to `expense`.
  */
 export const month = query({
   args: { householdId: v.id("households"), month: v.string() }, // YYYY-MM
@@ -50,9 +64,14 @@ export const month = query({
 
     let income = 0;
     let expense = 0;
-    let savings = 0;
+    let setAside = 0;
     let sinking = 0;
-    let paidFromFunds = 0;
+    // Money taken back out of a fund to pay for something, split by what the
+    // fund was FOR. Drawing on a sinking fund is the plan completing; drawing
+    // on a savings fund is a month that did not fit inside its income. Both
+    // reduce savings by the same arithmetic — only the UI cares which.
+    let drawnPlanned = 0;
+    let drawnFromSavings = 0;
 
     for (const t of txs) {
       if (t.direction === "income") {
@@ -66,27 +85,44 @@ export const month = query({
       const fromIncome = funding
         .filter((f) => f.potId === undefined)
         .reduce((s, f) => s + f.amount, 0);
-      const fromPots = funding
-        .filter((f) => f.potId !== undefined)
-        .reduce((s, f) => s + f.amount, 0);
 
       if (t.direction === "transfer") {
-        savings += fromIncome;
+        setAside += fromIncome;
         // A sinking fund is money already promised to a bill that has not
-        // arrived yet — the registration, the service. It is still savings and
-        // still comes off the month, but it is DEFERRED SPENDING rather than
-        // accumulation, and that is the difference worth being able to see.
+        // arrived yet — the registration, the service. Still money set aside,
+        // but DEFERRED SPENDING rather than accumulation.
         if (t.potId && kindByPot.get(t.potId) === "sinking") sinking += fromIncome;
-      } else {
-        expense += fromIncome;
-        paidFromFunds += fromPots;
+        continue;
+      }
+
+      // An expense. Everything that paid for it is spending, whichever pocket
+      // it came out of.
+      expense += fromIncome;
+      for (const f of funding) {
+        if (!f.potId) continue;
+        expense += f.amount;
+        if (kindByPot.get(f.potId) === "sinking") drawnPlanned += f.amount;
+        else drawnFromSavings += f.amount;
       }
     }
 
+    const drawnFromFunds = drawnPlanned + drawnFromSavings;
+    const savings = setAside - drawnFromFunds;
     const leftToSpend = income - expense - savings;
-    // `sinking` is a SLICE of `savings`, never an addition to it: the identity
-    // income = expense + savings + leftToSpend has to keep holding.
-    return { income, expense, savings, sinking, leftToSpend, paidFromFunds };
+
+    return {
+      income,
+      expense,
+      savings,
+      leftToSpend,
+      // The parts of `savings`, for a UI that wants to say why it moved.
+      // setAside − drawnFromFunds === savings, always.
+      setAside,
+      sinking,
+      drawnFromFunds,
+      drawnPlanned,
+      drawnFromSavings,
+    };
   },
 });
 
@@ -267,13 +303,18 @@ export const year = query({
       pots.filter((p) => p.kind === "debt").map((p) => p._id),
     );
 
+    // Same counting as `month` above — see the note there for why savings can
+    // go negative and why leftToSpend is unchanged by it.
     const months = Array.from({ length: 12 }, () => ({
       income: 0,
       expense: 0,
       savings: 0,
-      sinking: 0, // a slice of savings, not an addition to it
       leftToSpend: 0,
-      paidFromFunds: 0,
+      setAside: 0,
+      sinking: 0, // a slice of setAside, not an addition to it
+      drawnFromFunds: 0,
+      drawnPlanned: 0,
+      drawnFromSavings: 0,
     }));
     const sinkingPotIds = new Set(
       pots.filter((p) => p.kind === "sinking").map((p) => p._id),
@@ -300,7 +341,7 @@ export const year = query({
         .reduce((s, f) => s + f.amount, 0);
 
       if (t.direction === "transfer") {
-        bucket.savings += fromIncome;
+        bucket.setAside += fromIncome;
         if (t.potId && sinkingPotIds.has(t.potId)) bucket.sinking += fromIncome;
         if (t.potId)
           transfersInYear.set(
@@ -323,7 +364,12 @@ export const year = query({
         bucket.expense += fromIncome;
         for (const f of funding) {
           if (f.potId) {
-            bucket.paidFromFunds += f.amount;
+            // Spending is spending, whichever pocket paid — and the same
+            // amount comes back off savings below.
+            bucket.expense += f.amount;
+            bucket.drawnFromFunds += f.amount;
+            if (sinkingPotIds.has(f.potId)) bucket.drawnPlanned += f.amount;
+            else bucket.drawnFromSavings += f.amount;
             spentFromPotYear.set(
               f.potId,
               (spentFromPotYear.get(f.potId) ?? 0) + f.amount,
@@ -337,18 +383,34 @@ export const year = query({
         }
       }
     }
-    for (const m of months) m.leftToSpend = m.income - m.expense - m.savings;
+    for (const m of months) {
+      m.savings = m.setAside - m.drawnFromFunds;
+      m.leftToSpend = m.income - m.expense - m.savings;
+    }
 
     const totals = months.reduce(
       (a, m) => ({
         income: a.income + m.income,
         expense: a.expense + m.expense,
         savings: a.savings + m.savings,
-        sinking: a.sinking + m.sinking,
         leftToSpend: a.leftToSpend + m.leftToSpend,
-        paidFromFunds: a.paidFromFunds + m.paidFromFunds,
+        setAside: a.setAside + m.setAside,
+        sinking: a.sinking + m.sinking,
+        drawnFromFunds: a.drawnFromFunds + m.drawnFromFunds,
+        drawnPlanned: a.drawnPlanned + m.drawnPlanned,
+        drawnFromSavings: a.drawnFromSavings + m.drawnFromSavings,
       }),
-      { income: 0, expense: 0, savings: 0, sinking: 0, leftToSpend: 0, paidFromFunds: 0 },
+      {
+        income: 0,
+        expense: 0,
+        savings: 0,
+        leftToSpend: 0,
+        setAside: 0,
+        sinking: 0,
+        drawnFromFunds: 0,
+        drawnPlanned: 0,
+        drawnFromSavings: 0,
+      },
     );
 
     const bank = accounts

@@ -47,13 +47,15 @@ type CatAgg = {
  * behind a switch most people never flipped. Both groups start open, so the
  * grouping is a heading over the categories rather than a wall to click through.
  */
-export function CategoriesList({
-  rows,
-  paidFromFunds,
-}: {
-  rows: CategoryRowData[]
-  paidFromFunds: number
-}) {
+/**
+ * This list totals EVERY expense, whichever pocket paid for it — and since the
+ * composition bar above now counts spending the same way, the two agree. They
+ * did not always: the bar used to leave pot-funded spending out, so this list
+ * carried a "+6.000 paid from funds" footnote whose only job was to explain the
+ * gap between two numbers that should never have differed. Both the gap and the
+ * footnote are gone.
+ */
+export function CategoriesList({ rows }: { rows: CategoryRowData[] }) {
   const [open, setOpen] = useState<Set<string>>(
     new Set(['group-Needs', 'group-Wants']),
   )
@@ -150,11 +152,6 @@ export function CategoriesList({
         />
       </div>
 
-      {paidFromFunds > 0 && (
-        <p className="tnum mt-2 text-sm text-stone-500">
-          +{formatMoney(paidFromFunds)} paid from funds
-        </p>
-      )}
     </div>
   )
 }

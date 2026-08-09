@@ -138,9 +138,12 @@ describe("moving money between funds", () => {
     expect(item(repairs).change).toBe(30_000_00);
     expect(year.funds.balance).toBe(50_000_00); // the pair still holds 50
 
-    // A move is not spending, so it must not show as money paid from funds.
-    expect(year.totals.paidFromFunds).toBe(0);
-    expect(year.totals.savings).toBe(50_000_00); // only the original set-aside
+    // A move is not spending. Its funding row carries a potId, but it sits on
+    // a TRANSFER, and only expense transactions count as spending — so nothing
+    // is drawn down and savings still shows only the original set-aside.
+    expect(year.totals.drawnFromFunds).toBe(0);
+    expect(year.totals.expense).toBe(0);
+    expect(year.totals.savings).toBe(50_000_00);
   });
 
   test("a fund may give more than it holds, and owes the difference", async () => {
@@ -273,8 +276,19 @@ describe("editing a move", () => {
     const pots = await asA(t).query(api.pots.balances, { householdId });
     expect(pots.find((p) => p._id === holiday)!.balance).toBe(0);
     const m = await month();
-    expect(m.paidFromFunds).toBe(50_000_00);
-    expect(m.expense).toBe(20_000_00);
+
+    // All 70.000 is spending, whichever pocket paid.
+    expect(m.expense).toBe(70_000_00);
+    // 50.000 of it came back out of the fund, so savings drops by that — the
+    // fund had 50 set aside this month and gave all of it up.
+    expect(m.drawnFromFunds).toBe(50_000_00);
+    expect(m.savings).toBe(0);
+    // What this month's own money paid for: the 50.000 put into the fund, plus
+    // the 20.000 the fund could not cover. 200 − 50 − 20.
+    expect(m.leftToSpend).toBe(130_000_00);
+    // The same figure the previous model gave, which is the point — this
+    // change moves money between `expense` and `savings` and nowhere else.
+    expect(m.income).toBe(m.expense + m.savings + m.leftToSpend);
   });
 
   test("dropping the source turns a move back into saving", async () => {

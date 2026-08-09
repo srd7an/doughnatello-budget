@@ -89,9 +89,21 @@ describe("leftToSpend — the two counting rules", () => {
       occurredOn: `${MONTH}-04`,
     });
     s = await asA(t).query(api.overview.month, { householdId, month: MONTH });
-    expect(s.leftToSpend).toBe(28_000_000); // did not move
-    expect(s.expense).toBe(0); // no income-funded expense
-    expect(s.paidFromFunds).toBe(750_000); // surfaced separately
+
+    // THE invariant, and the reason this whole model change was safe to make:
+    // what you may still spend this month does not move. The 7.500 came out of
+    // money March had already accounted for.
+    expect(s.leftToSpend).toBe(28_000_000);
+
+    // But it IS spending, and now says so. It also comes back off savings by
+    // the same amount, which is what keeps leftToSpend still.
+    expect(s.expense).toBe(750_000);
+    expect(s.savings).toBe(2_000_000 - 750_000);
+    expect(s.setAside).toBe(2_000_000);
+    expect(s.drawnFromFunds).toBe(750_000);
+
+    // The identity the composition bar draws.
+    expect(s.income).toBe(s.expense + s.savings + s.leftToSpend);
   });
 });
 
@@ -302,7 +314,7 @@ describe("the savings split", () => {
     expect(m.income).toBe(m.expense + m.savings + m.leftToSpend);
   });
 
-  test("spending a sinking fund later does not come off that month too", async () => {
+  test("spending a sinking fund shows as spending, and costs the month nothing", async () => {
     const { t, householdId, carStuff } = await setup();
     await setAside(t, householdId, carStuff, 6_000_00, "06");
     const cats = await asA(t).query(api.categories.list, { householdId });
@@ -321,11 +333,60 @@ describe("the savings split", () => {
       householdId,
       month: "2026-09",
     });
-    // It shows as paid from funds, and takes nothing off September.
-    expect(sep.paidFromFunds).toBe(6_000_00);
-    expect(sep.expense).toBe(0);
-    expect(sep.savings).toBe(0);
-    expect(sep.sinking).toBe(0);
+    // September spent 6.000 on the car — it did happen, and it says so.
+    expect(sep.expense).toBe(6_000_00);
+    // And the same 6.000 comes back off savings, because it was already taken
+    // off July when it was set aside. That is what stops it counting twice.
+    expect(sep.savings).toBe(-6_000_00);
+    expect(sep.drawnFromFunds).toBe(6_000_00);
+    // Planned, not a raid: the fund existed for exactly this.
+    expect(sep.drawnPlanned).toBe(6_000_00);
+    expect(sep.drawnFromSavings).toBe(0);
+    // September's own income is untouched by any of it.
+    expect(sep.leftToSpend).toBe(sep.income);
+  });
+
+  test("over the two months, the money is spent once and saved not at all", async () => {
+    const { t, householdId, carStuff } = await setup();
+    await setAside(t, householdId, carStuff, 6_000_00, "06");
+    const cats = await asA(t).query(api.categories.list, { householdId });
+    await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "expense",
+      amount: 6_000_00,
+      categoryId: cats.find((c) => c.name === "Car")!._id,
+      takeFromPotId: carStuff,
+      occurredOn: "2026-09-15",
+    });
+
+    const y = await asA(t).query(api.overview.year, { householdId, year: "2026" });
+    // The year used to claim 6.000 SAVED, for money that went on the car. It
+    // now says what happened: spent once, saved nothing net.
+    expect(y.totals.expense).toBe(6_000_00);
+    expect(y.totals.savings).toBe(0);
+    expect(y.totals.setAside).toBe(6_000_00);
+    expect(y.totals.drawnFromFunds).toBe(6_000_00);
+  });
+
+  test("raiding a savings fund is told apart from spending a sinking one", async () => {
+    const { t, householdId, cash } = await setup();
+    await setAside(t, householdId, cash, 10_000_00, "05");
+    const cats = await asA(t).query(api.categories.list, { householdId });
+
+    await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "expense",
+      amount: 4_000_00,
+      categoryId: cats.find((c) => c.name === "Grocery")!._id,
+      takeFromPotId: cash,
+      occurredOn: `${MONTH}-20`,
+    });
+
+    const m = await asA(t).query(api.overview.month, { householdId, month: MONTH });
+    // Same arithmetic as the planned case — only the label differs, and the
+    // label is what the UI needs to say "this month did not fit".
+    expect(m.drawnFromSavings).toBe(4_000_00);
+    expect(m.drawnPlanned).toBe(0);
   });
 
   test("a fund with no kind set behaves as plain savings", async () => {

@@ -52,17 +52,6 @@ export function MonthView() {
     setLens('transactions')
   }
 
-  // Only worth saying when there is something on both sides of the split; one
-  // number restated as itself explains nothing.
-  const savedTotal = summary?.savings ?? 0
-  const forBills = summary?.sinking ?? 0
-  const savingsNote =
-    forBills > 0 && forBills < savedTotal
-      ? `${formatMoney(savedTotal - forBills)} put away · ${formatMoney(forBills)} for bills coming`
-      : forBills > 0 && forBills === savedTotal
-        ? 'all of it for bills coming'
-        : undefined
-
   // Categories with spending in them, which is what that list draws — not how
   // many categories exist. Undefined while the rows are still loading, so the
   // tab shows no count rather than a confident zero.
@@ -75,8 +64,51 @@ export function MonthView() {
     year === now.getFullYear() && month === now.getMonth() + 1
 
   const income = summary?.income ?? 0
-  const denom = Math.max(income, 1)
   const leftToSpend = summary?.leftToSpend ?? 0
+  const savings = summary?.savings ?? 0
+
+  /**
+   * The bar is as wide as the money the month DISPOSED of, which is not always
+   * what it earned.
+   *
+   * Savings goes negative when more came out of the funds than went into them —
+   * a bill the fund was built for, or a month that did not fit. Either way the
+   * month spent past its own income, and the bar says so by running past the
+   * income mark rather than by squeezing everything back inside it.
+   */
+  const overspent = Math.max(-savings, 0)
+  const denom = Math.max(income + overspent, 1)
+
+  /**
+   * The line under Savings, which now has two quite different jobs.
+   *
+   * When savings is POSITIVE it splits what was set aside: a pile you are
+   * building against a bill you are getting ahead of.
+   *
+   * When it is NEGATIVE the month took more out of the funds than it put in,
+   * and the only thing worth saying is which kind of fund paid. Money out of a
+   * sinking fund is the plan completing and wants no alarm; money out of a
+   * savings fund is a month that did not fit inside its income, and that is
+   * precisely the thing this app could not tell you before.
+   */
+  const setAside = summary?.setAside ?? 0
+  const forBills = summary?.sinking ?? 0
+  const planned = summary?.drawnPlanned ?? 0
+  const raided = summary?.drawnFromSavings ?? 0
+
+  const savingsNote =
+    savings < 0
+      ? [
+          raided > 0 && `${formatMoney(raided)} out of savings`,
+          planned > 0 && `${formatMoney(planned)} spent as planned`,
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      : forBills > 0 && forBills < setAside
+        ? `${formatMoney(setAside - forBills)} put away · ${formatMoney(forBills)} for bills coming`
+        : forBills > 0 && forBills === setAside
+          ? 'all of it for bills coming'
+          : undefined
 
   return (
     <div className="space-y-6">
@@ -121,13 +153,22 @@ export function MonthView() {
             note={savingsNote}
           />
         </div>
-        {/* Composition bar: Leftover · Expense · Savings, width = income.
-            Each segment answers for itself on hover and focus; the metric row
-            above is the same three figures, always visible. */}
+        {/* Composition bar: Leftover · Expense · Savings. Each segment answers
+            for itself on hover and focus; the metric row above is the same
+            three figures, always visible. */}
         <div
-          className="mt-4 flex h-5 gap-1"
+          className="relative mt-4 flex h-5 gap-1"
           onPointerLeave={() => setHover(null)}
         >
+          {/* Where the income ran out. Only drawn when something crossed it,
+              because a line at the end of a bar is not a line, it is an edge. */}
+          {overspent > 0 && income > 0 && (
+            <span
+              aria-hidden
+              className="absolute inset-y-[-3px] z-10 w-px bg-stone-800"
+              style={{ left: `${(income / denom) * 100}%` }}
+            />
+          )}
           {income > 0 ? (
             <>
               {/* Leftover has no click: it is what did NOT happen, the
@@ -152,17 +193,23 @@ export function MonthView() {
                   show({ kind: 'direction', direction: 'expense', label: 'Expenses' })
                 }
               />
-              <Seg
-                className="bg-saved"
-                color={SERIES.saved}
-                label="Savings"
-                amount={summary?.savings ?? 0}
-                frac={(summary?.savings ?? 0) / denom}
-                onHover={setHover}
-                onSelect={() =>
-                  show({ kind: 'direction', direction: 'transfer', label: 'Money set aside' })
-                }
-              />
+              {/* Only when it is positive. A negative saving is not a slice of
+                  this bar — it is the reason the bar is longer than the income,
+                  and it is already drawn as the part of Expense that reaches
+                  past the mark. */}
+              {savings > 0 && (
+                <Seg
+                  className="bg-saved"
+                  color={SERIES.saved}
+                  label="Savings"
+                  amount={savings}
+                  frac={savings / denom}
+                  onHover={setHover}
+                  onSelect={() =>
+                    show({ kind: 'direction', direction: 'transfer', label: 'Money set aside' })
+                  }
+                />
+              )}
             </>
           ) : (
             <div className="w-full rounded-sm bg-stone-100" />
@@ -212,10 +259,7 @@ export function MonthView() {
       {lens === 'transactions' ? (
         <TransactionsList filter={filter} onClearFilter={() => setFilter(null)} />
       ) : (
-        <CategoriesList
-          rows={rows ?? []}
-          paidFromFunds={summary?.paidFromFunds ?? 0}
-        />
+        <CategoriesList rows={rows ?? []} />
       )}
     </div>
   )
