@@ -126,7 +126,8 @@ export function CategoriesList({ rows }: { rows: CategoryRowData[] }) {
         <BarRow
           share={1}
           showShare={false}
-          tone="bg-lime-100 group-hover:bg-lime-200"
+          tone="bg-lime-200 group-hover:bg-lime-300"
+          track="bg-lime-50"
           expanded={open.has('income')}
           onClick={() => toggle('income')}
           label="Income"
@@ -178,6 +179,7 @@ export function CategoriesList({ rows }: { rows: CategoryRowData[] }) {
 function BarRow({
   share,
   tone,
+  track,
   expanded,
   onClick,
   icon,
@@ -187,7 +189,10 @@ function BarRow({
   showShare = true,
 }: {
   share: number
+  /** The proportional fill — the stronger of the two tints. */
   tone: string
+  /** The row's own background — the same hue, much fainter. */
+  track: string
   expanded: boolean
   onClick: () => void
   icon?: string
@@ -199,7 +204,11 @@ function BarRow({
 }) {
   const pct = Math.max(0, Math.min(share, 1)) * 100
   return (
-    <div className="group relative overflow-hidden rounded-lg">
+    // Two layers of the same hue, and the pair is what makes the proportion
+    // legible. The faint one runs the full width and is the WHOLE — income —
+    // so the stronger one reads as a share of something rather than as a lone
+    // bar floating in white with no scale to be measured against.
+    <div className={`group relative overflow-hidden rounded-lg ${track}`}>
       <div
         aria-hidden
         className={`absolute inset-y-0 left-0 transition-colors ${tone}`}
@@ -271,9 +280,10 @@ function Group({
         // committed/discretionary split is expressed as colour.
         tone={
           label === 'Needs'
-            ? 'bg-violet-100 group-hover:bg-violet-200'
-            : 'bg-orange-100 group-hover:bg-orange-200'
+            ? 'bg-violet-200 group-hover:bg-violet-300'
+            : 'bg-orange-200 group-hover:bg-orange-300'
         }
+        track={label === 'Needs' ? 'bg-violet-50' : 'bg-orange-50'}
         expanded={open.has(key)}
         onClick={() => toggle(key)}
         label={label}
@@ -317,7 +327,8 @@ function CategoryRow({
     <>
       <BarRow
         share={share}
-        tone="bg-stone-100 group-hover:bg-stone-200"
+        tone="bg-stone-200 group-hover:bg-stone-300"
+        track="bg-stone-50"
         expanded={open.has(cat.id)}
         onClick={() => toggle(cat.id)}
         icon={cat.icon}

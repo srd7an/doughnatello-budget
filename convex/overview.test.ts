@@ -255,53 +255,58 @@ describe("net worth — the double-count trap", () => {
  * sinking fund must NOT come off that later month, or the same money is counted
  * twice. So `sinking` is reported as a SLICE of `savings`, never beside it.
  */
-describe("the savings split", () => {
-  async function setup() {
-    const t = convexTest(schema);
-    const householdId = await asA(t).mutation(api.households.create, {
-      name: "Home",
-      displayName: "Me",
-    });
-    const cats = await asA(t).query(api.categories.list, { householdId });
-    const fund = (name: string, kind: "savings" | "sinking") =>
-      asA(t).mutation(api.pots.create, {
-        householdId,
-        name,
-        kind,
-        icon: "piggy",
-        color: "#1D9E75",
-      });
-    const [cash, carStuff] = await Promise.all([
-      fund("Cash fund", "savings"),
-      fund("Car stuff", "sinking"),
-    ]);
-    await asA(t).mutation(api.transactions.create, {
+/**
+ * A household with one savings fund and one sinking fund, and a month's income
+ * already in. Shared by the two suites that care which kind a fund is.
+ */
+async function withFunds() {
+  const t = convexTest(schema);
+  const householdId = await asA(t).mutation(api.households.create, {
+    name: "Home",
+    displayName: "Me",
+  });
+  const cats = await asA(t).query(api.categories.list, { householdId });
+  const fund = (name: string, kind: "savings" | "sinking") =>
+    asA(t).mutation(api.pots.create, {
       householdId,
-      direction: "income",
-      amount: 200_000_00,
-      categoryId: cats.find((c) => c.kind === "income")!._id,
-      occurredOn: `${MONTH}-01`,
+      name,
+      kind,
+      icon: "piggy",
+      color: "#1D9E75",
     });
-    return { t, householdId, cash, carStuff };
-  }
+  const [cash, carStuff] = await Promise.all([
+    fund("Cash fund", "savings"),
+    fund("Car stuff", "sinking"),
+  ]);
+  await asA(t).mutation(api.transactions.create, {
+    householdId,
+    direction: "income",
+    amount: 200_000_00,
+    categoryId: cats.find((c) => c.kind === "income")!._id,
+    occurredOn: `${MONTH}-01`,
+  });
+  return { t, householdId, cash, carStuff };
+}
 
-  const setAside = (
-    t: ReturnType<typeof convexTest>,
-    householdId: Id<"households">,
-    potId: Id<"pots">,
-    amount: number,
-    day: string,
-  ) =>
-    asA(t).mutation(api.transactions.create, {
-      householdId,
-      direction: "transfer",
-      amount,
-      potId,
-      occurredOn: `${MONTH}-${day}`,
-    });
+const setAside = (
+  t: ReturnType<typeof convexTest>,
+  householdId: Id<"households">,
+  potId: Id<"pots">,
+  amount: number,
+  day: string,
+) =>
+  asA(t).mutation(api.transactions.create, {
+    householdId,
+    direction: "transfer",
+    amount,
+    potId,
+    occurredOn: `${MONTH}-${day}`,
+  });
+
+describe("the savings split", () => {
 
   test("sinking is part of savings, and the identity still holds", async () => {
-    const { t, householdId, cash, carStuff } = await setup();
+    const { t, householdId, cash, carStuff } = await withFunds();
     await setAside(t, householdId, cash, 13_291_00, "05");
     await setAside(t, householdId, carStuff, 6_000_00, "06");
 
@@ -315,7 +320,7 @@ describe("the savings split", () => {
   });
 
   test("spending a sinking fund shows as spending, and costs the month nothing", async () => {
-    const { t, householdId, carStuff } = await setup();
+    const { t, householdId, carStuff } = await withFunds();
     await setAside(t, householdId, carStuff, 6_000_00, "06");
     const cats = await asA(t).query(api.categories.list, { householdId });
 
@@ -347,7 +352,7 @@ describe("the savings split", () => {
   });
 
   test("over the two months, the money is spent once and saved not at all", async () => {
-    const { t, householdId, carStuff } = await setup();
+    const { t, householdId, carStuff } = await withFunds();
     await setAside(t, householdId, carStuff, 6_000_00, "06");
     const cats = await asA(t).query(api.categories.list, { householdId });
     await asA(t).mutation(api.transactions.create, {
@@ -369,7 +374,7 @@ describe("the savings split", () => {
   });
 
   test("raiding a savings fund is told apart from spending a sinking one", async () => {
-    const { t, householdId, cash } = await setup();
+    const { t, householdId, cash } = await withFunds();
     await setAside(t, householdId, cash, 10_000_00, "05");
     const cats = await asA(t).query(api.categories.list, { householdId });
 
@@ -390,7 +395,7 @@ describe("the savings split", () => {
   });
 
   test("a fund with no kind set behaves as plain savings", async () => {
-    const { t, householdId, cash } = await setup();
+    const { t, householdId, cash } = await withFunds();
     await setAside(t, householdId, cash, 5_000_00, "05");
     const m = await asA(t).query(api.overview.month, { householdId, month: MONTH });
     expect(m.savings).toBe(5_000_00);
@@ -398,7 +403,7 @@ describe("the savings split", () => {
   });
 
   test("the year splits it the same way", async () => {
-    const { t, householdId, cash, carStuff } = await setup();
+    const { t, householdId, cash, carStuff } = await withFunds();
     await setAside(t, householdId, cash, 10_000_00, "05");
     await setAside(t, householdId, carStuff, 4_000_00, "06");
 
@@ -407,3 +412,102 @@ describe("the savings split", () => {
     expect(y.totals.sinking).toBe(4_000_00);
   });
 });
+
+/**
+ * The chips under the month's bar: what each fund and loan actually did.
+ *
+ * The bar says how much was set aside in total. This says WHERE, which is the
+ * question a single savings figure cannot answer — and the one that sent me
+ * looking at the database by hand more than once.
+ */
+describe("what the funds did this month", () => {
+  test("a fund that was filled, and one that paid for something", async () => {
+    const { t, householdId, cash, carStuff } = await withFunds();
+    const cats = await asA(t).query(api.categories.list, { householdId });
+
+    await setAside(t, householdId, cash, 12_000_00, "05");
+    await setAside(t, householdId, carStuff, 6_000_00, "06");
+    await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "expense",
+      amount: 2_000_00,
+      categoryId: cats.find((c) => c.name === "Car")!._id,
+      takeFromPotId: carStuff,
+      occurredOn: `${MONTH}-20`,
+    });
+
+    const chips = await asA(t).query(api.overview.monthPots, {
+      householdId,
+      month: MONTH,
+    });
+    const by = (name: string) => chips.find((c) => c.name === name)!;
+
+    expect(by("Cash fund").change).toBe(12_000_00);
+    // Filled with 6.000, spent 2.000 out of it.
+    expect(by("Car stuff").change).toBe(4_000_00);
+    // Largest movement first.
+    expect(chips[0].name).toBe("Cash fund");
+  });
+
+  test("a fund nothing happened to does not appear", async () => {
+    const { t, householdId, cash } = await withFunds();
+    await setAside(t, householdId, cash, 5_000_00, "05");
+
+    const chips = await asA(t).query(api.overview.monthPots, {
+      householdId,
+      month: MONTH,
+    });
+    expect(chips.map((c) => c.name)).toEqual(["Cash fund"]);
+  });
+
+  test("paying a loan reads as a positive movement — less owed", async () => {
+    const { t, householdId } = await setup();
+    const cats = await asA(t).query(api.categories.list, { householdId });
+    const loan = await asA(t).mutation(api.pots.create, {
+      householdId,
+      name: "KIA Sportage",
+      kind: "debt",
+      icon: "car",
+      color: "#B45309",
+      originalAmount: 900_000_00,
+    });
+
+    await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "expense",
+      amount: 42_400_00,
+      categoryId: cats.find((c) => c.name === "Car")!._id,
+      potId: loan,
+      occurredOn: `${MONTH}-10`,
+    });
+
+    const chips = await asA(t).query(api.overview.monthPots, {
+      householdId,
+      month: MONTH,
+    });
+    expect(chips.find((c) => c.name === "KIA Sportage")!.change).toBe(42_400_00);
+  });
+
+  test("a move between funds shows on both ends, and nets to nothing", async () => {
+    const { t, householdId, cash, carStuff } = await withFunds();
+    await setAside(t, householdId, cash, 10_000_00, "05");
+    await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "transfer",
+      amount: 3_000_00,
+      fromPotId: cash,
+      potId: carStuff,
+      occurredOn: `${MONTH}-15`,
+    });
+
+    const chips = await asA(t).query(api.overview.monthPots, {
+      householdId,
+      month: MONTH,
+    });
+    const by = (name: string) => chips.find((c) => c.name === name)!;
+    expect(by("Cash fund").change).toBe(7_000_00);
+    expect(by("Car stuff").change).toBe(3_000_00);
+    // Nothing was created or destroyed by moving it.
+    expect(by("Cash fund").change + by("Car stuff").change).toBe(10_000_00);
+  });
+})

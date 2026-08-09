@@ -74,8 +74,24 @@ export function YearView() {
         />
       </div>
 
-      {/* Stock accordions — path is the chart, endpoints are these rows */}
+      {/* Stock accordions — path is the chart, endpoints are these rows.
+          TWO columns, deliberately. The design carried four — money in, money
+          out, neto, total — and the middle two do not survive contact with the
+          rows they have to serve. Neto is money-in minus money-out, arithmetic
+          the reader can already see. An asset has no in and out at all; it is
+          revalued, which is a different kind of event, and the design filled
+          those cells with "No change | 0" — a table admitting the row does not
+          fit. And on a loan the signs are ambiguous: "+180.000 in" could be
+          borrowing more or paying down, which are opposite facts about your net
+          worth. Change and Total are honest for all three. The in/out detail
+          belongs on a fund's own page, where there is room and where you went
+          BECAUSE you wanted detail. */}
       <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-4 px-3 pb-1 text-xs text-stone-400">
+          <span className="flex-1" />
+          <span>Change</span>
+          <span className="w-[100px] text-right">Total</span>
+        </div>
         {/* Every row opens the thing it names. A fund's page lists money
             moving; an asset's lists what it has been worth. */}
         <Accordion label="Funds" group={data.funds} linkTo="/funds" />

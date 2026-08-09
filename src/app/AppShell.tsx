@@ -187,18 +187,25 @@ function BackLink() {
 function PrivacyToggle() {
   const { hidden, toggle } = usePrivacy()
   return (
+    // The word only where there is room for it. On a phone the header already
+    // carries the brand and the avatar, and a third labelled control pushes one
+    // of them off — the eye alone says enough there, and the accessible name
+    // says the rest for anyone who cannot see it.
     <button
       onClick={toggle}
       aria-pressed={hidden}
       aria-label={hidden ? 'Show amounts' : 'Hide amounts'}
       title={hidden ? 'Show amounts' : 'Hide amounts'}
-      className="grid size-11 shrink-0 place-items-center rounded-full text-stone-500 hover:bg-stone-100 hover:text-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:size-8"
+      className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-sm text-stone-600 hover:bg-stone-100 hover:text-stone-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-8 sm:border sm:border-stone-200 sm:bg-white"
     >
       {hidden ? (
-        <EyeSlashIcon size={20} aria-hidden />
+        <EyeSlashIcon size={18} aria-hidden />
       ) : (
-        <EyeIcon size={20} aria-hidden />
+        <EyeIcon size={18} aria-hidden />
       )}
+      <span className="hidden sm:inline">
+        {hidden ? 'Show numbers' : 'Hide numbers'}
+      </span>
     </button>
   )
 }

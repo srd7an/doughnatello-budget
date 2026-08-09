@@ -133,6 +133,24 @@ function TransactionRow({ row, onOpen }: { row: Row; onOpen: () => void }) {
   const name =
     row.payee || row.category?.name || row.pot?.name || row.fromPot?.name || '—'
 
+  /**
+   * A transfer is not a thing that happened to a category — it is money moving
+   * between two named places, and the row says so in full: the source, an
+   * arrow, the destination, each with its own glyph. Unset ends are this
+   * month's income, which is what "from nowhere in particular" means here.
+   *
+   * It replaces the single-icon-plus-pill an expense wears, because on a
+   * transfer that pill was carrying the whole meaning of the row in the
+   * smallest type on it.
+   */
+  const isMove = row.direction === 'transfer'
+  const ends = isMove
+    ? {
+        from: row.fromPot ?? null,
+        to: row.pot ?? null,
+      }
+    : null
+
   return (
     <li>
       {/* The dashed rule belongs to the ROW, not to the gap under it. Sitting
@@ -143,25 +161,36 @@ function TransactionRow({ row, onOpen }: { row: Row; onOpen: () => void }) {
         onClick={onOpen}
         className="flex min-h-11 w-full items-center gap-2 border-b border-dashed border-stone-300 px-3 py-1.5 text-left hover:rounded-lg hover:border-transparent hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:min-h-9"
       >
-        {/* A bare icon in the category's own colour. The design has no disc behind
-          it — the tinted circle it replaced added weight to every single row. */}
-        <CategoryIcon icon={glyph?.icon} color={color} className="shrink-0" />
-
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-stone-800">
-          {name}
-        </span>
-
-        {/* Which fund or loan this touched. A move has both ends, and reads as
-            one: "Holiday → Repairs", or "Holiday →" when the money is simply
-            let go of. */}
-        {(row.pot || row.fromPot) && (
-          <span className="hidden shrink-0 items-center gap-1 rounded-md border border-stone-300 bg-white px-1.5 py-0.5 text-xs text-stone-800 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] sm:inline-flex">
-            {row.fromPot && <span>{row.fromPot.name}</span>}
-            {row.direction === 'transfer' && (
-              <ArrowRightIcon size={12} aria-hidden />
-            )}
-            {row.pot?.name}
+        {ends ? (
+          <span className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium text-stone-800">
+            <End pot={ends.from} />
+            <ArrowRightIcon size={14} className="shrink-0 text-stone-400" aria-hidden />
+            <End pot={ends.to} />
           </span>
+        ) : (
+          <>
+            {/* A bare icon in the category's own colour. The design has no disc
+              behind it — the tinted circle it replaced added weight to every
+              single row. */}
+            <CategoryIcon icon={glyph?.icon} color={color} className="shrink-0" />
+
+            <span className="min-w-0 flex-1 truncate text-sm font-medium text-stone-800">
+              {name}
+            </span>
+
+            {/* Which fund or loan this touched, and WHICH WAY. The bare name
+                could not say whether the money came out of it or went into it —
+                on an expense the two are opposite facts, and one word fixes it:
+                "From Cash fund" against "To KIA Sportage". */}
+            {(row.fundedFromPot || row.pot) && (
+              <span className="hidden shrink-0 items-center gap-1 rounded-md bg-stone-100 px-1.5 py-0.5 text-xs text-stone-800 sm:inline-flex">
+                <span className="text-stone-500">
+                  {row.fundedFromPot ? 'From' : 'To'}
+                </span>
+                {(row.fundedFromPot ?? row.pot)?.name}
+              </span>
+            )}
+          </>
         )}
 
         <span
@@ -185,5 +214,24 @@ function TransactionRow({ row, onOpen }: { row: Row; onOpen: () => void }) {
         </span>
       </button>
     </li>
+  )
+}
+
+/**
+ * One end of a transfer. An unset pot is this month's income — the money that
+ * has not been promised to anything, which is where a plain "set some aside"
+ * comes from and where a release puts it back.
+ */
+function End({ pot }: { pot: { name: string; icon: string; color: string } | null }) {
+  return (
+    <span className="flex min-w-0 items-center gap-1.5">
+      <CategoryIcon
+        icon={pot?.icon ?? 'wallet'}
+        color={pot?.color}
+        size={18}
+        className="shrink-0"
+      />
+      <span className="truncate">{pot?.name ?? 'Income'}</span>
+    </span>
   )
 }

@@ -127,6 +127,70 @@ export const month = query({
 });
 
 /**
+ * What each fund and loan did THIS MONTH — the chips under the month's bar.
+ *
+ * The composition bar says how much was set aside in total; this says where it
+ * went, and what came back out. A month that put 12.000 into the cash fund and
+ * paid 42.400 off the car loan has two facts worth seeing, and neither of them
+ * survives being added into a single "savings" figure.
+ *
+ * Only pots that MOVED appear. A list of every fund with most of them reading
+ * zero is a list you stop looking at.
+ */
+export const monthPots = query({
+  args: { householdId: v.id("households"), month: v.string() }, // YYYY-MM
+  handler: async (ctx, { householdId, month }) => {
+    await requireMember(ctx, householdId);
+
+    const [txs, pots] = await Promise.all([
+      ctx.db
+        .query("transactions")
+        .withIndex("by_household_date", (q) =>
+          q
+            .eq("householdId", householdId)
+            .gte("occurredOn", `${month}-01`)
+            .lte("occurredOn", `${month}-31`),
+        )
+        .collect(),
+      ctx.db
+        .query("pots")
+        .withIndex("by_household", (q) => q.eq("householdId", householdId))
+        .collect(),
+    ]);
+
+    const change = new Map<Id<"pots">, number>();
+    const add = (id: Id<"pots">, n: number) =>
+      change.set(id, (change.get(id) ?? 0) + n);
+
+    for (const t of txs) {
+      // Into a fund, or off a loan. A debt pot going "up" means less owed,
+      // which is why both read as a positive movement of the same kind.
+      if (t.potId) add(t.potId, t.amount);
+      const funding = await ctx.db
+        .query("transactionFunding")
+        .withIndex("by_transaction", (q) => q.eq("transactionId", t._id))
+        .collect();
+      // Out of a fund: spent from it, or moved to another one.
+      for (const f of funding) if (f.potId) add(f.potId, -f.amount);
+    }
+
+    return pots
+      .filter((p) => !p.isArchived && (change.get(p._id) ?? 0) !== 0)
+      .map((p) => ({
+        _id: p._id,
+        name: p.name,
+        icon: p.icon,
+        color: p.color,
+        kind: p.kind,
+        change: change.get(p._id) ?? 0,
+      }))
+      // Biggest movement first, whichever direction — the eye should land on
+      // the month's largest fact about its funds.
+      .sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+  },
+});
+
+/**
  * The three balance numbers, which are all distinct from leftToSpend:
  *   inBank   — the manually-entered bank balance
  *   setAside — Σ savings + sinking pot balances (debt EXCLUDED)

@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { useHousehold } from '../household/HouseholdContext'
-import { usePeriod } from '../period/PeriodContext'
+import { usePeriod, useKeepPeriod } from '../period/PeriodContext'
 import { formatMoney, formatPercent } from '../lib/format'
 import { Swatch } from '../ui/Swatch'
+import { CategoryIcon } from '../ui/icons'
 import { ChartTooltip, SERIES } from '../ui/ChartTooltip'
 import { TransactionsList, type TxFilter } from './TransactionsList'
 import { CategoriesList } from './CategoriesList'
@@ -37,10 +39,15 @@ export function MonthView() {
     householdId: household._id,
     month: monthKey,
   })
+  const potMoves = useQuery(api.overview.monthPots, {
+    householdId: household._id,
+    month: monthKey,
+  })
 
   const [lens, setLens] = useState<Lens>('transactions')
   const [hover, setHover] = useState<Hover | null>(null)
   const [filter, setFilter] = useState<TxFilter | null>(null)
+  const keepPeriod = useKeepPeriod()
 
   // A filter belongs to the month it was set in. Carrying "Rainy day" into
   // September, where nothing touched it, would look like data loss.
@@ -116,22 +123,33 @@ export function MonthView() {
       {isCurrentMonth && <DueSoon />}
 
       <section>
-        <p className="text-sm text-stone-500">Income · {label}</p>
+        {/* The headline is what is LEFT, not what came in.
+            Income is a fact about the past and there is nothing to do with it;
+            what remains is the only figure on this screen you decide by. It
+            keeps its place in the key below, where it is the thing the other
+            three are shares OF. */}
+        <p className="flex items-center gap-1.5 text-sm text-stone-500">
+          {isCurrentMonth ? 'Left to spend' : 'Left from income'}
+          <Swatch className="bg-leftover" />
+        </p>
         <p className="tnum">
           <span className="text-[32px] leading-none text-stone-800">
-            {formatMoney(income)}
+            {formatMoney(leftToSpend)}
           </span>
-          <span className="ml-1 text-sm text-stone-500">RSD</span>
+          {income > 0 && (
+            <span className="ml-1.5 text-sm text-stone-500">
+              {formatPercent(leftToSpend / income)}
+            </span>
+          )}
         </p>
 
         {/* The key, above the bar it explains — the same running order as
             the year: headline, key, picture. */}
         <div className="mt-4 flex flex-wrap gap-8">
           <Metric
-            swatch="bg-leftover"
-            label={isCurrentMonth ? 'Left to spend' : 'Leftover'}
-            amount={leftToSpend}
-            share={income > 0 ? leftToSpend / income : null}
+            label="Income"
+            amount={income}
+            share={null}
           />
           <Metric
             swatch="bg-expense"
@@ -215,6 +233,35 @@ export function MonthView() {
             <div className="w-full rounded-sm bg-stone-100" />
           )}
         </div>
+
+        {/* What the month did to each fund and loan.
+            The bar says how much was set aside; this says WHERE — which is the
+            question a single savings figure cannot answer, and the one that
+            used to need a look at the database. Each chip opens the fund's own
+            page, because "what happened here" is the next thing you ask. */}
+        {potMoves && potMoves.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {potMoves.map((p) => (
+              <Link
+                key={p._id}
+                to={keepPeriod(`/funds/${p._id}`)}
+                className={`flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-8 ${
+                  p.change > 0 ? 'bg-emerald-50' : 'bg-stone-100'
+                }`}
+              >
+                <CategoryIcon icon={p.icon} color={p.color} size={16} />
+                <span className="text-stone-800">{p.name}</span>
+                <span
+                  data-money
+                  className={p.change > 0 ? 'text-gain' : 'text-stone-600'}
+                >
+                  {p.change > 0 ? '+' : ''}
+                  {formatMoney(p.change)}
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
 
         {hover && (
           <ChartTooltip
@@ -331,7 +378,9 @@ function Metric({
   share,
   note,
 }: {
-  swatch: string
+  /** Absent for Income, which is not a SEGMENT of the bar — it is the length
+   *  of the bar, and the three coloured figures are shares of it. */
+  swatch?: string
   label: string
   amount: number
   share: number | null
@@ -343,7 +392,7 @@ function Metric({
     <div>
       <p className="flex items-center gap-1.5 text-sm text-stone-500">
         {label}
-        <Swatch className={swatch} />
+        {swatch && <Swatch className={swatch} />}
       </p>
       <p className="tnum mt-0.5 text-sm">
         <span className="text-stone-800">{formatMoney(amount)}</span>

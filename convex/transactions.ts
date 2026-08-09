@@ -401,6 +401,15 @@ export async function enrichRows(
             }
           : null,
         pot: pot ? { name: pot.name, icon: pot.icon, color: pot.color } : null,
+        // The fund an expense actually came OUT of, resolved. The row needs the
+        // name to say "From Cash fund" — and it must stay distinct from `pot`,
+        // which on an expense may be the LOAN being paid down instead. Those
+        // two are opposite directions and the word in front of them is the only
+        // thing that tells them apart.
+        fundedFromPot: (() => {
+          const p = fundedFromPotId ? potById.get(fundedFromPotId) : undefined;
+          return p ? { name: p.name, icon: p.icon, color: p.color } : null;
+        })(),
         // Only a move has both ends. The pill reads "from → into" then.
         fromPot: fromPot
           ? { name: fromPot.name, icon: fromPot.icon, color: fromPot.color }
