@@ -60,7 +60,7 @@ export function SearchField({
           type="search"
           placeholder="Search"
           aria-label={label}
-          className="h-9 min-w-0 flex-1 bg-transparent text-sm text-stone-800 outline-none placeholder:text-stone-500 [&::-webkit-search-cancel-button]:hidden"
+          className="h-11 min-w-0 flex-1 bg-transparent sm:h-9 text-sm text-stone-800 outline-none placeholder:text-stone-500 [&::-webkit-search-cancel-button]:hidden"
         />
       </div>
       {empty && (

@@ -12,6 +12,7 @@ import { Button } from '../ui/Button'
 import { SM, useMediaQuery } from '../lib/useMediaQuery'
 import { useKeepPeriod } from '../period/PeriodContext'
 import { Logo } from '../ui/Logo'
+import { PlusIcon } from '../ui/icons'
 import { EyeIcon, EyeSlashIcon } from '../ui/icons'
 import { usePrivacy } from '../lib/privacy'
 import { useHousehold } from '../household/HouseholdContext'
@@ -92,7 +93,15 @@ export function AppShell() {
       {/* pt carries the notch: installed to the Home Screen there is no
           browser chrome, so row one starts at y=0 — under the clock. The inset
           is 0 in a browser tab, so this is the same header in both. */}
-      <header className="sticky top-0 z-30 bg-white/90 px-4 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-2 backdrop-blur">
+      {/* Both strips float ON the page rather than sitting above and below it,
+          so each fades into what it overlaps: the header is solid white at the
+          top and nothing by its lower edge, the footer the reverse. A hard edge
+          would cut the content in half; a gradient lets it run under and
+          disappear. Deliberately no blur — the fade is doing that job, and
+          backdrop-filter makes an element the containing block for its fixed
+          descendants, which is how the add sheet once ended up pinned to the
+          header instead of to the screen. */}
+      <header className="sticky top-0 z-30 bg-gradient-to-b from-white via-white to-transparent px-4 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-6">
         <div className="mx-auto max-w-[800px]">
           {/* Row 1: brand + account */}
           <div className="flex items-center justify-between">
@@ -126,15 +135,30 @@ export function AppShell() {
           `pointer-events-none` on the strip lets a click through it to what is
           underneath. Only the controls themselves take clicks. */}
       {!onPage && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 bg-gradient-to-t from-white via-white to-transparent px-4 pt-8 pb-[calc(1rem+env(safe-area-inset-bottom))]">
           <div className="mx-auto flex max-w-[800px] items-center justify-between gap-2">
             <div className="pointer-events-auto relative">
               <PeriodControl />
             </div>
+            {/* A plus on a phone. The sentence is worth its width on a desktop
+                and costs half the strip on a phone, where a plus in a circle is
+                the most legible button there is. Rendered, not hidden: two of
+                them existing with one display:none is how they both once showed
+                up at the same time. */}
             <div className="pointer-events-auto relative">
-              <Button variant="primary" onClick={() => open('/add')}>
-                Add transaction
-              </Button>
+              {isDesktop ? (
+                <Button variant="primary" onClick={() => open('/add')}>
+                  Add transaction
+                </Button>
+              ) : (
+                <button
+                  onClick={() => open('/add')}
+                  aria-label="Add transaction"
+                  className="grid size-14 place-items-center rounded-full bg-brand text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                >
+                  <PlusIcon className="size-6" />
+                </button>
+              )}
               {addOpen && isDesktop && <AddTransactionPopover onClose={close} />}
             </div>
           </div>
@@ -201,7 +225,10 @@ function PrivacyToggle() {
       aria-pressed={hidden}
       aria-label={hidden ? 'Show amounts' : 'Hide amounts'}
       title={hidden ? 'Show amounts' : 'Hide amounts'}
-      className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-stone-200 bg-white px-2.5 text-sm text-stone-600 hover:bg-stone-50 hover:text-stone-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-8"
+      // A circle while it is only an icon, and a pill once the word joins it.
+      // Padding around an 18px glyph gave 38 wide by 44 tall — an egg. Fixing
+      // the size rather than the padding is the only way that stays round.
+      className="grid size-11 shrink-0 place-items-center rounded-full border border-stone-200 bg-white text-stone-600 hover:bg-stone-50 hover:text-stone-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:flex sm:size-auto sm:min-h-8 sm:items-center sm:gap-1.5 sm:px-2.5 sm:text-sm"
     >
       {hidden ? (
         <EyeSlashIcon size={18} aria-hidden />

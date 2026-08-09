@@ -726,9 +726,19 @@ export function TransactionForm({
                         }
                       : null
                   }
+                  // The same two colours the month and the year give those
+                  // groups. A badge that says Wants in violet while the bar
+                  // beside it draws Wants in orange is two answers to one
+                  // question.
                   trailing={
                     chosenCat && chosenCat.kind !== 'income' ? (
-                      <span className="shrink-0 rounded-md bg-violet-50 px-2 py-0.5 text-xs text-brand">
+                      <span
+                        className={`shrink-0 rounded-md px-2 py-0.5 text-xs ${
+                          chosenCat.kind === 'committed'
+                            ? 'bg-violet-100 text-violet-700'
+                            : 'bg-orange-100 text-orange-700'
+                        }`}
+                      >
                         {chosenCat.kind === 'committed' ? 'Needs' : 'Wants'}
                       </span>
                     ) : undefined
@@ -896,7 +906,11 @@ export function TransactionForm({
                   Choosing one turns it into an ordinary row. */}
               {direction === 'expense' &&
                 fundablePots.length > 0 &&
-                (takeFrom === 'income' ? (
+                // One fund is not a choice, so it is not worth a list. More
+                // than one and the invitation opens the same picker it would
+                // have opened anyway — grabbing the first fund silently was
+                // the app deciding for you.
+                (takeFrom === 'income' && fundablePots.length === 1 ? (
                   <ActionRow
                     icon={<PlusCircleIcon size={20} aria-hidden />}
                     label="Pay from a fund"
@@ -905,11 +919,17 @@ export function TransactionForm({
                 ) : (
                   <PickRow
                     label="Pay from"
-                    value={{
-                      icon: chosenTakeFrom?.icon,
-                      color: chosenTakeFrom?.color,
-                      text: chosenTakeFrom?.name ?? "Month's income",
-                    }}
+                    emptyIcon={<PlusCircleIcon size={20} aria-hidden />}
+                    emptyLabel="Pay from a fund"
+                    value={
+                      takeFrom === 'income'
+                        ? null
+                        : {
+                            icon: chosenTakeFrom?.icon,
+                            color: chosenTakeFrom?.color,
+                            text: chosenTakeFrom?.name ?? "Month's income",
+                          }
+                    }
                     options={[
                       { key: 'income', text: "Month's income", value: 'income' as const },
                       ...fundablePots.map((p) => ({
@@ -927,7 +947,7 @@ export function TransactionForm({
 
               {direction === 'expense' &&
                 loans.length > 0 &&
-                (!paysOff ? (
+                (!paysOff && loans.length === 1 ? (
                   <ActionRow
                     icon={<PlusCircleIcon size={20} aria-hidden />}
                     label="Pay a loan"
@@ -937,6 +957,8 @@ export function TransactionForm({
                 ) : (
                   <PickRow
                     label="Paying off"
+                    emptyIcon={<PlusCircleIcon size={20} aria-hidden />}
+                    emptyLabel="Pay a loan"
                     value={
                       chosenLoan
                         ? {

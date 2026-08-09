@@ -114,6 +114,8 @@ export function PickRow<T>({
   icon,
   label,
   value,
+  emptyIcon,
+  emptyLabel,
   trailing,
   options,
   onPick,
@@ -122,6 +124,11 @@ export function PickRow<T>({
   icon?: ReactNode
   label: string
   value: { icon?: string; color?: string; text: string } | null
+  /** With nothing chosen the row becomes the invitation — violet, and worded
+   *  as something to do rather than as an empty field. It still opens the same
+   *  list, because "add a fund" and "which fund" are one question. */
+  emptyIcon?: ReactNode
+  emptyLabel?: string
   /** A badge at the far right — the category's Needs/Wants, say. */
   trailing?: ReactNode
   options: {
@@ -141,8 +148,16 @@ export function PickRow<T>({
     <Popover
       label={label}
       align="left"
-      triggerClassName={`${ROW} ${FILL} ${last ? 'border-b-0' : ''}`}
+      triggerClassName={`${ROW} ${!value && emptyLabel ? FILL_BRAND : FILL} ${
+        last ? 'border-b-0' : ''
+      }`}
       trigger={
+        !value && emptyLabel ? (
+          <>
+            <Glyph>{emptyIcon}</Glyph>
+            <span className="flex-1">{emptyLabel}</span>
+          </>
+        ) : (
           <>
             <Glyph>
               {value?.icon !== undefined ? (
@@ -155,7 +170,8 @@ export function PickRow<T>({
               {value?.text}
             </span>
             {trailing}
-        </>
+          </>
+        )
       }
     >
       {(close) => (
