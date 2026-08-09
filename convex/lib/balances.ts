@@ -68,3 +68,58 @@ export async function debtOwed(
     .reduce((sum, t) => sum + t.amount, 0);
   return original - paid;
 }
+
+/**
+ * What an account holds, derived from its ledger.
+ *
+ * `bankBalance` is NOT the current balance. It is an OFFSET: whatever has to be
+ * added to the recorded flows for the total to match what the bank says. For a
+ * household that entered its opening figure as a transaction — which is what
+ * the import recipe does — the offset is zero and this is simply the ledger.
+ *
+ * It used to be the balance itself, typed in and never touched again, so it
+ * went stale the moment you recorded anything. Two independent records of the
+ * same money is a good idea, but only when one of them keeps itself: otherwise
+ * you are maintaining both by hand and reconciling them in your head. This is
+ * how every ledger since the invention of ledgers has done it — the running
+ * total is derived, and a person only ever states an opening figure or corrects
+ * a drift.
+ *
+ * Transfers are excluded: setting money aside moves it into a fund that is
+ * inside this same account.
+ */
+export async function accountBalance(
+  ctx: Ctx,
+  account: Doc<"accounts">,
+): Promise<number> {
+  const txs = await ctx.db
+    .query("transactions")
+    .withIndex("by_household_date", (q) =>
+      q.eq("householdId", account.householdId),
+    )
+    .collect();
+
+  let flow = 0;
+  for (const t of txs) {
+    if (t.accountId !== account._id) continue;
+    if (t.direction === "income") flow += t.amount;
+    else if (t.direction === "expense") flow -= t.amount;
+  }
+  return account.bankBalance + flow;
+}
+
+/** Every non-archived account's balance, summed. */
+export async function bankTotal(
+  ctx: Ctx,
+  householdId: Id<"households">,
+): Promise<number> {
+  const accounts = await ctx.db
+    .query("accounts")
+    .withIndex("by_household", (q) => q.eq("householdId", householdId))
+    .collect();
+  let total = 0;
+  for (const a of accounts) {
+    if (!a.isArchived) total += await accountBalance(ctx, a);
+  }
+  return total;
+}

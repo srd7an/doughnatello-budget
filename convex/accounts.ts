@@ -2,17 +2,29 @@ import { query, mutation, MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { requireMember, requireDoc } from "./lib/auth";
+import { accountBalance } from "./lib/balances";
 import { insertTransaction } from "./transactions";
 
 /**
  * Real bank accounts. A household starts with one ("Main account") and can add
  * more.
  *
- * `bankBalance` is what the BANK says, typed in by a person — the app cannot see
- * your bank, and it is deliberately not derived from the transaction list (there
- * is no opening figure to derive it from). Transactions and this number are
- * therefore two independent records of the same money, which is exactly why
- * changing it is guarded: see `adjustBalance`.
+ * The balance is DERIVED. `bankBalance` on the document is an offset — what has
+ * to be added to the recorded flows to match what the bank says — and it is
+ * zero for anyone whose opening figure went in as a transaction. Everything
+ * that reports a balance goes through `accountBalance`.
+ *
+ * It was a hand-typed figure that transactions never touched, which meant it
+ * was correct for exactly as long as you recorded nothing. Net worth hangs off
+ * it, so it drifted quietly and in the wrong direction.
+ *
+ * The two ways to state what the bank says are unchanged in meaning:
+ *  - `setBalance` says "it is this now", and adjusts the offset silently. Right
+ *    when you are entering an opening figure and there is nothing to explain.
+ *  - `adjustBalance` says "it is this, and here is the difference" — it records
+ *    the gap as a dated transaction and leaves the offset alone, because the
+ *    transaction is now carrying it. That is reconciliation, and it is what you
+ *    want once there is history to contradict.
  */
 
 export const getPrimary = query({
@@ -56,19 +68,24 @@ export const list = query({
       counts.set(t.accountId, (counts.get(t.accountId) ?? 0) + 1);
     }
 
-    return visible
-      .map((a) => ({
+    const out = [];
+    for (const a of visible) {
+      out.push({
         _id: a._id,
         name: a.name,
         // Accounts predate the icon, so everything reading it falls back here
         // rather than in five places downstream.
         icon: a.icon ?? "bank",
-        bankBalance: a.bankBalance,
+        // The balance as the ledger has it. The stored field is the offset.
+        bankBalance: await accountBalance(ctx, a),
         isPrimary: a.isPrimary,
         isArchived: a.isArchived,
         transactionCount: counts.get(a._id) ?? 0,
-      }))
-      .sort((a, b) => (a.isPrimary === b.isPrimary ? 0 : a.isPrimary ? -1 : 1));
+      });
+    }
+    return out.sort((a, b) =>
+      a.isPrimary === b.isPrimary ? 0 : a.isPrimary ? -1 : 1,
+    );
   },
 });
 
@@ -113,11 +130,17 @@ export const create = mutation({
 export const setBalance = mutation({
   args: { accountId: v.id("accounts"), bankBalance: v.number() },
   handler: async (ctx, { accountId, bankBalance }) => {
-    await requireDoc(ctx, "accounts", accountId);
+    const { doc } = await requireDoc(ctx, "accounts", accountId);
     if (!Number.isInteger(bankBalance)) {
       throw new Error("Balance must be a whole number of para");
     }
-    await ctx.db.patch(accountId, { bankBalance });
+    // You type what the bank says; what gets stored is the difference between
+    // that and what the ledger already accounts for. From here the figure
+    // tracks every transaction on its own, and the offset only moves when you
+    // say so again.
+    const current = await accountBalance(ctx, doc);
+    const offset = doc.bankBalance + (bankBalance - current);
+    await ctx.db.patch(accountId, { bankBalance: offset });
   },
 });
 
@@ -142,7 +165,7 @@ export const adjustBalance = mutation({
       throw new Error("Balance must be a whole number of para");
     }
 
-    const difference = bankBalance - account.bankBalance;
+    const difference = bankBalance - (await accountBalance(ctx, account));
     if (difference === 0) return null;
 
     const direction = difference > 0 ? ("income" as const) : ("expense" as const);
@@ -159,7 +182,8 @@ export const adjustBalance = mutation({
       note: `${account.name}: corrected to what the bank says`,
     });
 
-    await ctx.db.patch(accountId, { bankBalance });
+    // Nothing to patch: the transaction just written IS the difference, so the
+    // derived balance now reads what the bank says and the offset is untouched.
     return transactionId;
   },
 });
@@ -265,39 +289,5 @@ export const archive = mutation({
       throw new Error("Make another account primary before archiving this one");
     }
     await ctx.db.patch(accountId, { isArchived: true });
-  },
-});
-
-/**
- * What the recorded transactions imply you hold.
- *
- * `bankBalance` is typed in by a person on purpose: it is what the BANK says,
- * and keeping it independent of the ledger is what makes the two able to
- * disagree — which is the only way a missed transaction ever gets noticed.
- * That is worth keeping.
- *
- * But independent is not the same as unrelated, and a balance nobody has ever
- * entered is not a second opinion — it is a zero that quietly drags net worth
- * down by everything you own. So when there is history to add up, this offers
- * the figure the history implies, for a person to accept or correct.
- *
- * Transfers are excluded because they move nothing: setting money aside puts it
- * in a fund that is still inside this same balance.
- */
-export const impliedBalance = query({
-  args: { householdId: v.id("households") },
-  handler: async (ctx, { householdId }) => {
-    await requireMember(ctx, householdId);
-    const txs = await ctx.db
-      .query("transactions")
-      .withIndex("by_household_date", (q) => q.eq("householdId", householdId))
-      .collect();
-
-    let implied = 0;
-    for (const t of txs) {
-      if (t.direction === "income") implied += t.amount;
-      else if (t.direction === "expense") implied -= t.amount;
-    }
-    return { implied, transactions: txs.length };
   },
 });

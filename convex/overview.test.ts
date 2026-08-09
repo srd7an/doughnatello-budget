@@ -242,7 +242,14 @@ describe("net worth — the double-count trap", () => {
 
     const nw = await asA(t).query(api.overview.netWorth, { householdId });
     expect(nw.debt).toBe(80_000_000); // 90M owed − 10M paid
-    expect(nw.netWorth).toBe(-80_000_000); // 0 bank + 0 assets − 80M
+
+    // The bank is DERIVED now, so paying 10M out of an account holding nothing
+    // leaves it 10M overdrawn — and net worth carries that as well as the debt.
+    // This used to read −80M, because the balance was a stored figure that
+    // spending never touched: the ledger said the money had gone and net worth
+    // did not notice.
+    expect(nw.bank).toBe(-10_000_000);
+    expect(nw.netWorth).toBe(-90_000_000); // −10M bank + 0 assets − 80M debt
   });
 });
 

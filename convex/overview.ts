@@ -2,7 +2,7 @@ import { query } from "./_generated/server";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { requireMember } from "./lib/auth";
-import { potBalance, debtOwed } from "./lib/balances";
+import { potBalance, debtOwed, bankTotal } from "./lib/balances";
 
 /**
  * The month's headline numbers — a single pass over the month's transactions
@@ -192,7 +192,7 @@ export const monthPots = query({
 
 /**
  * The three balance numbers, which are all distinct from leftToSpend:
- *   inBank   — the manually-entered bank balance
+ *   inBank   — what the accounts hold, derived from the ledger
  *   setAside — Σ savings + sinking pot balances (debt EXCLUDED)
  *   free     — inBank − setAside
  * "Free" answers how much slack exists at all; leftToSpend answers can I buy
@@ -203,13 +203,7 @@ export const balances = query({
   handler: async (ctx, { householdId }) => {
     await requireMember(ctx, householdId);
 
-    const accounts = await ctx.db
-      .query("accounts")
-      .withIndex("by_household", (q) => q.eq("householdId", householdId))
-      .collect();
-    const inBank = accounts
-      .filter((a) => !a.isArchived)
-      .reduce((s, a) => s + a.bankBalance, 0);
+    const inBank = await bankTotal(ctx, householdId);
 
     const pots = await ctx.db
       .query("pots")
@@ -246,11 +240,7 @@ export const netWorth = query({
   handler: async (ctx, { householdId }) => {
     await requireMember(ctx, householdId);
 
-    const [accounts, assets, pots] = await Promise.all([
-      ctx.db
-        .query("accounts")
-        .withIndex("by_household", (q) => q.eq("householdId", householdId))
-        .collect(),
+    const [assets, pots] = await Promise.all([
       ctx.db
         .query("assets")
         .withIndex("by_household", (q) => q.eq("householdId", householdId))
@@ -261,9 +251,7 @@ export const netWorth = query({
         .collect(),
     ]);
 
-    const bank = accounts
-      .filter((a) => !a.isArchived)
-      .reduce((s, a) => s + a.bankBalance, 0);
+    const bank = await bankTotal(ctx, householdId);
     const assetsTotal = assets
       .filter((a) => !a.isArchived)
       .reduce((s, a) => s + a.value, 0);
@@ -320,17 +308,13 @@ export const year = query({
       )
       .collect();
 
-    const [pots, assets, accounts, valuations] = await Promise.all([
+    const [pots, assets, valuations] = await Promise.all([
       ctx.db
         .query("pots")
         .withIndex("by_household", (q) => q.eq("householdId", householdId))
         .collect(),
       ctx.db
         .query("assets")
-        .withIndex("by_household", (q) => q.eq("householdId", householdId))
-        .collect(),
-      ctx.db
-        .query("accounts")
         .withIndex("by_household", (q) => q.eq("householdId", householdId))
         .collect(),
       ctx.db
@@ -477,9 +461,7 @@ export const year = query({
       },
     );
 
-    const bank = accounts
-      .filter((a) => !a.isArchived)
-      .reduce((s, a) => s + a.bankBalance, 0);
+    const bank = await bankTotal(ctx, householdId);
 
     const fundItems: StockItem[] = [];
     const loanItems: StockItem[] = [];

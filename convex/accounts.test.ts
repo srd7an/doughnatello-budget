@@ -295,12 +295,12 @@ describe("the account's own glyph", () => {
 })
 
 /**
- * A balance nobody entered is a zero that drags net worth down by everything
- * you own — and it is silent, because zero looks like an answer. This is the
- * figure the ledger implies, offered so the silence can be broken.
+ * The balance is derived, and that is the whole point: it used to be a figure
+ * you typed once and then watched go quietly wrong, while net worth hung off
+ * it. Recording anything now moves it.
  */
-describe("the balance the records imply", () => {
-  test("income minus expense, with transfers left out", async () => {
+describe("a balance that keeps itself", () => {
+  test("income and expense move it; setting money aside does not", async () => {
     const { t, householdId, groceryCat } = await setup();
     const cats = await asA(t).query(api.categories.list, { householdId });
     const pot = await asA(t).mutation(api.pots.create, {
@@ -310,6 +310,10 @@ describe("the balance the records imply", () => {
       icon: "piggy",
       color: "#1D9E75",
     });
+    const balance = async () =>
+      (await asA(t).query(api.accounts.list, { householdId }))[0].bankBalance;
+
+    expect(await balance()).toBe(0);
 
     await asA(t).mutation(api.transactions.create, {
       householdId,
@@ -318,6 +322,8 @@ describe("the balance the records imply", () => {
       categoryId: cats.find((c) => c.kind === "income")!._id,
       occurredOn: "2026-01-01",
     });
+    expect(await balance()).toBe(100_000_00);
+
     await asA(t).mutation(api.transactions.create, {
       householdId,
       direction: "expense",
@@ -325,7 +331,9 @@ describe("the balance the records imply", () => {
       categoryId: groceryCat,
       occurredOn: "2026-01-05",
     });
-    // Setting money aside moves nothing: the fund is inside this same balance.
+    expect(await balance()).toBe(70_000_00);
+
+    // A fund is a partition of this same money, not a place outside it.
     await asA(t).mutation(api.transactions.create, {
       householdId,
       direction: "transfer",
@@ -333,18 +341,69 @@ describe("the balance the records imply", () => {
       potId: pot,
       occurredOn: "2026-01-06",
     });
-
-    const { implied, transactions } = await asA(t).query(
-      api.accounts.impliedBalance,
-      { householdId },
-    );
-    expect(implied).toBe(70_000_00);
-    expect(transactions).toBe(3);
+    expect(await balance()).toBe(70_000_00);
   });
 
-  test("an empty household implies nothing, and says how little it looked at", async () => {
-    const { t, householdId } = await setup();
-    const r = await asA(t).query(api.accounts.impliedBalance, { householdId });
-    expect(r).toEqual({ implied: 0, transactions: 0 });
+  test("stating what the bank says sets an offset, and it keeps tracking", async () => {
+    const { t, householdId, main, groceryCat } = await setup();
+    const cats = await asA(t).query(api.categories.list, { householdId });
+    const balance = async () =>
+      (await asA(t).query(api.accounts.list, { householdId }))[0].bankBalance;
+
+    await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "income",
+      amount: 10_000_00,
+      categoryId: cats.find((c) => c.kind === "income")!._id,
+      occurredOn: "2026-01-01",
+    });
+
+    // The bank says more than the ledger knows about — an opening float the
+    // history never recorded.
+    await asA(t).mutation(api.accounts.setBalance, {
+      accountId: main._id,
+      bankBalance: 60_000_00,
+    });
+    expect(await balance()).toBe(60_000_00);
+
+    // And from here it moves on its own. This is the bit that did not work
+    // before: the figure stood still while the money left.
+    await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "expense",
+      amount: 1_000_00,
+      categoryId: groceryCat,
+      occurredOn: "2026-01-10",
+    });
+    expect(await balance()).toBe(59_000_00);
+  });
+
+  test("reconciling records the gap and leaves the offset alone", async () => {
+    const { t, householdId, main, groceryCat } = await setup();
+    await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "expense",
+      amount: 5_000_00,
+      categoryId: groceryCat,
+      occurredOn: "2026-01-02",
+    });
+    const balance = async () =>
+      (await asA(t).query(api.accounts.list, { householdId }))[0].bankBalance;
+    expect(await balance()).toBe(-5_000_00);
+
+    // The bank actually says −4.000: 1.000 of spending was never recorded.
+    await asA(t).mutation(api.accounts.adjustBalance, {
+      accountId: main._id,
+      bankBalance: -4_000_00,
+      occurredOn: "2026-01-31",
+    });
+    expect(await balance()).toBe(-4_000_00);
+
+    // Carried by a transaction you can see, not by a number that moved.
+    const txs = await asA(t).query(api.transactions.listMonth, {
+      householdId,
+      month: "2026-01",
+    });
+    expect(txs.some((x) => x.payee === 'Balance adjustment')).toBe(true);
   });
 })

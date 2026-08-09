@@ -841,12 +841,16 @@ export const finish = internalMutation({
       .query("transactions")
       .withIndex("by_household_date", (q) => q.eq("householdId", householdId))
       .collect();
-    let flow = rsd(250_000);
+    // The balance is derived from the ledger now, so the only thing to store
+    // is the OPENING float — what was in the account before any of this
+    // history. The rest arrives on its own.
+    const opening = rsd(250_000);
+    let flow = opening;
     for (const t of txs) {
       if (t.direction === "income") flow += t.amount;
       else if (t.direction === "expense") flow -= t.amount;
     }
-    await ctx.db.patch(account._id, { bankBalance: flow });
+    await ctx.db.patch(account._id, { bankBalance: opening });
 
     return { rules: rules.length, totalTransactions: txs.length, sync, bankBalance: flow };
   },
