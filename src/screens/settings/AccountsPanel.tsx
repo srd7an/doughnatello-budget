@@ -39,6 +39,7 @@ export function AccountsPanel() {
   const create = useMutation(api.accounts.create)
   const rename = useMutation(api.accounts.rename)
   const setIcon = useMutation(api.accounts.setIcon)
+  const implied = useQuery(api.accounts.impliedBalance, { householdId })
   const setBalance = useMutation(api.accounts.setBalance)
   const adjustBalance = useMutation(api.accounts.adjustBalance)
   const setPrimary = useMutation(api.accounts.setPrimary)
@@ -145,6 +146,33 @@ export function AccountsPanel() {
                   />
                 </div>
               </Row>
+
+              {/* Only on a primary account that has never been given a figure
+                  while the ledger has plenty to say. Net worth hangs off this
+                  number, so a zero here is not "unknown" — it is a claim that
+                  you own nothing, made silently. */}
+              {a.isPrimary &&
+                draft.balance === 0 &&
+                implied &&
+                implied.transactions > 0 &&
+                implied.implied !== 0 && (
+                  <Note>
+                    Your {implied.transactions} recorded transactions add up to{' '}
+                    <strong data-money>{formatMoney(implied.implied)}</strong>. Net
+                    worth is measured from this balance, so while it reads zero it
+                    leaves out everything you hold.{' '}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        edit(a._id, { balance: implied.implied }, draft)
+                      }
+                      className="text-brand underline"
+                    >
+                      Use that figure
+                    </button>
+                    , or type what the bank says.
+                  </Note>
+                )}
 
               <Row label="Total balance">
                 <div className="flex items-center gap-2">

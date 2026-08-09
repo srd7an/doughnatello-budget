@@ -45,6 +45,18 @@ export function YearView() {
           <span className="text-[32px] leading-none text-stone-800">
             {formatMoney(data.netWorth)}
           </span>
+          {data.bank === 0 && (
+            // Silence here is the failure. Net worth is measured from the bank
+            // balance, so a zero drags it down by everything you hold — and a
+            // wrong big number reads exactly like a right one.
+            <Link
+              to="/settings/accounts"
+              className="mt-1 block text-sm text-status-near underline"
+            >
+              Your account balance is not set, so this leaves out everything in
+              it. Set it →
+            </Link>
+          )}
           {change !== 0 && (
             <span
               className={`text-sm ${change > 0 ? 'text-gain' : 'text-debt'}`}

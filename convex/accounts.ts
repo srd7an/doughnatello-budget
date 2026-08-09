@@ -267,3 +267,37 @@ export const archive = mutation({
     await ctx.db.patch(accountId, { isArchived: true });
   },
 });
+
+/**
+ * What the recorded transactions imply you hold.
+ *
+ * `bankBalance` is typed in by a person on purpose: it is what the BANK says,
+ * and keeping it independent of the ledger is what makes the two able to
+ * disagree — which is the only way a missed transaction ever gets noticed.
+ * That is worth keeping.
+ *
+ * But independent is not the same as unrelated, and a balance nobody has ever
+ * entered is not a second opinion — it is a zero that quietly drags net worth
+ * down by everything you own. So when there is history to add up, this offers
+ * the figure the history implies, for a person to accept or correct.
+ *
+ * Transfers are excluded because they move nothing: setting money aside puts it
+ * in a fund that is still inside this same balance.
+ */
+export const impliedBalance = query({
+  args: { householdId: v.id("households") },
+  handler: async (ctx, { householdId }) => {
+    await requireMember(ctx, householdId);
+    const txs = await ctx.db
+      .query("transactions")
+      .withIndex("by_household_date", (q) => q.eq("householdId", householdId))
+      .collect();
+
+    let implied = 0;
+    for (const t of txs) {
+      if (t.direction === "income") implied += t.amount;
+      else if (t.direction === "expense") implied -= t.amount;
+    }
+    return { implied, transactions: txs.length };
+  },
+});

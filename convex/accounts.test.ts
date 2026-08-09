@@ -293,3 +293,58 @@ describe("the account's own glyph", () => {
     expect(after.icon).toBe("bank");
   });
 })
+
+/**
+ * A balance nobody entered is a zero that drags net worth down by everything
+ * you own — and it is silent, because zero looks like an answer. This is the
+ * figure the ledger implies, offered so the silence can be broken.
+ */
+describe("the balance the records imply", () => {
+  test("income minus expense, with transfers left out", async () => {
+    const { t, householdId, groceryCat } = await setup();
+    const cats = await asA(t).query(api.categories.list, { householdId });
+    const pot = await asA(t).mutation(api.pots.create, {
+      householdId,
+      name: "Cash fund",
+      kind: "savings",
+      icon: "piggy",
+      color: "#1D9E75",
+    });
+
+    await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "income",
+      amount: 100_000_00,
+      categoryId: cats.find((c) => c.kind === "income")!._id,
+      occurredOn: "2026-01-01",
+    });
+    await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "expense",
+      amount: 30_000_00,
+      categoryId: groceryCat,
+      occurredOn: "2026-01-05",
+    });
+    // Setting money aside moves nothing: the fund is inside this same balance.
+    await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "transfer",
+      amount: 50_000_00,
+      potId: pot,
+      occurredOn: "2026-01-06",
+    });
+
+    const { implied, transactions } = await asA(t).query(
+      api.accounts.impliedBalance,
+      { householdId },
+    );
+    expect(implied).toBe(70_000_00);
+    expect(transactions).toBe(3);
+  });
+
+  test("an empty household implies nothing, and says how little it looked at", async () => {
+    const { t, householdId } = await setup();
+    const r = await asA(t).query(api.accounts.impliedBalance, { householdId });
+    expect(r).toEqual({ implied: 0, transactions: 0 });
+  });
+})
