@@ -6,71 +6,99 @@ import { CategoryIcon } from '../ui/icons'
 /**
  * The pieces the transaction form is made of.
  *
- * Every field is one row: what it is on the left, what it says on the right,
- * a dashed rule between. The right side is one of two things, and the
- * difference carries meaning —
+ * Every field is one row: a glyph, then the value, on a dashed rule. There are
+ * NO labels. A label beside a value that already says what it is — a date next
+ * to "Date", a shop next to "Payee" — is a word you read once and then read
+ * past forever, and eight of them made the card twice as tall as its content.
+ * The glyph carries the meaning, and the value carries itself.
  *
- *   a PILL, bordered and white, for anything you pick from a list. It looks
- *   pressable because it is.
- *   plain TEXT for anything you type. Filled reads as stone-800, empty as
- *   stone-500. No border, because there is nothing to open.
+ * Three kinds of row, and the difference is what you can do to them:
  *
- * That is why an unset "Paying off" is a violet "+ Loan" rather than an empty
- * pill: nothing is chosen, so there is nothing to show — only something to do.
+ *   PICK  — opens a list. The value is always there because something is
+ *           always chosen.
+ *   TYPE  — an input. Its placeholder is the only prompt it gets, so the
+ *           placeholder has to be a prompt and not a label.
+ *   ACT   — violet, and not a row at all until you use it. "Pay from a fund"
+ *           is nothing on most transactions, and a row that says nothing on
+ *           most transactions should not be there on most transactions.
  */
 
-/**
- * Every control on the right of a row is the SAME BOX — same height, same
- * padding, same border width. A transparent border on the ones that do not
- * show one is not a trick, it is the point: without it the row is 2px shorter
- * when nothing is chosen, and the whole form jumps a line every time you pick
- * something.
- */
-const CONTROL =
-  'flex h-11 items-center gap-1.5 rounded-full border px-3 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:h-8'
+const ROW =
+  'flex min-h-11 w-full items-center gap-3 border-b border-dashed border-stone-200 px-1 text-left text-sm sm:min-h-10'
 
-const PILL = `${CONTROL} border-stone-300 bg-white text-stone-800 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] hover:bg-stone-50`
+/** The glyph column, so every row's text starts at the same x. */
+function Glyph({ children }: { children: ReactNode }) {
+  return <span className="grid w-5 shrink-0 place-items-center">{children}</span>
+}
 
-const ACTION = `${CONTROL} border-transparent text-brand hover:bg-violet-50`
-
-/** One field. `first` drops the rule, because a rule above the first row is a
- *  line under the amount, which is not what it means. */
-export function Row({
+/** A row you type into. */
+export function TypeRow({
+  icon,
+  value,
+  onChange,
+  placeholder,
   label,
-  first,
-  children,
+  last,
 }: {
+  icon: ReactNode
+  value: string
+  onChange: (v: string) => void
+  placeholder: string
+  /** The accessible name, since nothing on screen carries one. */
   label: string
-  first?: boolean
-  children: ReactNode
+  last?: boolean
 }) {
   return (
-    <div
-      className={`flex items-center gap-1.5 py-2 ${
-        first ? '' : 'border-t border-dashed border-stone-300'
-      }`}
-    >
-      <span className="min-w-0 flex-1 text-sm font-medium text-stone-800">
-        {label}
-      </span>
-      {children}
+    <div className={`${ROW} ${last ? 'border-b-0' : ''}`}>
+      <Glyph>{icon}</Glyph>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-label={label}
+        className="min-w-0 flex-1 bg-transparent text-stone-800 outline-none placeholder:text-stone-400"
+      />
+    </div>
+  )
+}
+
+/** A row that opens something — a date picker, the repeat panel. */
+export function OpenRow({
+  icon,
+  label,
+  children,
+  last,
+}: {
+  icon: ReactNode
+  label: string
+  /** Receives nothing; the caller wires its own control inside. */
+  children: ReactNode
+  last?: boolean
+}) {
+  return (
+    <div className={`${ROW} relative ${last ? 'border-b-0' : ''}`}>
+      <Glyph>{icon}</Glyph>
+      <span className="min-w-0 flex-1">{children}</span>
+      <span className="sr-only">{label}</span>
     </div>
   )
 }
 
 /** A row whose value you pick from a list. */
-export function PickerRow<T>({
+export function PickRow<T>({
+  icon,
   label,
-  first,
   value,
+  trailing,
   options,
   onPick,
-  /** Shown instead of a pill when nothing is chosen — "+ Loan". */
-  emptyAction,
+  last,
 }: {
+  icon?: ReactNode
   label: string
-  first?: boolean
   value: { icon?: string; color?: string; text: string } | null
+  /** A badge at the far right — the category's Needs/Wants, say. */
+  trailing?: ReactNode
   options: {
     key: string
     icon?: string
@@ -80,39 +108,119 @@ export function PickerRow<T>({
     value: T
   }[]
   onPick: (value: T) => void
-  emptyAction?: string
+  last?: boolean
 }) {
   return (
-    <Row label={label} first={first}>
+    <div className={`${ROW} ${last ? 'border-b-0' : ''} p-0`}>
       <Popover
         label={label}
-        align="right"
-        triggerClassName={value || !emptyAction ? PILL : ACTION}
+        align="left"
+        triggerClassName={`${ROW} border-b-0 hover:bg-stone-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand`}
         trigger={
-          value ? (
-            <>
-              {value.icon && (
-                <CategoryIcon icon={value.icon} color={value.color} size={16} />
+          <>
+            <Glyph>
+              {value?.icon !== undefined ? (
+                <CategoryIcon icon={value.icon} color={value.color} size={20} />
+              ) : (
+                icon
               )}
-              {value.text}
-            </>
-          ) : (
-            <>
-              <span aria-hidden className="text-base leading-none">
-                +
-              </span>
-              {emptyAction}
-            </>
-          )
+            </Glyph>
+            <span className="min-w-0 flex-1 truncate text-stone-800">
+              {value?.text}
+            </span>
+            {trailing}
+          </>
         }
       >
-        {(close) => <Options options={options} onPick={onPick} close={close} label={label} />}
+        {(close) => (
+          <Options options={options} onPick={onPick} close={close} label={label} />
+        )}
       </Popover>
-    </Row>
+    </div>
   )
 }
 
-/** The panel behind a PickerRow: a search field once the list is long, and the
+/**
+ * Something you can add, shown as an invitation rather than as an empty field.
+ * It becomes an ordinary row the moment it holds a value.
+ */
+export function ActionRow({
+  icon,
+  label,
+  onClick,
+  last,
+}: {
+  icon: ReactNode
+  label: string
+  onClick: () => void
+  last?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`${ROW} ${last ? 'border-b-0' : ''} rounded-lg text-brand hover:bg-violet-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand`}
+    >
+      <Glyph>{icon}</Glyph>
+      <span className="flex-1">{label}</span>
+    </button>
+  )
+}
+
+/**
+ * One end of a transfer: a filled block, because on a transfer these two ARE
+ * the transaction and everything below them is detail. The word — From, Into —
+ * sits at the far right, where the category's Needs/Wants badge sits, and is
+ * what tells the two blocks apart at a glance.
+ */
+export function EndBlock<T>({
+  label,
+  side,
+  value,
+  options,
+  onPick,
+}: {
+  label: string
+  side: 'From' | 'Into'
+  value: { icon?: string; color?: string; text: string }
+  options: {
+    key: string
+    icon?: string
+    color?: string
+    text: string
+    hint?: string
+    value: T
+  }[]
+  onPick: (value: T) => void
+}) {
+  return (
+    <Popover
+      label={label}
+      align="left"
+      triggerClassName="flex min-h-11 w-full items-center gap-3 rounded-xl bg-stone-100 px-3 text-left text-sm hover:bg-stone-200 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
+      trigger={
+        <>
+          <CategoryIcon
+            icon={value.icon ?? 'wallet'}
+            color={value.color}
+            size={20}
+            className="shrink-0"
+          />
+          <span className="min-w-0 flex-1 truncate text-stone-800">{value.text}</span>
+          <span className="shrink-0 rounded-md bg-white px-2 py-0.5 text-xs text-stone-600">
+            {side}
+          </span>
+        </>
+      }
+    >
+      {(close) => (
+        <Options options={options} onPick={onPick} close={close} label={label} />
+      )}
+    </Popover>
+  )
+}
+
+/** The panel behind a picker: a search field once the list is long, and the
  *  matching options under it. Split out because the search needs state, and a
  *  render prop is not a component. */
 function Options<T>({
@@ -181,48 +289,18 @@ function Options<T>({
 /**
  * A row that is not ready yet.
  *
- * It exists to hold the layout still. The form's rows depend on queries — how
- * many there are depends on whether you have funds and loans at all — so
- * rendering it against empty data drew a short card that grew a row at a time
- * as the answers arrived. This is the same box at the same height with nothing
- * in it, so when the real row replaces it, nothing moves.
+ * It holds the layout still. The form's rows depend on queries — how many there
+ * are depends on whether you have funds and loans at all — so rendering against
+ * empty data drew a short card that grew a row at a time as the answers
+ * arrived. Same box, same height, nothing in it.
  */
-export function SkeletonRow({ label, first }: { label: string; first?: boolean }) {
+export function SkeletonRow({ last }: { last?: boolean }) {
   return (
-    <Row label={label} first={first}>
-      <span
-        aria-hidden
-        className={`${CONTROL} w-24 border-transparent bg-stone-100`}
-      />
-    </Row>
+    <div className={`${ROW} ${last ? 'border-b-0' : ''}`}>
+      <Glyph>
+        <span aria-hidden className="size-5 rounded bg-stone-100" />
+      </Glyph>
+      <span aria-hidden className="h-4 w-28 rounded bg-stone-100" />
+    </div>
   )
 }
-
-/** A row you type into. No pill: there is nothing to open. */
-export function TextRow({
-  label,
-  first,
-  value,
-  onChange,
-  placeholder,
-}: {
-  label: string
-  first?: boolean
-  value: string
-  onChange: (v: string) => void
-  placeholder: string
-}) {
-  return (
-    <Row label={label} first={first}>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        aria-label={label}
-        className={`${CONTROL} w-[55%] justify-end border-transparent text-right text-stone-800 outline-none placeholder:text-stone-500`}
-      />
-    </Row>
-  )
-}
-
-export { PILL }

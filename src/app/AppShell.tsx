@@ -11,7 +11,6 @@ import { api } from '../../convex/_generated/api'
 import { Button } from '../ui/Button'
 import { SM, useMediaQuery } from '../lib/useMediaQuery'
 import { useKeepPeriod } from '../period/PeriodContext'
-import { PlusIcon } from '../ui/icons'
 import { Logo } from '../ui/Logo'
 import { EyeIcon, EyeSlashIcon } from '../ui/icons'
 import { usePrivacy } from '../lib/privacy'
@@ -98,42 +97,48 @@ export function AppShell() {
           {/* Row 1: brand + account */}
           <div className="flex items-center justify-between">
             <BrandMark />
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-3">
               <PrivacyToggle />
               <AvatarMenu onOpenSettings={() => open('/settings')} />
             </div>
           </div>
 
-          {/* Row 2: period control (the nav) + add */}
-          <div className="relative mt-2 flex items-center justify-between gap-2">
-            {onPage ? <BackLink /> : <PeriodControl />}
-            {/* One Add per screen, and it is a different one on each: the
-                labelled button up here where there is room for words, the FAB
-                down there where a thumb is. Rendered, not hidden — two of them
-                existing and one being display:none is how they both showed up
-                on a phone. */}
-            {isDesktop && (
-              <Button variant="primary" onClick={() => open('/add')}>
-                Add transaction
-              </Button>
-            )}
-            {addOpen && isDesktop && <AddTransactionPopover onClose={close} />}
-          </div>
+          {/* Leaving a page is navigation OUT of it, so it stays at the top
+              where a back link belongs. Moving between months is not — it is
+              the thing you do while reading, and it went to the bottom with
+              the rest of the controls. */}
+          {onPage && (
+            <div className="mt-2">
+              <BackLink />
+            </div>
+          )}
         </div>
       </header>
 
-      <main className="mx-auto max-w-[800px] px-4 pb-28 pt-4 sm:pb-12">
+      <main className="mx-auto max-w-[800px] px-4 pt-4 pb-32">
         <Outlet />
       </main>
 
-      {!isDesktop && (
-        <button
-          onClick={() => open('/add')}
-          aria-label="Add transaction"
-          className="fixed right-4 bottom-[calc(1.5rem+env(safe-area-inset-bottom))] z-30 grid size-14 place-items-center rounded-full bg-brand text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-        >
-          <PlusIcon className="size-6" />
-        </button>
+      {/* The controls, at the bottom and over the page.
+          Where your thumb already is on a phone, and where your eye ends up on
+          a desktop after reading down. No bar, no backdrop — the two controls
+          float on the content, and the gap between them is not a surface, so
+          `pointer-events-none` on the strip lets a click through it to what is
+          underneath. Only the controls themselves take clicks. */}
+      {!onPage && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          <div className="mx-auto flex max-w-[800px] items-center justify-between gap-2">
+            <div className="pointer-events-auto relative">
+              <PeriodControl />
+            </div>
+            <div className="pointer-events-auto relative">
+              <Button variant="primary" onClick={() => open('/add')}>
+                Add transaction
+              </Button>
+              {addOpen && isDesktop && <AddTransactionPopover onClose={close} />}
+            </div>
+          </div>
+        </div>
       )}
 
       {addOpen && !isDesktop && <AddTransactionSheet onClose={close} />}
@@ -196,7 +201,7 @@ function PrivacyToggle() {
       aria-pressed={hidden}
       aria-label={hidden ? 'Show amounts' : 'Hide amounts'}
       title={hidden ? 'Show amounts' : 'Hide amounts'}
-      className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-sm text-stone-600 hover:bg-stone-100 hover:text-stone-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-8 sm:border sm:border-stone-200 sm:bg-white"
+      className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-stone-200 bg-white px-2.5 text-sm text-stone-600 hover:bg-stone-50 hover:text-stone-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-8"
     >
       {hidden ? (
         <EyeSlashIcon size={18} aria-hidden />

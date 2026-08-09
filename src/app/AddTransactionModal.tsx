@@ -53,7 +53,9 @@ export function AddTransactionPopover({ onClose }: { onClose: () => void }) {
         onClick={onClose}
         className="fixed inset-0 z-40 cursor-default"
       />
-      <div className="absolute top-full right-0 z-50 mt-2 w-[360px] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-[0px_12px_16px_6px_rgba(0,0,0,0.06)]">
+      {/* Upward, because its button sits at the foot of the screen now. A
+          panel that opened downward from there would be entirely off-screen. */}
+      <div className="absolute right-0 bottom-full z-50 mb-2 max-h-[80vh] w-[360px] overflow-y-auto rounded-2xl border border-stone-200 bg-white shadow-[0px_12px_16px_6px_rgba(0,0,0,0.06)]">
         <TransactionForm copyOf={copyOf} onDone={onClose} />
       </div>
     </>

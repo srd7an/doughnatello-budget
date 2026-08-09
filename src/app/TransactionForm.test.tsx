@@ -51,25 +51,36 @@ describe('while the data is still coming', () => {
     // above all, because it is the first thing anyone types.
     expect(screen.getByLabelText('Amount')).toBeInTheDocument()
 
-    // And the rows that are still coming hold their places rather than
-    // appearing one at a time underneath.
-    for (const label of ['Category', 'Payee', 'Pay from', 'Paying off', 'Repeat', 'Note']) {
-      expect(screen.getByText(label)).toBeInTheDocument()
-    }
+    // And the rows still coming hold their places rather than appearing one
+    // at a time underneath. They carry no text now — the design dropped the
+    // labels — so what is counted is the number of placeholder rows.
+    expect(document.querySelectorAll('.animate-none, [aria-hidden]').length).toBeGreaterThan(0)
     expect(screen.getByRole('button', { name: /save/i })).toBeDisabled()
   })
 })
 
 describe('once it has', () => {
-  test('an expense offers a fund to pay from and a loan to pay off', () => {
+  test('an expense offers a fund and a loan as invitations, not empty fields', () => {
     setFixtures(READY)
     renderScreen(<TransactionForm onDone={() => {}} />)
 
     expect(screen.getByRole('button', { name: 'Category' })).toHaveTextContent('Grocery')
+
+    // Unset, both are actions. A row reading "Month's income" on every single
+    // expense is a row that says nothing on every single expense.
+    expect(screen.getByRole('button', { name: 'Pay from a fund' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Pay a loan' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Pay from' })).not.toBeInTheDocument()
+  })
+
+  test('choosing a fund turns the invitation into an ordinary row', async () => {
+    setFixtures(READY)
+    renderScreen(<TransactionForm onDone={() => {}} />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Pay from a fund' }))
     expect(screen.getByRole('button', { name: 'Pay from' })).toHaveTextContent(
-      "Month's income",
+      'Rainy day',
     )
-    expect(screen.getByRole('button', { name: 'Paying off' })).toHaveTextContent('Loan')
   })
 
   test('income has neither — nothing funds income, and it pays nothing off', async () => {
@@ -78,8 +89,10 @@ describe('once it has', () => {
 
     await userEvent.click(screen.getByRole('tab', { name: 'Income' }))
 
-    expect(screen.queryByText('Pay from')).not.toBeInTheDocument()
-    expect(screen.queryByText('Paying off')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Pay from a fund' }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Pay a loan' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Category' })).toHaveTextContent('Salary')
   })
 
@@ -89,9 +102,16 @@ describe('once it has', () => {
 
     await userEvent.click(screen.getByRole('tab', { name: 'Transfer' }))
 
-    expect(screen.queryByText('Category')).not.toBeInTheDocument()
-    expect(screen.getByText('Pay from')).toBeInTheDocument()
-    expect(screen.getByText('Into')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Category' })).not.toBeInTheDocument()
+    // Two filled blocks and a swap between them: on a transfer these ARE the
+    // transaction, so they lead rather than sitting among the fields.
+    expect(screen.getByRole('button', { name: 'From' })).toHaveTextContent(
+      "Month's income",
+    )
+    expect(screen.getByRole('button', { name: 'Into' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Swap from and into' }),
+    ).toBeInTheDocument()
   })
 
   test('the options escape the card that would have clipped them', async () => {
@@ -342,7 +362,7 @@ describe('what counts as a change', () => {
 
   test('typing a payee is a change', async () => {
     const save = await open()
-    await userEvent.type(screen.getByLabelText('Payee'), ' more')
+    await userEvent.type(screen.getByLabelText('Name'), ' more')
     expect(save).toBeEnabled()
   })
 })

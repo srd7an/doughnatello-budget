@@ -17,7 +17,6 @@
 import type { ComponentType } from 'react'
 import { AirplaneTiltIcon } from '@phosphor-icons/react/dist/csr/AirplaneTilt'
 import { ArrowRightIcon } from '@phosphor-icons/react/dist/csr/ArrowRight'
-import { BankIcon } from '@phosphor-icons/react/dist/csr/Bank'
 import { BarbellIcon } from '@phosphor-icons/react/dist/csr/Barbell'
 import { BasketIcon } from '@phosphor-icons/react/dist/csr/Basket'
 import { CalendarDotsIcon } from '@phosphor-icons/react/dist/csr/CalendarDots'
@@ -46,6 +45,11 @@ import { MagnifyingGlassIcon } from '@phosphor-icons/react/dist/csr/MagnifyingGl
 import { QrCodeIcon } from '@phosphor-icons/react/dist/csr/QrCode'
 import { EyeIcon } from '@phosphor-icons/react/dist/csr/Eye'
 import { EyeSlashIcon } from '@phosphor-icons/react/dist/csr/EyeSlash'
+import { TextAaIcon } from '@phosphor-icons/react/dist/csr/TextAa'
+import { ArrowsDownUpIcon } from '@phosphor-icons/react/dist/csr/ArrowsDownUp'
+import { NoteIcon } from '@phosphor-icons/react/dist/csr/Note'
+import { PlusCircleIcon } from '@phosphor-icons/react/dist/csr/PlusCircle'
+import { BankIcon } from '@phosphor-icons/react/dist/csr/Bank'
 import { ShoppingCartIcon } from '@phosphor-icons/react/dist/csr/ShoppingCart'
 import { CoffeeIcon } from '@phosphor-icons/react/dist/csr/Coffee'
 import { BeerSteinIcon } from '@phosphor-icons/react/dist/csr/BeerStein'
@@ -247,6 +251,11 @@ export {
   QrCodeIcon,
   EyeIcon,
   EyeSlashIcon,
+  TextAaIcon,
+  ArrowsDownUpIcon,
+  NoteIcon,
+  PlusCircleIcon,
+  BankIcon,
 }
 
 export function PlusIcon({ className }: { className?: string }) {

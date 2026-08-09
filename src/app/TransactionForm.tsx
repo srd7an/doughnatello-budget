@@ -12,17 +12,28 @@ import {
 } from '../lib/format'
 import { formatDayMonthYear } from '../lib/dates'
 import { ConvexError } from 'convex/values'
-import { CalendarDotsIcon, QrCodeIcon, RepeatIcon, XIcon } from '../ui/icons'
+import {
+  ArrowsDownUpIcon,
+  BankIcon,
+  CalendarDotsIcon,
+  NoteIcon,
+  PlusCircleIcon,
+  QrCodeIcon,
+  RepeatIcon,
+  TextAaIcon,
+  XIcon,
+} from '../ui/icons'
 import { QrScanner } from '../ui/QrScanner'
 import { applyScan, hexDump, parseQr, toPrefill, type Scan } from '../lib/qr'
 import { Button } from '../ui/Button'
 import { Popover } from '../ui/Popover'
 import {
-  PickerRow,
-  PILL,
-  Row,
+  ActionRow,
+  EndBlock,
+  OpenRow,
+  PickRow,
   SkeletonRow,
-  TextRow,
+  TypeRow,
 } from './TransactionRows'
 // The one implementation of the recurrence calendar, shared with the backend so
 // the date the modal promises is the date the rule generates.
@@ -370,6 +381,17 @@ export function TransactionForm({
 
   // The rule starts at the NEXT occurrence: the transaction being saved right
   // now covers this one, so generating an occurrence for it too would double it.
+  /**
+   * Reverse the transfer. Money out of a fund is the same move read backwards,
+   * and it is the correction you reach for when you picked the ends the wrong
+   * way round — which, with two identical-looking blocks, is often.
+   */
+  const swapEnds = () => {
+    const oldFrom = from
+    setFrom(potId ?? 'income')
+    setPotId(oldFrom === 'income' ? null : oldFrom)
+  }
+
   const anchorDay = parseISO(occurredOn).d
   const recurrence =
     repeat === 'once' ? null : { cadence: repeat, intervalCount: 1, anchorDay }
@@ -528,61 +550,42 @@ export function TransactionForm({
           </button>
         </div>
 
-        {/* Date sits above the amount and carries no label — it is when this
-            happened, which is part of the headline, not one of the fields. */}
-        <div className="flex items-center gap-1.5">
-          <label className={`${PILL} relative cursor-pointer`}>
-            <CalendarDotsIcon size={16} aria-hidden />
-            {formatDayMonthYear(occurredOn)}
+        {/* The amount is the headline: you type straight into it. Scanning
+            sits beside it because a scan is the ALTERNATIVE to typing it — and
+            only on an expense, since both codes this reads (a shop receipt, a
+            payment slip) are money going out. Nothing issues a QR for your
+            salary, or for moving your own money about. */}
+        <div className="flex items-center gap-3">
+          <label className="flex min-w-0 flex-1 items-baseline gap-1">
             <input
-              type="date"
-              value={occurredOn}
-              aria-label="Date"
-              onChange={(e) => setOccurredOn(e.target.value || occurredOn)}
-              onClick={(e) => e.currentTarget.showPicker?.()}
-              className="absolute inset-0 cursor-pointer opacity-0"
+              ref={amountRef}
+              aria-label="Amount"
+              inputMode="decimal"
+              value={amountStr}
+              onChange={(e) => setAmountStr(groupMoneyInput(e.target.value))}
+              placeholder="0"
+              data-money
+              className="min-w-px flex-1 border-0 bg-transparent p-0 text-[40px] leading-8 tracking-[-0.8px] text-stone-900 outline-none placeholder:text-stone-300"
             />
+            <span className="shrink-0 text-sm text-stone-500">
+              {household.baseCurrency}
+            </span>
           </label>
 
-          {/* Scanning fills the amount, so it belongs on the headline beside
-              the date rather than down among the fields. Editing is left out:
-              a code describes a purchase, and re-reading one over a
-              transaction that already exists is not a thing anyone does. */}
-          {!isEdit && (
+          {!isEdit && direction === 'expense' && (
             <button
               type="button"
               onClick={() => {
                 setScan(null)
                 setScanning(true)
               }}
-              className={`${PILL} shrink-0`}
+              className="grid size-11 shrink-0 place-items-center rounded-xl border border-stone-200 text-stone-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
               aria-label="Scan a QR code"
             >
-              <QrCodeIcon size={16} aria-hidden />
-              Scan
+              <QrCodeIcon size={20} aria-hidden />
             </button>
           )}
         </div>
-
-        {/* The amount is the headline: you type straight into it. */}
-        {/* The label wraps for click-to-focus, but the NAME is on the input:
-            the currency sits inside the same label, so reading the label's
-            text gave "Amount RSD". */}
-        <label className="flex items-baseline gap-1">
-          <input
-            ref={amountRef}
-            aria-label="Amount"
-            inputMode="decimal"
-            value={amountStr}
-            onChange={(e) => setAmountStr(groupMoneyInput(e.target.value))}
-            placeholder="0"
-            data-money
-            className="min-w-px flex-1 border-0 bg-transparent p-0 text-[40px] leading-8 tracking-[-0.8px] text-stone-900 outline-none placeholder:text-stone-400"
-          />
-          <span className="shrink-0 text-sm text-stone-600">
-            {household.baseCurrency}
-          </span>
-        </label>
 
         {/* A code was read but carried no amount we are willing to trust. It is
             shown rather than swallowed: for a fiscal receipt this dump IS the
@@ -630,73 +633,15 @@ export function TransactionForm({
             </button>
           </div>
         )}
-
-        <div className="flex flex-col">
-          {!ready ? (
-            // As many rows as this direction will end up with, so the card is
-            // already the height it is about to be.
-            SKELETON[direction].map((label, i) => (
-              <SkeletonRow key={label} label={label} first={i === 0} />
-            ))
-          ) : (
-            <>
-          {direction !== 'transfer' && (
-            <PickerRow
-              first
-              label="Category"
-              value={
-                chosenCat
-                  ? { icon: chosenCat.icon, color: chosenCat.color, text: chosenCat.name }
-                  : null
-              }
-              options={catOptions}
-              onPick={setCategoryId}
-            />
-          )}
-
-          <TextRow
-            first={direction === 'transfer'}
-            label="Payee"
-            value={payee}
-            onChange={setPayee}
-            placeholder={
-              lookingUp
-                ? 'Looking up…'
-                : fiscalDevice && knownPayee === null
-                  ? 'Name it once'
-                  : 'Enter payee'
-            }
-          />
-
-          {/* Where the money comes from. On an expense it is a fund it is
-              spent out of; on a transfer, a fund it is moved out of. Both
-              default to this month. */}
-          {direction === 'expense' && fundablePots.length > 0 && (
-            <PickerRow
-              label="Pay from"
-              value={{
-                icon: chosenTakeFrom?.icon,
-                color: chosenTakeFrom?.color,
-                text: chosenTakeFrom?.name ?? "Month's income",
-              }}
-              options={[
-                { key: 'income', text: "Month's income", value: 'income' as const },
-                ...fundablePots.map((p) => ({
-                  key: p._id,
-                  icon: p.icon,
-                  color: p.color,
-                  text: p.name,
-                  hint: formatMoney(p.balance),
-                  value: p._id,
-                })),
-              ]}
-              onPick={setTakeFrom}
-            />
-          )}
-
-          {direction === 'transfer' && sourceFunds.length > 0 && (
-            <PickerRow
-              label="Pay from"
+        {/* A transfer IS its two ends, so they lead — filled, and heavier than
+            anything under them. The swap between reverses the direction, which
+            is a thing you actually want: taking money back out of a fund is
+            the same move read backwards. */}
+        {direction === 'transfer' && ready && (
+          <div className="relative flex flex-col gap-2">
+            <EndBlock
+              label="From"
+              side="From"
               value={{
                 icon: chosenFrom?.icon,
                 color: chosenFrom?.color,
@@ -718,19 +663,24 @@ export function TransactionForm({
                 if (potId === v) setPotId(null)
               }}
             />
-          )}
 
-          {direction === 'transfer' && (
-            <PickerRow
+            <button
+              type="button"
+              onClick={swapEnds}
+              aria-label="Swap from and into"
+              className="absolute top-1/2 left-1/2 z-10 grid size-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-stone-200 bg-white text-stone-600 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            >
+              <ArrowsDownUpIcon size={16} aria-hidden />
+            </button>
+
+            <EndBlock
               label="Into"
-              value={
-                chosenInto
-                  ? { icon: chosenInto.icon, color: chosenInto.color, text: chosenInto.name }
-                  : from !== 'income'
-                    ? { text: 'Nothing — free it up' }
-                    : null
-              }
-              emptyAction="Fund"
+              side="Into"
+              value={{
+                icon: chosenInto?.icon,
+                color: chosenInto?.color,
+                text: chosenInto?.name ?? 'Nothing — free it up',
+              }}
               options={[
                 ...destinations.map((p) => ({
                   key: p._id,
@@ -745,50 +695,79 @@ export function TransactionForm({
               ]}
               onPick={setPotId}
             />
-          )}
+          </div>
+        )}
 
-          {/* A loan this expense pays down. Unset it is an action, not an
-              empty field — there is nothing to show, only something to do. */}
-          {direction === 'expense' && loans.length > 0 && (
-            <PickerRow
-              label="Paying off"
-              value={
-                chosenLoan
-                  ? { icon: chosenLoan.icon, color: chosenLoan.color, text: chosenLoan.name }
-                  : null
-              }
-              emptyAction="Loan"
-              options={[
-                { key: 'none', text: 'Nothing', value: null },
-                ...loans.map((l) => ({
-                  key: l._id,
-                  icon: l.icon,
-                  color: l.color,
-                  text: l.name,
-                  hint: formatMoney(l.owed ?? 0),
-                  value: l._id as Id<'pots'> | null,
-                })),
-              ]}
-              onPick={setPaysOff}
-            />
-          )}
+        <div className="flex flex-col">
+          {!ready ? (
+            SKELETON[direction].map((label, i, all) => (
+              <SkeletonRow key={label} last={i === all.length - 1} />
+            ))
+          ) : (
+            <>
+              {direction !== 'transfer' && (
+                <PickRow
+                  label="Category"
+                  value={
+                    chosenCat
+                      ? {
+                          icon: chosenCat.icon,
+                          color: chosenCat.color,
+                          text: chosenCat.name,
+                        }
+                      : null
+                  }
+                  trailing={
+                    chosenCat && chosenCat.kind !== 'income' ? (
+                      <span className="shrink-0 rounded-md bg-violet-50 px-2 py-0.5 text-xs text-brand">
+                        {chosenCat.kind === 'committed' ? 'Needs' : 'Wants'}
+                      </span>
+                    ) : undefined
+                  }
+                  options={catOptions}
+                  onPick={setCategoryId}
+                />
+              )}
 
-          {/* Repeat is one row and a whole panel: the cadence, when it ends,
-              and whether the amount is a guess. All of it belongs to the same
-              decision, so all of it lives behind the same pill. */}
-          {!isEdit && (
-            <Row label="Repeat">
-              <Popover
-                label="Repeat"
-                align="right"
-                triggerClassName={PILL}
-                trigger={
-                  <>
-                    <RepeatIcon size={16} aria-hidden />
-                    {repeatLabel}
-                  </>
+              <OpenRow icon={<CalendarDotsIcon size={20} aria-hidden />} label="Date">
+                <label className="relative block cursor-pointer text-stone-800">
+                  {formatDayMonthYear(occurredOn)}
+                  <input
+                    type="date"
+                    value={occurredOn}
+                    aria-label="Date"
+                    onChange={(e) => setOccurredOn(e.target.value || occurredOn)}
+                    onClick={(e) => e.currentTarget.showPicker?.()}
+                    className="absolute inset-0 cursor-pointer opacity-0"
+                  />
+                </label>
+              </OpenRow>
+
+              <TypeRow
+                icon={<TextAaIcon size={20} aria-hidden />}
+                label="Name"
+                value={payee}
+                onChange={setPayee}
+                placeholder={
+                  lookingUp
+                    ? 'Looking up…'
+                    : fiscalDevice && knownPayee === null
+                      ? 'Name it once'
+                      : 'Name it'
                 }
-              >
+              />
+
+              {/* Repeat is one row and a whole panel: the cadence, when it
+                  ends, and whether the amount is a guess. All of it belongs to
+                  the same decision, so all of it lives behind the same row. */}
+              {!isEdit && (
+                <OpenRow icon={<RepeatIcon size={20} aria-hidden />} label="Repeat">
+                  <Popover
+                    label="Repeat"
+                    align="left"
+                    triggerClassName="w-full truncate text-left text-stone-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                    trigger={repeatLabel}
+                  >
                 {() => (
                   <div className="w-64 p-1">
                     <ul>
@@ -888,36 +867,114 @@ export function TransactionForm({
                     )}
                   </div>
                 )}
-              </Popover>
-            </Row>
-          )}
+                  </Popover>
+                </OpenRow>
+              )}
 
-          <TextRow
-            label="Note"
-            value={note}
-            onChange={setNote}
-            placeholder="Enter note"
-          />
+              <TypeRow
+                icon={<NoteIcon size={20} aria-hidden />}
+                label="Note"
+                value={note}
+                onChange={setNote}
+                placeholder="Note"
+                last={direction !== 'expense'}
+              />
 
-          {/* Accounts only when there is more than one, so the common case
-              stays one fewer row. */}
-          {accounts.length > 1 && (
-            <PickerRow
-              label="Account"
-              value={{
-                text:
-                  accounts.find((a) => a._id === accountId)?.name ??
-                  accounts.find((a) => a.isPrimary)?.name ??
-                  '—',
-              }}
-              options={accounts.map((a) => ({
-                key: a._id,
-                text: a.name,
-                value: a._id,
-              }))}
-              onPick={setAccountId}
-            />
-          )}
+              {/* The two rarest things on an expense, and why they are actions
+                  rather than fields: on almost every transaction the answer is
+                  "no fund" and "no loan", and a row that says nothing on almost
+                  every transaction should not be on almost every transaction.
+                  Choosing one turns it into an ordinary row. */}
+              {direction === 'expense' &&
+                fundablePots.length > 0 &&
+                (takeFrom === 'income' ? (
+                  <ActionRow
+                    icon={<PlusCircleIcon size={20} aria-hidden />}
+                    label="Pay from a fund"
+                    onClick={() => setTakeFrom(fundablePots[0]._id)}
+                  />
+                ) : (
+                  <PickRow
+                    label="Pay from"
+                    value={{
+                      icon: chosenTakeFrom?.icon,
+                      color: chosenTakeFrom?.color,
+                      text: chosenTakeFrom?.name ?? "Month's income",
+                    }}
+                    options={[
+                      { key: 'income', text: "Month's income", value: 'income' as const },
+                      ...fundablePots.map((p) => ({
+                        key: p._id,
+                        icon: p.icon,
+                        color: p.color,
+                        text: p.name,
+                        hint: formatMoney(p.balance),
+                        value: p._id,
+                      })),
+                    ]}
+                    onPick={setTakeFrom}
+                  />
+                ))}
+
+              {direction === 'expense' &&
+                loans.length > 0 &&
+                (!paysOff ? (
+                  <ActionRow
+                    icon={<PlusCircleIcon size={20} aria-hidden />}
+                    label="Pay a loan"
+                    onClick={() => setPaysOff(loans[0]._id)}
+                    last
+                  />
+                ) : (
+                  <PickRow
+                    label="Paying off"
+                    value={
+                      chosenLoan
+                        ? {
+                            icon: chosenLoan.icon,
+                            color: chosenLoan.color,
+                            text: chosenLoan.name,
+                          }
+                        : null
+                    }
+                    options={[
+                      { key: 'none', text: 'Nothing', value: null },
+                      ...loans.map((l) => ({
+                        key: l._id,
+                        icon: l.icon,
+                        color: l.color,
+                        text: l.name,
+                        hint: formatMoney(l.owed ?? 0),
+                        value: l._id as Id<'pots'> | null,
+                      })),
+                    ]}
+                    onPick={setPaysOff}
+                    last
+                  />
+                ))}
+
+              {/* Only when there is more than one, so the ordinary card is one
+                  row shorter. */}
+              {accounts.length > 1 && (
+                <PickRow
+                  label="Account"
+                  icon={<BankIcon size={20} aria-hidden />}
+                  value={{
+                    text:
+                      accounts.find((a) => a._id === accountId)?.name ??
+                      accounts.find((a) => a.isPrimary)?.name ??
+                      '—',
+                  }}
+                  options={accounts.map((a) => ({
+                    key: a._id,
+                    icon: a.icon,
+                    text: a.name,
+                    value: a._id,
+                  }))}
+                  onPick={setAccountId}
+                  last
+                />
+              )}
             </>
           )}
         </div>

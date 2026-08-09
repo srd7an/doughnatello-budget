@@ -86,37 +86,6 @@ export function MonthView() {
   const overspent = Math.max(-savings, 0)
   const denom = Math.max(income + overspent, 1)
 
-  /**
-   * The line under Savings, which now has two quite different jobs.
-   *
-   * When savings is POSITIVE it splits what was set aside: a pile you are
-   * building against a bill you are getting ahead of.
-   *
-   * When it is NEGATIVE the month took more out of the funds than it put in,
-   * and the only thing worth saying is which kind of fund paid. Money out of a
-   * sinking fund is the plan completing and wants no alarm; money out of a
-   * savings fund is a month that did not fit inside its income, and that is
-   * precisely the thing this app could not tell you before.
-   */
-  const setAside = summary?.setAside ?? 0
-  const forBills = summary?.sinking ?? 0
-  const planned = summary?.drawnPlanned ?? 0
-  const raided = summary?.drawnFromSavings ?? 0
-
-  const savingsNote =
-    savings < 0
-      ? [
-          raided > 0 && `${formatMoney(raided)} out of savings`,
-          planned > 0 && `${formatMoney(planned)} spent as planned`,
-        ]
-          .filter(Boolean)
-          .join(' · ')
-      : forBills > 0 && forBills < setAside
-        ? `${formatMoney(setAside - forBills)} put away · ${formatMoney(forBills)} for bills coming`
-        : forBills > 0 && forBills === setAside
-          ? 'all of it for bills coming'
-          : undefined
-
   return (
     <div className="space-y-6">
       {/* Due items are about now, so they show only while reading this month. */}
@@ -168,7 +137,6 @@ export function MonthView() {
             label="Savings"
             amount={summary?.savings ?? 0}
             share={income > 0 ? (summary?.savings ?? 0) / income : null}
-            note={savingsNote}
           />
         </div>
         {/* Composition bar: Leftover · Expense · Savings. Each segment answers
@@ -245,15 +213,22 @@ export function MonthView() {
               <Link
                 key={p._id}
                 to={keepPeriod(`/funds/${p._id}`)}
+                // Green means money you still have. Paying a loan off is
+                // progress but it is not that — the money went to the bank —
+                // so a debt chip stays grey however good the news is. The icon
+                // keeps the loan's own colour, which is how you know at a
+                // glance which loan it is.
                 className={`flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-8 ${
-                  p.change > 0 ? 'bg-emerald-50' : 'bg-stone-100'
+                  p.kind !== 'debt' && p.change > 0 ? 'bg-emerald-50' : 'bg-stone-100'
                 }`}
               >
                 <CategoryIcon icon={p.icon} color={p.color} size={16} />
                 <span className="text-stone-800">{p.name}</span>
                 <span
                   data-money
-                  className={p.change > 0 ? 'text-gain' : 'text-stone-600'}
+                  className={
+                    p.kind !== 'debt' && p.change > 0 ? 'text-gain' : 'text-stone-800'
+                  }
                 >
                   {p.change > 0 ? '+' : ''}
                   {formatMoney(p.change)}
