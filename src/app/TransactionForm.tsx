@@ -679,7 +679,7 @@ export function TransactionForm({
               value={{
                 icon: chosenInto?.icon,
                 color: chosenInto?.color,
-                text: chosenInto?.name ?? 'Nothing — free it up',
+                text: chosenInto?.name ?? "Month's income",
               }}
               options={[
                 ...destinations.map((p) => ({
@@ -689,8 +689,13 @@ export function TransactionForm({
                   text: p.name,
                   value: p._id as Id<'pots'> | null,
                 })),
+                // Taking money back OUT of a fund: it stops being promised to
+                // anything and joins the month's free money again. Named the
+                // same as the other end's default, because it is the same
+                // place — "Nothing — free it up" described the mechanism and
+                // left you to work out where the money went.
                 ...(from !== 'income'
-                  ? [{ key: 'none', text: 'Nothing — free it up', value: null }]
+                  ? [{ key: 'none', text: "Month's income", value: null }]
                   : []),
               ]}
               onPick={setPotId}

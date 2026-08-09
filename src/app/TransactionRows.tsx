@@ -23,8 +23,30 @@ import { CategoryIcon } from '../ui/icons'
  *           most transactions should not be there on most transactions.
  */
 
+/**
+ * One row, and one hover, everywhere.
+ *
+ * The same shape the transaction list uses: a row sits on a dashed rule and is
+ * square; hovering swaps the rule for a filled, rounded shape. The radius
+ * arrives WITH the fill, because a corner on a row that is only a line has
+ * nothing to round.
+ *
+ * It has to be ONE element. A picker was an outer div holding the rule and an
+ * inner button holding the hover, so the fill appeared inside the rule instead
+ * of replacing it, and the three kinds of row each hovered differently.
+ */
 const ROW =
-  'flex min-h-11 w-full items-center gap-3 border-b border-dashed border-stone-200 px-1 text-left text-sm sm:min-h-10'
+  'flex min-h-11 w-full items-center gap-3 border-b border-dashed border-stone-200 px-2 text-left text-sm sm:min-h-10'
+
+const HOVER =
+  'transition-colors hover:rounded-lg hover:border-transparent focus-visible:rounded-lg focus-visible:border-transparent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand'
+
+/** What an ordinary row fills with. */
+const FILL = `${HOVER} hover:bg-stone-100`
+
+/** And what an invitation fills with — its own colour, since it is not a value
+ *  you are changing but a thing you are adding. */
+const FILL_BRAND = `${HOVER} text-brand hover:bg-violet-100`
 
 /** The glyph column, so every row's text starts at the same x. */
 function Glyph({ children }: { children: ReactNode }) {
@@ -49,7 +71,10 @@ export function TypeRow({
   last?: boolean
 }) {
   return (
-    <div className={`${ROW} ${last ? 'border-b-0' : ''}`}>
+    // A label, so the whole row focuses the input — which is what makes the
+    // hover honest. A row that lights up and does nothing when clicked is
+    // worse than one that never lit up.
+    <label className={`${ROW} ${FILL} ${last ? 'border-b-0' : ''} cursor-text`}>
       <Glyph>{icon}</Glyph>
       <input
         value={value}
@@ -58,7 +83,7 @@ export function TypeRow({
         aria-label={label}
         className="min-w-0 flex-1 bg-transparent text-stone-800 outline-none placeholder:text-stone-400"
       />
-    </div>
+    </label>
   )
 }
 
@@ -76,7 +101,7 @@ export function OpenRow({
   last?: boolean
 }) {
   return (
-    <div className={`${ROW} relative ${last ? 'border-b-0' : ''}`}>
+    <div className={`${ROW} ${FILL} relative ${last ? 'border-b-0' : ''}`}>
       <Glyph>{icon}</Glyph>
       <span className="min-w-0 flex-1">{children}</span>
       <span className="sr-only">{label}</span>
@@ -111,12 +136,13 @@ export function PickRow<T>({
   last?: boolean
 }) {
   return (
-    <div className={`${ROW} ${last ? 'border-b-0' : ''} p-0`}>
-      <Popover
-        label={label}
-        align="left"
-        triggerClassName={`${ROW} border-b-0 hover:bg-stone-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand`}
-        trigger={
+    // No wrapper: the trigger IS the row, so the fill replaces the rule rather
+    // than appearing inside it.
+    <Popover
+      label={label}
+      align="left"
+      triggerClassName={`${ROW} ${FILL} ${last ? 'border-b-0' : ''}`}
+      trigger={
           <>
             <Glyph>
               {value?.icon !== undefined ? (
@@ -129,14 +155,13 @@ export function PickRow<T>({
               {value?.text}
             </span>
             {trailing}
-          </>
-        }
-      >
-        {(close) => (
-          <Options options={options} onPick={onPick} close={close} label={label} />
-        )}
-      </Popover>
-    </div>
+        </>
+      }
+    >
+      {(close) => (
+        <Options options={options} onPick={onPick} close={close} label={label} />
+      )}
+    </Popover>
   )
 }
 
@@ -159,7 +184,7 @@ export function ActionRow({
     <button
       type="button"
       onClick={onClick}
-      className={`${ROW} ${last ? 'border-b-0' : ''} rounded-lg text-brand hover:bg-violet-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand`}
+      className={`${ROW} ${FILL_BRAND} ${last ? 'border-b-0' : ''}`}
     >
       <Glyph>{icon}</Glyph>
       <span className="flex-1">{label}</span>

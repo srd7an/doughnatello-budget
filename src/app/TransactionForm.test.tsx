@@ -366,3 +366,26 @@ describe('what counts as a change', () => {
     expect(save).toBeEnabled()
   })
 })
+
+describe('swapping a transfer around', () => {
+  test('the arrows exchange the two ends', async () => {
+    setFixtures(READY)
+    renderScreen(<TransactionForm onDone={() => {}} />)
+    await userEvent.click(screen.getByRole('tab', { name: 'Transfer' }))
+
+    // Setting money aside: out of the month, into a fund.
+    await userEvent.click(screen.getByRole('button', { name: 'Into' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Rainy day' }))
+    expect(screen.getByRole('button', { name: 'From' })).toHaveTextContent(
+      "Month's income",
+    )
+    expect(screen.getByRole('button', { name: 'Into' })).toHaveTextContent('Rainy day')
+
+    // Swapped, it is the same move read backwards: taking it back out.
+    await userEvent.click(screen.getByRole('button', { name: 'Swap from and into' }))
+    expect(screen.getByRole('button', { name: 'From' })).toHaveTextContent('Rainy day')
+    expect(screen.getByRole('button', { name: 'Into' })).toHaveTextContent(
+      "Month's income",
+    )
+  })
+})
