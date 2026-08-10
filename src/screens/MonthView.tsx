@@ -208,7 +208,12 @@ export function MonthView() {
             used to need a look at the database. Each chip opens the fund's own
             page, because "what happened here" is the next thing you ask. */}
         {potMoves && potMoves.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
+          // One line, always. Wrapped, three funds became three rows and the
+          // block grew taller than the bar it belongs to — and the order stops
+          // meaning anything once the biggest movement is not simply first.
+          // It bleeds to the screen edges so a chip can scroll out from under
+          // the page's own padding rather than stopping short of it.
+          <div className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
             {potMoves.map((p) => (
               <Link
                 key={p._id}
@@ -218,7 +223,7 @@ export function MonthView() {
                 // so a debt chip stays grey however good the news is. The icon
                 // keeps the loan's own colour, which is how you know at a
                 // glance which loan it is.
-                className={`flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-8 ${
+                className={`flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-8 ${
                   p.kind !== 'debt' && p.change > 0 ? 'bg-emerald-50' : 'bg-stone-100'
                 }`}
               >

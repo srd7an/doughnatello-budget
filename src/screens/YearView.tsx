@@ -86,14 +86,7 @@ export function YearView() {
           worth. Change and Total are honest for all three. The in/out detail
           belongs on a fund's own page, where there is room and where you went
           BECAUSE you wanted detail. */}
-      {/* Two numeric columns beside a name do not fit a phone, and the usual
-          answer — stack them, or drop one — makes the table unreadable in a
-          different way: a change with no total to measure it against says
-          nothing. So the row keeps its shape at every width and the container
-          scrolls sideways when it has to. The page itself never does; only
-          this. */}
-      <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-       <div className="flex min-w-[520px] flex-col gap-1">
+      <div className="flex flex-col gap-1">
         <div className="flex items-center gap-4 px-3 pb-1 text-xs text-stone-400">
           <span className="flex-1" />
           <span>Change</span>
@@ -104,7 +97,6 @@ export function YearView() {
         <Accordion label="Funds" group={data.funds} linkTo="/funds" />
         <Accordion label="Assets" group={data.assets} linkTo="/assets" />
         <Accordion label="Loans" group={data.loans} paidLabel linkTo="/funds" />
-       </div>
       </div>
 
       <section>
