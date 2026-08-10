@@ -2,12 +2,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
-import {
-  formatMonth,
-  formatMoney,
-  formatPercent,
-  initials,
-} from '../lib/format'
+import { formatMonth, formatMoney, formatPercent } from '../lib/format'
 import { dayLabel } from '../lib/dates'
 import { ArrowRightIcon, CategoryIcon } from '../ui/icons'
 
@@ -171,13 +166,6 @@ export function PotPage() {
                             reason it is on this page. */}
                         <span className="hidden shrink-0 items-center gap-1 rounded-md border border-stone-300 bg-white px-1.5 py-0.5 text-xs text-stone-800 sm:inline-flex">
                           {effect(row, pot._id)}
-                        </span>
-                        <span
-                          aria-label={`Paid by ${row.paidByName}`}
-                          title={row.paidByName}
-                          className="grid size-5 shrink-0 place-items-center rounded-full bg-stone-200 text-[10px] font-medium text-stone-600"
-                        >
-                          {initials(row.paidByName)}
                         </span>
                         <span
                           data-money

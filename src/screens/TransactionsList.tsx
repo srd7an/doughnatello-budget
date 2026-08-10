@@ -3,7 +3,7 @@ import { useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { useHousehold } from '../household/HouseholdContext'
 import { usePeriod } from '../period/PeriodContext'
-import { formatMoney, initials } from '../lib/format'
+import { formatMoney } from '../lib/format'
 import { ArrowRightIcon, CategoryIcon, XIcon } from '../ui/icons'
 import { dayLabel } from '../lib/dates'
 import type { Id } from '../../convex/_generated/dataModel'
@@ -121,6 +121,14 @@ export function TransactionsList({
   )
 }
 
+/**
+ * No "who paid" avatar. On a one-person household it was the same two letters
+ * on all 564 rows — a column of identical marks, which is a column carrying no
+ * information at all. The server still reports `paidByName` and the field is
+ * still recorded; it is worth showing again the day a household has two people
+ * whose spending you would want to tell apart, and nothing about that is lost
+ * by not drawing it today.
+ */
 function TransactionRow({ row, onOpen }: { row: Row; onOpen: () => void }) {
   // The category you chose is what the row wears. A fund or a loan is context —
   // where the money came from, what it paid off — and it says so in the pill
@@ -192,14 +200,6 @@ function TransactionRow({ row, onOpen }: { row: Row; onOpen: () => void }) {
             )}
           </>
         )}
-
-        <span
-          aria-label={`Paid by ${row.paidByName}`}
-          title={row.paidByName}
-          className="grid size-5 shrink-0 place-items-center rounded-full bg-stone-200 text-[10px] font-medium text-stone-600"
-        >
-          {initials(row.paidByName)}
-        </span>
 
         {/* Only income is green. A transfer into a fund is money MOVING, not money
           arriving — painting it as a gain was the old bug. */}
