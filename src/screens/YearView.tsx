@@ -54,14 +54,19 @@ export function YearView() {
         </p>
       </section>
 
-      <div>
+      {/* Same stack and same two orders as the month: key before picture where
+          there is room, picture against its headline where there is not. */}
+      <div className="flex flex-col gap-4">
         {/* The twelve columns are navigation: click one to zoom into it. */}
+        <div className="order-1 sm:order-2">
         <YearChart
           months={data.months}
           currentMonthIndex={currentMonthIndex}
           onOpenMonth={(i) => openMonth(year, i + 1)}
         />
+        </div>
 
+        <div className="order-2 sm:order-1">
         <Legend
           items={[
             { label: 'Income', amount: data.totals.income, share: null },
@@ -85,6 +90,7 @@ export function YearView() {
             },
           ]}
         />
+        </div>
       </div>
 
       {/* The same three groups the month shows, in the same component. They
@@ -98,55 +104,6 @@ export function YearView() {
           assets: data.assets.items,
         }}
       />
-
-      <section>
-        <p className="text-sm text-stone-500">Net worth</p>
-        <p className="tnum flex items-baseline gap-2">
-          <span className="text-[32px] leading-none text-stone-800">
-            {formatMoney(data.netWorth)}
-          </span>
-          {change !== 0 && (
-            <span
-              className={`text-sm ${change > 0 ? 'text-gain' : 'text-debt'}`}
-            >
-              {formatMoney(change, { signed: true })} this year
-            </span>
-          )}
-        </p>
-      </section>
-
-      <div>
-        {/* The twelve columns are navigation: click one to zoom into it. */}
-        <YearChart
-          months={data.months}
-          currentMonthIndex={currentMonthIndex}
-          onOpenMonth={(i) => openMonth(year, i + 1)}
-        />
-
-        <Legend
-          items={[
-            { label: 'Income', amount: data.totals.income, share: null },
-            {
-              swatch: 'bg-expense',
-              label: 'Expense',
-              amount: data.totals.expense,
-              share: income > 0 ? data.totals.expense / income : null,
-            },
-            {
-              swatch: 'bg-saved',
-              label: 'Savings',
-              amount: data.totals.savings,
-              share: income > 0 ? data.totals.savings / income : null,
-            },
-            {
-              swatch: 'bg-leftover',
-              label: 'Leftover',
-              amount: data.totals.leftToSpend,
-              share: income > 0 ? data.totals.leftToSpend / income : null,
-            },
-          ]}
-        />
-      </div>
 
       <section>
         <h2 className="mb-3 text-base font-medium tracking-[-0.16px] text-stone-800">

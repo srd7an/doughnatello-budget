@@ -41,7 +41,7 @@ export function StockTabs({ groups }: { groups: Groups }) {
   const items = groups[tab]
 
   return (
-    <section>
+    <section className="flex flex-col gap-4">
       <div className="flex items-center gap-3" role="tablist">
         {TABS.map((t) => (
           <button

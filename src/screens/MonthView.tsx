@@ -111,11 +111,13 @@ export function MonthView() {
           )}
         </p>
 
-        {/* Composition bar: Leftover · Expense · Savings. Each segment answers
-            for itself on hover and focus; the metric row above is the same
-            three figures, always visible. */}
+        {/* One stack, two orders. Wide, the key reads before the picture;
+            narrow, the bar sits against the headline it summarises and the
+            detail goes underneath. 16px between them, and 16px from the
+            headline above. */}
+        <div className="mt-4 flex flex-col gap-4">
         <div
-          className="relative mt-4 flex h-5 gap-1"
+          className="relative order-1 flex h-5 gap-1 sm:order-2"
           onPointerLeave={() => setHover(null)}
         >
           {/* The frame IS the income: the segments are what became of it, and
@@ -177,6 +179,7 @@ export function MonthView() {
           )}
         </div>
 
+        <div className="order-2 sm:order-1">
         <Legend
           items={[
             { label: 'Income', amount: income, share: null },
@@ -200,6 +203,8 @@ export function MonthView() {
             },
           ]}
         />
+        </div>
+        </div>
 
         {hover && (
           <ChartTooltip
