@@ -87,7 +87,7 @@ export function MonthView() {
   const denom = Math.max(income + overspent, 1)
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Due items are about now, so they show only while reading this month. */}
       {isCurrentMonth && <DueSoon />}
 
@@ -146,13 +146,16 @@ export function MonthView() {
           className="relative mt-4 flex h-5 gap-1"
           onPointerLeave={() => setHover(null)}
         >
-          {/* Where the income ran out. Only drawn when something crossed it,
-              because a line at the end of a bar is not a line, it is an edge. */}
-          {overspent > 0 && income > 0 && (
+          {/* The frame IS the income: the segments are what became of it, and
+              the outline is how much there was to become anything. Drawn around
+              them rather than behind, so a month that overspent has segments
+              visibly running out past their own frame — which is the whole
+              story of that month in one shape. */}
+          {income > 0 && (
             <span
               aria-hidden
-              className="absolute inset-y-[-3px] z-10 w-px bg-stone-800"
-              style={{ left: `${(income / denom) * 100}%` }}
+              className="pointer-events-none absolute -inset-y-1 -left-1 z-10 rounded-lg border border-stone-300"
+              style={{ width: `calc(${(income / denom) * 100}% + 0.5rem)` }}
             />
           )}
           {income > 0 ? (

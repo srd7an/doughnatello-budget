@@ -38,7 +38,7 @@ export function YearView() {
   const change = data.netWorthChange
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <section>
         <p className="text-sm text-stone-500">Net worth</p>
         <p className="tnum flex items-baseline gap-2">

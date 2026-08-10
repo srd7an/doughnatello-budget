@@ -87,7 +87,7 @@ export function YearChart({
   return (
     <div>
       <div
-        className="relative flex items-end gap-2"
+        className="relative flex items-end gap-1 sm:gap-2"
         style={{ height: HEIGHT }}
         onPointerLeave={() => setHover(null)}
       >
@@ -146,7 +146,11 @@ export function YearChart({
               )}
               {!isFuture && h > 0 && (
                 <div
-                  className={`relative flex w-3/5 flex-col overflow-hidden rounded-[3px] border border-dashed transition-colors ${
+                  // Wider on a phone: twelve columns across 350px leaves each
+                  // one narrow enough that 60% of it is a line rather than a
+                  // bar, and a bar you cannot judge the height of is not doing
+                  // its job.
+                  className={`relative flex w-4/5 flex-col overflow-hidden rounded-[3px] border border-dashed transition-colors sm:w-3/5 ${
                     active ? 'border-stone-500' : 'border-stone-300'
                   }`}
                   style={{ height: Math.max(h, 2) }}
@@ -166,7 +170,7 @@ export function YearChart({
       <div aria-hidden className="border-t border-stone-200" />
 
       {/* Month labels */}
-      <div className="mt-2 flex gap-2">
+      <div className="mt-2 flex gap-1 sm:gap-2">
         {LABELS.map((label, i) => (
           <div
             key={label}
