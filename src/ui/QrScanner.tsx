@@ -32,12 +32,21 @@ function decoder() {
   return decoderPromise
 }
 
-/** QR only, and let ZXing work for it — tryHarder is the whole point of the
- *  swap, and a frame this app throws away every 16ms can afford it. */
+/**
+ * QR only, and let ZXing work for it — tryHarder is the whole point of the swap
+ * from jsQR, and a frame this app throws away every 16ms can afford it.
+ *
+ * The same settings decode a still. I added tryInvert, tryRotate and
+ * tryDownscale for the screenshot case and then tested them: ZXing reads a
+ * dark-mode code and a 148px code inside a 1170×2532 screenshot without any of
+ * them. Options justified by a guess, kept because they seemed harmless, are
+ * how a config grows — so they are gone.
+ */
 const QR_ONLY: import('zxing-wasm/reader').ReaderOptions = {
   formats: ['QRCode'],
   tryHarder: true,
 }
+
 
 /**
  * The camera, pointed at a QR code.
@@ -278,11 +287,17 @@ export function QrScanner({
    * not — it comes back at the sensor's real resolution, often twelve megapixels
    * against the two a stream gives, and at that size a fiscal code has ten-odd
    * pixels per module rather than two. It is also focused, because the camera
-   * app took its time about it.
+   * app took its time about it. A screenshot is better still: the code was
+   * never photographed at all, so there is no blur, no glare and no angle.
    *
-   * Slower and clumsier than pointing, so it is offered rather than imposed:
-   * the live scan reads an IPS slip instantly and there is no reason to make
-   * anyone photograph one.
+   * It also takes an image you ALREADY have. A QR is not always on paper in
+   * front of you — a shop's own app shows one on screen, and the way you keep
+   * that is a screenshot. There is nothing to point a camera at, and the
+   * screenshot is a cleaner source than a photograph of a screen would ever be.
+   *
+   * Which is why the input does not force the camera. `capture` sent you
+   * straight to the viewfinder and never offered the library at all; without
+   * it the system asks, and both cases are one control.
    */
   const readPhoto = async (file: File) => {
     setPhotoBusy(true)
@@ -377,11 +392,10 @@ export function QrScanner({
           {/* A label, not a button: the input has to be the thing that is
               clicked for the camera to open on iOS. */}
           <label className="inline-flex min-h-11 cursor-pointer items-center rounded-full border border-white/40 px-4 text-sm text-white hover:bg-white/10 sm:min-h-9">
-            {photoBusy ? 'Reading…' : 'Take a photo'}
+            {photoBusy ? 'Reading…' : 'Use an image'}
             <input
               type="file"
               accept="image/*"
-              capture="environment"
               className="sr-only"
               onChange={(e) => {
                 const file = e.target.files?.[0]
@@ -394,8 +408,8 @@ export function QrScanner({
 
         {photoFailed && (
           <p className="text-center text-xs text-white">
-            No code found in that photo. Get closer, and keep the whole code in
-            the shot.
+            No code found in that image. If it is a photo, get closer and keep
+            the whole code in the frame.
           </p>
         )}
         {resolution && (
