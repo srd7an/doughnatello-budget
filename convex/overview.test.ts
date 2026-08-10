@@ -421,11 +421,12 @@ describe("the savings split", () => {
 });
 
 /**
- * The chips under the month's bar: what each fund and loan actually did.
+ * The cards under the month's bar: what each fund, loan and asset did.
  *
  * The bar says how much was set aside in total. This says WHERE, which is the
  * question a single savings figure cannot answer — and the one that sent me
- * looking at the database by hand more than once.
+ * looking at the database by hand more than once. Same shape the year returns,
+ * so both screens draw it with one component.
  */
 describe("what the funds did this month", () => {
   test("a fund that was filled, and one that paid for something", async () => {
@@ -443,28 +444,31 @@ describe("what the funds did this month", () => {
       occurredOn: `${MONTH}-20`,
     });
 
-    const chips = await asA(t).query(api.overview.monthPots, {
+    const { funds } = await asA(t).query(api.overview.monthStocks, {
       householdId,
       month: MONTH,
     });
-    const by = (name: string) => chips.find((c) => c.name === name)!;
+    const by = (name: string) => funds.find((c) => c.name === name)!;
 
     expect(by("Cash fund").change).toBe(12_000_00);
     // Filled with 6.000, spent 2.000 out of it.
     expect(by("Car stuff").change).toBe(4_000_00);
-    // Largest movement first.
-    expect(chips[0].name).toBe("Cash fund");
+    // And the card carries where the fund STANDS as well as what moved.
+    expect(by("Car stuff").balance).toBe(4_000_00);
   });
 
-  test("a fund nothing happened to does not appear", async () => {
+  test("a fund nothing happened to is still listed", async () => {
     const { t, householdId, cash } = await withFunds();
     await setAside(t, householdId, cash, 5_000_00, "05");
 
-    const chips = await asA(t).query(api.overview.monthPots, {
+    // These are stocks — what you HAVE — and a fund missing because it had a
+    // quiet month reads as a fund you no longer have.
+    const { funds } = await asA(t).query(api.overview.monthStocks, {
       householdId,
       month: MONTH,
     });
-    expect(chips.map((c) => c.name)).toEqual(["Cash fund"]);
+    expect(funds.map((c) => c.name).sort()).toEqual(["Car stuff", "Cash fund"]);
+    expect(funds.find((c) => c.name === "Car stuff")!.change).toBe(0);
   });
 
   test("paying a loan reads as a positive movement — less owed", async () => {
@@ -488,11 +492,14 @@ describe("what the funds did this month", () => {
       occurredOn: `${MONTH}-10`,
     });
 
-    const chips = await asA(t).query(api.overview.monthPots, {
+    const { loans } = await asA(t).query(api.overview.monthStocks, {
       householdId,
       month: MONTH,
     });
-    expect(chips.find((c) => c.name === "KIA Sportage")!.change).toBe(42_400_00);
+    const kia = loans.find((c) => c.name === "KIA Sportage")!;
+    expect(kia.change).toBe(42_400_00);
+    // Still owed, carried negative — that is what owing looks like.
+    expect(kia.balance).toBe(-(900_000_00 - 42_400_00));
   });
 
   test("a move between funds shows on both ends, and nets to nothing", async () => {
@@ -507,11 +514,11 @@ describe("what the funds did this month", () => {
       occurredOn: `${MONTH}-15`,
     });
 
-    const chips = await asA(t).query(api.overview.monthPots, {
+    const { funds } = await asA(t).query(api.overview.monthStocks, {
       householdId,
       month: MONTH,
     });
-    const by = (name: string) => chips.find((c) => c.name === name)!;
+    const by = (name: string) => funds.find((c) => c.name === name)!;
     expect(by("Cash fund").change).toBe(7_000_00);
     expect(by("Car stuff").change).toBe(3_000_00);
     // Nothing was created or destroyed by moving it.

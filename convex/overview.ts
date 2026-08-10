@@ -127,22 +127,23 @@ export const month = query({
 });
 
 /**
- * What each fund and loan did THIS MONTH — the chips under the month's bar.
+ * Funds, loans and assets as the month left them — the cards under the bar.
  *
- * The composition bar says how much was set aside in total; this says where it
- * went, and what came back out. A month that put 12.000 into the cash fund and
- * paid 42.400 off the car loan has two facts worth seeing, and neither of them
- * survives being added into a single "savings" figure.
+ * Deliberately the same shape the year returns, because the two screens show
+ * the same three groups and the only difference is the window: `change` is what
+ * moved this month rather than this year, and `balance` is where the thing
+ * stands now either way. One shape means one card component.
  *
- * Only pots that MOVED appear. A list of every fund with most of them reading
- * zero is a list you stop looking at.
+ * Everything is listed, including what did not move. These are stocks — what
+ * you HAVE — and a fund missing from the list because it had a quiet month
+ * reads as a fund you no longer have.
  */
-export const monthPots = query({
+export const monthStocks = query({
   args: { householdId: v.id("households"), month: v.string() }, // YYYY-MM
   handler: async (ctx, { householdId, month }) => {
     await requireMember(ctx, householdId);
 
-    const [txs, pots] = await Promise.all([
+    const [txs, pots, assets] = await Promise.all([
       ctx.db
         .query("transactions")
         .withIndex("by_household_date", (q) =>
@@ -156,11 +157,15 @@ export const monthPots = query({
         .query("pots")
         .withIndex("by_household", (q) => q.eq("householdId", householdId))
         .collect(),
+      ctx.db
+        .query("assets")
+        .withIndex("by_household", (q) => q.eq("householdId", householdId))
+        .collect(),
     ]);
 
-    const change = new Map<Id<"pots">, number>();
+    const moved = new Map<Id<"pots">, number>();
     const add = (id: Id<"pots">, n: number) =>
-      change.set(id, (change.get(id) ?? 0) + n);
+      moved.set(id, (moved.get(id) ?? 0) + n);
 
     for (const t of txs) {
       // Into a fund, or off a loan. A debt pot going "up" means less owed,
@@ -174,19 +179,60 @@ export const monthPots = query({
       for (const f of funding) if (f.potId) add(f.potId, -f.amount);
     }
 
-    return pots
-      .filter((p) => !p.isArchived && (change.get(p._id) ?? 0) !== 0)
-      .map((p) => ({
-        _id: p._id,
-        name: p.name,
-        icon: p.icon,
-        color: p.color,
-        kind: p.kind,
-        change: change.get(p._id) ?? 0,
-      }))
-      // Biggest movement first, whichever direction — the eye should land on
-      // the month's largest fact about its funds.
-      .sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+    const funds: StockItem[] = [];
+    const loans: StockItem[] = [];
+    for (const p of pots) {
+      if (p.isArchived) continue;
+      if (p.kind === "debt") {
+        loans.push({
+          _id: p._id,
+          name: p.name,
+          icon: p.icon,
+          color: p.color,
+          balance: -(await debtOwed(ctx, householdId, p)), // negative = owed
+          change: moved.get(p._id) ?? 0,
+        });
+      } else {
+        funds.push({
+          _id: p._id,
+          name: p.name,
+          icon: p.icon,
+          color: p.color,
+          balance: await potBalance(ctx, householdId, p._id),
+          change: moved.get(p._id) ?? 0,
+        });
+      }
+    }
+
+    // An asset's month is a revaluation or nothing — no money flows through it.
+    const end = `${month}-31`;
+    const start = `${month}-01`;
+    const valuations = await ctx.db
+      .query("assetValuations")
+      .withIndex("by_household", (q) => q.eq("householdId", householdId))
+      .collect();
+    const assetItems: StockItem[] = assets
+      .filter((a) => !a.isArchived)
+      .map((a) => {
+        const mine = valuations
+          .filter((v) => v.assetId === a._id)
+          .sort((x, y) => (x.valuedOn < y.valuedOn ? -1 : 1));
+        const before = [...mine].reverse().find((v) => v.valuedOn < start);
+        const latest = [...mine].reverse().find((v) => v.valuedOn <= end);
+        return {
+          _id: a._id,
+          name: a.name,
+          // Assets have no colour of their own — they are not funds, and the
+          // neutral keeps them from reading as one.
+          icon: a.icon ?? "money",
+          color: "#a8a29e",
+          balance: a.value,
+          change: before && latest ? latest.value - before.value : 0,
+          valuedOn: a.valuedOn,
+        };
+      });
+
+    return { funds, loans, assets: assetItems };
   },
 });
 

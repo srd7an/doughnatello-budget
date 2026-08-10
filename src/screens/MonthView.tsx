@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { useHousehold } from '../household/HouseholdContext'
-import { usePeriod, useKeepPeriod } from '../period/PeriodContext'
+import { usePeriod } from '../period/PeriodContext'
 import { formatMoney, formatPercent } from '../lib/format'
 import { Swatch } from '../ui/Swatch'
-import { CategoryIcon } from '../ui/icons'
 import { ChartTooltip, SERIES } from '../ui/ChartTooltip'
 import { TransactionsList, type TxFilter } from './TransactionsList'
 import { CategoriesList } from './CategoriesList'
+import { Legend } from './Legend'
+import { StockTabs } from './StockTabs'
 import { DueSoon } from './DueSoon'
 
 type Lens = 'transactions' | 'categories'
@@ -39,7 +39,7 @@ export function MonthView() {
     householdId: household._id,
     month: monthKey,
   })
-  const potMoves = useQuery(api.overview.monthPots, {
+  const stocks = useQuery(api.overview.monthStocks, {
     householdId: household._id,
     month: monthKey,
   })
@@ -47,7 +47,6 @@ export function MonthView() {
   const [lens, setLens] = useState<Lens>('transactions')
   const [hover, setHover] = useState<Hover | null>(null)
   const [filter, setFilter] = useState<TxFilter | null>(null)
-  const keepPeriod = useKeepPeriod()
 
   // A filter belongs to the month it was set in. Carrying "Rainy day" into
   // September, where nothing touched it, would look like data loss.
@@ -112,33 +111,6 @@ export function MonthView() {
           )}
         </p>
 
-        {/* The key, above the bar it explains — the same running order as
-            the year: headline, key, picture. */}
-        <div className="mt-4 flex flex-wrap gap-8">
-          <Metric
-            label="Income"
-            amount={income}
-            share={null}
-          />
-          <Metric
-            swatch="bg-expense"
-            label="Expense"
-            amount={summary?.expense ?? 0}
-            share={income > 0 ? (summary?.expense ?? 0) / income : null}
-          />
-          {/* Savings stays ONE segment of the bar — the identity income =
-              expense + savings + leftToSpend depends on it — but underneath it
-              says what the two halves of it are for. Money put away is
-              accumulation; money in a sinking fund is a bill that has not
-              arrived yet, and when it does it will not come off that month
-              again, because it came off this one. */}
-          <Metric
-            swatch="bg-saved"
-            label="Savings"
-            amount={summary?.savings ?? 0}
-            share={income > 0 ? (summary?.savings ?? 0) / income : null}
-          />
-        </div>
         {/* Composition bar: Leftover · Expense · Savings. Each segment answers
             for itself on hover and focus; the metric row above is the same
             three figures, always visible. */}
@@ -205,46 +177,29 @@ export function MonthView() {
           )}
         </div>
 
-        {/* What the month did to each fund and loan.
-            The bar says how much was set aside; this says WHERE — which is the
-            question a single savings figure cannot answer, and the one that
-            used to need a look at the database. Each chip opens the fund's own
-            page, because "what happened here" is the next thing you ask. */}
-        {potMoves && potMoves.length > 0 && (
-          // One line, always. Wrapped, three funds became three rows and the
-          // block grew taller than the bar it belongs to — and the order stops
-          // meaning anything once the biggest movement is not simply first.
-          // It bleeds to the screen edges so a chip can scroll out from under
-          // the page's own padding rather than stopping short of it.
-          <div className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
-            {potMoves.map((p) => (
-              <Link
-                key={p._id}
-                to={keepPeriod(`/funds/${p._id}`)}
-                // Green means money you still have. Paying a loan off is
-                // progress but it is not that — the money went to the bank —
-                // so a debt chip stays grey however good the news is. The icon
-                // keeps the loan's own colour, which is how you know at a
-                // glance which loan it is.
-                className={`flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-8 ${
-                  p.kind !== 'debt' && p.change > 0 ? 'bg-emerald-50' : 'bg-stone-100'
-                }`}
-              >
-                <CategoryIcon icon={p.icon} color={p.color} size={16} />
-                <span className="text-stone-800">{p.name}</span>
-                <span
-                  data-money
-                  className={
-                    p.kind !== 'debt' && p.change > 0 ? 'text-gain' : 'text-stone-800'
-                  }
-                >
-                  {p.change > 0 ? '+' : ''}
-                  {formatMoney(p.change)}
-                </span>
-              </Link>
-            ))}
-          </div>
-        )}
+        <Legend
+          items={[
+            { label: 'Income', amount: income, share: null },
+            {
+              swatch: 'bg-expense',
+              label: 'Expense',
+              amount: summary?.expense ?? 0,
+              share: income > 0 ? (summary?.expense ?? 0) / income : null,
+            },
+            {
+              swatch: 'bg-saved',
+              label: 'Savings',
+              amount: savings,
+              share: income > 0 ? savings / income : null,
+            },
+            {
+              swatch: 'bg-leftover',
+              label: isCurrentMonth ? 'Left to spend' : 'Leftover',
+              amount: leftToSpend,
+              share: income > 0 ? leftToSpend / income : null,
+            },
+          ]}
+        />
 
         {hover && (
           <ChartTooltip
@@ -263,6 +218,8 @@ export function MonthView() {
           />
         )}
       </section>
+
+      {stocks && <StockTabs groups={stocks} />}
 
       {/* Lens row */}
       <div className="flex items-center gap-3">
@@ -354,40 +311,6 @@ function Seg({
  * button so that Savings could expand into a per-fund breakdown, which made the
  * other two look pressable and did nothing when pressed.
  */
-function Metric({
-  swatch,
-  label,
-  amount,
-  share,
-  note,
-}: {
-  /** Absent for Income, which is not a SEGMENT of the bar — it is the length
-   *  of the bar, and the three coloured figures are shares of it. */
-  swatch?: string
-  label: string
-  amount: number
-  share: number | null
-  /** A third line, for a figure that is a slice of this one rather than a
-   *  neighbour of it — see the savings split. */
-  note?: string
-}) {
-  return (
-    <div>
-      <p className="flex items-center gap-1.5 text-sm text-stone-500">
-        {label}
-        {swatch && <Swatch className={swatch} />}
-      </p>
-      <p className="tnum mt-0.5 text-sm">
-        <span className="text-stone-800">{formatMoney(amount)}</span>
-        {share !== null && (
-          <span className="ml-1.5 text-stone-500">{formatPercent(share)}</span>
-        )}
-      </p>
-      {note && <p className="tnum mt-0.5 text-xs text-stone-400">{note}</p>}
-    </div>
-  )
-}
-
 function LensTab({
   label,
   count,

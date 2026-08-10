@@ -1,13 +1,11 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { useHousehold } from '../household/HouseholdContext'
 import { usePeriod } from '../period/PeriodContext'
 import { formatMoney } from '../lib/format'
-import { CaretRightIcon, CategoryIcon } from '../ui/icons'
-import { Swatch } from '../ui/Swatch'
 import { YearChart } from './YearChart'
+import { Legend } from './Legend'
+import { StockTabs } from './StockTabs'
 import { CategoriesList } from './CategoriesList'
 
 // Year zoom: FLOW over twelve months. Hero is net worth (a stock, deliberately
@@ -36,6 +34,7 @@ export function YearView() {
   }
 
   const change = data.netWorthChange
+  const income = data.totals.income
 
   return (
     <div className="space-y-8">
@@ -56,47 +55,97 @@ export function YearView() {
       </section>
 
       <div>
-        {/* The key reads before the picture here: four series stacked in a
-            column are worth knowing the names of BEFORE you try to read one,
-            where the month's three-part bar explains itself. */}
-        <div className="mb-4 flex flex-wrap gap-8">
-          <Metric label="Income" swatch={<Swatch className="border-stone-400" outline orient="column" />} amount={data.totals.income} />
-          <Metric label="Expense" swatch={<Swatch className="bg-expense" orient="column" />} amount={data.totals.expense} />
-          <Metric label="Savings" swatch={<Swatch className="bg-saved" orient="column" />} amount={data.totals.savings} />
-          <Metric label="Leftover" swatch={<Swatch className="bg-leftover" orient="column" />} amount={data.totals.leftToSpend} />
-        </div>
-
         {/* The twelve columns are navigation: click one to zoom into it. */}
         <YearChart
           months={data.months}
           currentMonthIndex={currentMonthIndex}
           onOpenMonth={(i) => openMonth(year, i + 1)}
         />
+
+        <Legend
+          items={[
+            { label: 'Income', amount: data.totals.income, share: null },
+            {
+              swatch: 'bg-expense',
+              label: 'Expense',
+              amount: data.totals.expense,
+              share: income > 0 ? data.totals.expense / income : null,
+            },
+            {
+              swatch: 'bg-saved',
+              label: 'Savings',
+              amount: data.totals.savings,
+              share: income > 0 ? data.totals.savings / income : null,
+            },
+            {
+              swatch: 'bg-leftover',
+              label: 'Leftover',
+              amount: data.totals.leftToSpend,
+              share: income > 0 ? data.totals.leftToSpend / income : null,
+            },
+          ]}
+        />
       </div>
 
-      {/* Stock accordions — path is the chart, endpoints are these rows.
-          TWO columns, deliberately. The design carried four — money in, money
-          out, neto, total — and the middle two do not survive contact with the
-          rows they have to serve. Neto is money-in minus money-out, arithmetic
-          the reader can already see. An asset has no in and out at all; it is
-          revalued, which is a different kind of event, and the design filled
-          those cells with "No change | 0" — a table admitting the row does not
-          fit. And on a loan the signs are ambiguous: "+180.000 in" could be
-          borrowing more or paying down, which are opposite facts about your net
-          worth. Change and Total are honest for all three. The in/out detail
-          belongs on a fund's own page, where there is room and where you went
-          BECAUSE you wanted detail. */}
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-4 px-3 pb-1 text-xs text-stone-400">
-          <span className="flex-1" />
-          <span>Change</span>
-          <span className="w-[100px] text-right">Total</span>
-        </div>
-        {/* Every row opens the thing it names. A fund's page lists money
-            moving; an asset's lists what it has been worth. */}
-        <Accordion label="Funds" group={data.funds} linkTo="/funds" />
-        <Accordion label="Assets" group={data.assets} linkTo="/assets" />
-        <Accordion label="Loans" group={data.loans} paidLabel linkTo="/funds" />
+      {/* The same three groups the month shows, in the same component. They
+          were an accordion of Change and Total columns here and a row of chips
+          there, which was two answers to one question — and the columns could
+          not survive a phone, while cards simply scroll. */}
+      <StockTabs
+        groups={{
+          funds: data.funds.items,
+          loans: data.loans.items,
+          assets: data.assets.items,
+        }}
+      />
+
+      <section>
+        <p className="text-sm text-stone-500">Net worth</p>
+        <p className="tnum flex items-baseline gap-2">
+          <span className="text-[32px] leading-none text-stone-800">
+            {formatMoney(data.netWorth)}
+          </span>
+          {change !== 0 && (
+            <span
+              className={`text-sm ${change > 0 ? 'text-gain' : 'text-debt'}`}
+            >
+              {formatMoney(change, { signed: true })} this year
+            </span>
+          )}
+        </p>
+      </section>
+
+      <div>
+        {/* The twelve columns are navigation: click one to zoom into it. */}
+        <YearChart
+          months={data.months}
+          currentMonthIndex={currentMonthIndex}
+          onOpenMonth={(i) => openMonth(year, i + 1)}
+        />
+
+        <Legend
+          items={[
+            { label: 'Income', amount: data.totals.income, share: null },
+            {
+              swatch: 'bg-expense',
+              label: 'Expense',
+              amount: data.totals.expense,
+              share: income > 0 ? data.totals.expense / income : null,
+            },
+            {
+              swatch: 'bg-saved',
+              label: 'Savings',
+              amount: data.totals.savings,
+              share: income > 0 ? data.totals.savings / income : null,
+            },
+            {
+              swatch: 'bg-leftover',
+              label: 'Leftover',
+              amount: data.totals.leftToSpend,
+              share: income > 0 ? data.totals.leftToSpend / income : null,
+            },
+          ]}
+        />
       </div>
 
       <section>
@@ -109,152 +158,3 @@ export function YearView() {
   )
 }
 
-function Metric({
-  label,
-  swatch,
-  amount,
-}: {
-  label: string
-  swatch: React.ReactNode
-  amount: number
-}) {
-  return (
-    <div>
-      <div className="flex items-center gap-1.5 text-sm text-stone-500">
-        {label}
-        {swatch}
-      </div>
-      <p data-money className="mt-0.5 text-sm text-stone-800">
-        {formatMoney(amount)}
-      </p>
-    </div>
-  )
-}
-
-type StockItem = {
-  _id: string
-  name: string
-  icon: string
-  color: string
-  balance: number
-  change: number
-  valuedOn?: string
-}
-type Group = { balance: number; change: number; items: StockItem[] }
-
-function Accordion({
-  label,
-  group,
-  paidLabel,
-  linkTo,
-}: {
-  label: string
-  group: Group
-  paidLabel?: boolean
-  /** Set when the rows open a page — the base path, id appended. */
-  linkTo?: string
-}) {
-  const [open, setOpen] = useState(false)
-  const empty = group.items.length === 0
-
-  return (
-    <div>
-      <button
-        onClick={() => !empty && setOpen((o) => !o)}
-        aria-expanded={open}
-        disabled={empty}
-        className="flex min-h-11 w-full items-center gap-2 rounded-lg bg-stone-100 px-3 text-sm transition-colors hover:bg-stone-200 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:min-h-9"
-      >
-        <span className="grid w-3 shrink-0 place-items-center" aria-hidden>
-          {!empty && (
-            <CaretRightIcon
-              size={12}
-              className={`text-stone-400 transition-transform ${open ? 'rotate-90' : ''}`}
-            />
-          )}
-        </span>
-        <span className="flex-1 text-left font-medium">{label}</span>
-        <ChangeBalance
-          change={group.change}
-          balance={group.balance}
-          paidLabel={paidLabel}
-        />
-      </button>
-      {/* Each row under an open group is a transaction row — square on its own
-          dashed rule, rounded and filled only while hovered.
-
-          In line with the group above it rather than indented: these rows carry
-          numeric columns that have to align down the whole table, and an indent
-          breaks that alignment for exactly the rows you most want to compare. */}
-      {open && (
-        <div className="mt-1 flex flex-col gap-1">
-        {group.items.map((it) => {
-          const cls = `flex min-h-11 items-center gap-2 border-b border-dashed border-stone-300 px-3 py-1.5 text-sm sm:min-h-9 ${
-            linkTo
-              ? 'hover:rounded-lg hover:border-transparent hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand'
-              : ''
-          }`
-          const body = (
-            <>
-            {/* The icon is a flex sibling of the name, not a child of it:
-                preflight renders an svg as a block, so inside the text it
-                dropped onto its own line above the label. */}
-            <span className="flex min-w-0 flex-1 items-center gap-2 text-stone-600">
-              {it.icon && (
-                <CategoryIcon
-                  icon={it.icon}
-                  color={it.color}
-                  className="shrink-0"
-                />
-              )}
-              <span className="truncate">{it.name}</span>
-            </span>
-            <ChangeBalance
-              change={it.change}
-              balance={it.balance}
-              paidLabel={paidLabel}
-            />
-            </>
-          )
-          return linkTo ? (
-            <Link key={it._id} to={`${linkTo}/${it._id}`} className={cls}>
-              {body}
-            </Link>
-          ) : (
-            <div key={it._id} className={cls}>
-              {body}
-            </div>
-          )
-        })}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function ChangeBalance({
-  change,
-  balance,
-  paidLabel,
-}: {
-  change: number
-  balance: number
-  paidLabel?: boolean
-}) {
-  return (
-    <span className="tnum flex items-center gap-4">
-      <span
-        className={`text-sm ${
-          change > 0 ? 'text-gain' : change < 0 ? 'text-debt' : 'text-stone-400'
-        }`}
-      >
-        {change === 0
-          ? 'No change'
-          : `${formatMoney(change, { signed: true })}${paidLabel ? ' paid' : ''}`}
-      </span>
-      <span className="w-[100px] text-right font-medium">
-        {formatMoney(balance)}
-      </span>
-    </span>
-  )
-}

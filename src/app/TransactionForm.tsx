@@ -512,7 +512,19 @@ export function TransactionForm({
   const chosenFrom = potBalances.find((p) => p._id === from)
   const chosenInto = potBalances.find((p) => p._id === potId)
   const chosenLoan = potBalances.find((p) => p._id === paysOff)
-  const repeatLabel = REPEATS.find((r) => r.id === repeat)!.label
+  /**
+   * The whole sentence, not the cadence alone.
+   *
+   * "Monthly" leaves the two things you actually decided invisible: that this
+   * repeats at all, and when it stops. Both live behind the same row, so the
+   * row has to say both — otherwise you open the panel to check what you set,
+   * which is the panel doing the row's job.
+   */
+  const repeatLabel =
+    repeat === 'once'
+      ? 'Once'
+      : `Repeat ${REPEATS.find((r) => r.id === repeat)!.label.toLowerCase()}` +
+        (untilDate ? ` · Last on ${formatDayMonthYear(untilDate)}` : '')
 
   return (
     <div className="flex flex-col">
