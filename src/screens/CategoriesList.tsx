@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import { useOverlay } from '../period/PeriodContext'
 import type { Id } from '../../convex/_generated/dataModel'
 import { formatMoney, formatPercent } from '../lib/format'
 import { CaretRightIcon, CategoryIcon } from '../ui/icons'
@@ -62,9 +63,11 @@ export function CategoriesList({ rows }: { rows: CategoryRowData[] }) {
   // A transaction found by drilling into a category opens the same editor as
   // one found in the list — there is one transaction, so there is one way in.
   const navigate = useNavigate()
-  const location = useLocation()
-  const openTransaction = (id: Id<'transactions'>) =>
-    navigate({ pathname: `/transactions/${id}`, search: location.search })
+  const overlay = useOverlay()
+  const openTransaction = (id: Id<'transactions'>) => {
+    const { to, options } = overlay(`/transactions/${id}`)
+    navigate(to, options)
+  }
   const toggle = (k: string) =>
     setOpen((prev) => {
       const next = new Set(prev)

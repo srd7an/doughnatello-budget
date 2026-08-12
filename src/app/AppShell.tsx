@@ -10,7 +10,7 @@ import { useMutation } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { Button } from '../ui/Button'
 import { SM, useMediaQuery } from '../lib/useMediaQuery'
-import { useKeepPeriod } from '../period/PeriodContext'
+import { useOverlay } from '../period/PeriodContext'
 import { Logo } from '../ui/Logo'
 import { PlusIcon } from '../ui/icons'
 import { EyeIcon, EyeSlashIcon } from '../ui/icons'
@@ -72,8 +72,11 @@ export function AppShell() {
 
   /** Opening an overlay keeps the period in the URL, or the page behind it
    *  would jump to today the moment you pressed Add. */
-  const keepPeriod = useKeepPeriod()
-  const open = (pathname: string) => navigate(keepPeriod(pathname))
+  const overlay = useOverlay()
+  const open = (pathname: string) => {
+    const { to, options } = overlay(pathname)
+    navigate(to, options)
+  }
 
   const close = () => {
     if (location.key === 'default') navigate('/', { replace: true })

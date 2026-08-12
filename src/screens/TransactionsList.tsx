@@ -1,8 +1,8 @@
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { useHousehold } from '../household/HouseholdContext'
-import { usePeriod } from '../period/PeriodContext'
+import { usePeriod, useOverlay } from '../period/PeriodContext'
 import { formatMoney } from '../lib/format'
 import { ArrowRightIcon, CategoryIcon, XIcon } from '../ui/icons'
 import { dayLabel } from '../lib/dates'
@@ -51,7 +51,7 @@ export function TransactionsList({
 } = {}) {
   const all = useMonthRows()
   const navigate = useNavigate()
-  const location = useLocation()
+  const overlay = useOverlay()
 
   if (all === undefined) {
     return <p className="py-8 text-center text-sm text-stone-400">Loading…</p>
@@ -111,7 +111,10 @@ export function TransactionsList({
               <TransactionRow
                 key={row._id}
                 row={row}
-                onOpen={() => navigate({ pathname: `/transactions/${row._id}`, search: location.search })}
+                onOpen={() => {
+                  const { to, options } = overlay(`/transactions/${row._id}`)
+                  navigate(to, options)
+                }}
               />
             ))}
           </ul>

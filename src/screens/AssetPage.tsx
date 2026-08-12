@@ -1,4 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom'
+import { useOverlay } from '../period/PeriodContext'
 import { useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
@@ -19,6 +20,7 @@ const STALE_DAYS = 365
 export function AssetPage() {
   const { assetId } = useParams<{ assetId: string }>()
   const navigate = useNavigate()
+  const overlay = useOverlay()
   const asset = useQuery(
     api.assets.detail,
     assetId ? { assetId: assetId as Id<'assets'> } : 'skip',
@@ -65,7 +67,10 @@ export function AssetPage() {
         </p>
 
         <button
-          onClick={() => navigate(`/settings/assets/${asset._id}`)}
+          onClick={() => {
+            const { to, options } = overlay(`/settings/assets/${asset._id}`)
+            navigate(to, options)
+          }}
           className="mt-4 flex min-h-11 items-center rounded-full border border-stone-200 px-4 text-sm text-stone-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-9"
         >
           Edit in settings

@@ -1,4 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom'
+import { useOverlay } from '../period/PeriodContext'
 import { useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
@@ -22,6 +23,7 @@ import { ArrowRightIcon, CategoryIcon } from '../ui/icons'
 export function PotPage() {
   const { potId } = useParams<{ potId: string }>()
   const navigate = useNavigate()
+  const overlay = useOverlay()
   const pot = useQuery(
     api.pots.detail,
     potId ? { potId: potId as Id<'pots'> } : 'skip',
@@ -116,7 +118,12 @@ export function PotPage() {
 
         <button
           onClick={() =>
-            navigate(`/settings/${isLoan ? 'loans' : 'funds'}/${pot._id}`)
+            {
+              const { to, options } = overlay(
+                `/settings/${isLoan ? 'loans' : 'funds'}/${pot._id}`,
+              )
+              navigate(to, options)
+            }
           }
           className="mt-4 flex min-h-11 items-center rounded-full border border-stone-200 px-4 text-sm text-stone-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-9"
         >
@@ -148,7 +155,10 @@ export function PotPage() {
                   {g.rows.map((row) => (
                     <li key={row._id}>
                       <button
-                        onClick={() => navigate(`/transactions/${row._id}`)}
+                        onClick={() => {
+                          const { to, options } = overlay(`/transactions/${row._id}`)
+                          navigate(to, options)
+                        }}
                         className="flex min-h-11 w-full items-center gap-2 border-b border-dashed border-stone-300 px-3 py-1.5 text-left hover:rounded-lg hover:border-transparent hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:min-h-9"
                       >
                         <CategoryIcon

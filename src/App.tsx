@@ -11,7 +11,7 @@ import { ErrorBoundary } from './ui/ErrorBoundary'
 import { SignInForm } from './SignInForm'
 import { AcceptInvite, CreateHousehold } from './Onboarding'
 import { HouseholdProvider } from './household/HouseholdContext'
-import { PeriodProvider } from './period/PeriodContext'
+import { PeriodProvider, useBackgroundLocation } from './period/PeriodContext'
 import { AppShell } from './app/AppShell'
 import { Overview } from './screens/Overview'
 import { PotPage } from './screens/PotPage'
@@ -64,7 +64,25 @@ function AuthedApp() {
     <HouseholdProvider households={households}>
       <BrowserRouter>
         <PeriodProvider>
-          <Routes>
+          <Shell />
+        </PeriodProvider>
+      </BrowserRouter>
+    </HouseholdProvider>
+  )
+}
+
+/**
+ * The page routes, matched against the location UNDERNEATH the overlays.
+ *
+ * Split out because it has to be inside the router to read the location at all.
+ * See `useOverlay`: an overlay records which page it was opened over, and the
+ * page routes match that rather than the address bar — so opening a transaction
+ * from a fund leaves the fund on screen, which is what it always claimed to do.
+ */
+function Shell() {
+  const background = useBackgroundLocation()
+  return (
+          <Routes location={background}>
             <Route element={<AppShell />}>
               <Route index element={<Overview />} />
               {/* A fund or a loan is the one thing besides the overview that
@@ -87,9 +105,6 @@ function AuthedApp() {
               <Route path="*" element={<Overview />} />
             </Route>
           </Routes>
-        </PeriodProvider>
-      </BrowserRouter>
-    </HouseholdProvider>
   )
 }
 

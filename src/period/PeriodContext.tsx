@@ -5,7 +5,7 @@ import {
   useMemo,
   type ReactNode,
 } from 'react'
-import { useLocation, useSearchParams } from 'react-router-dom'
+import { useLocation, useSearchParams, type Location } from 'react-router-dom'
 import { formatMonth } from '../lib/format'
 
 /**
@@ -152,4 +152,41 @@ export function usePeriod(): Period {
 export function useKeepPeriod() {
   const location = useLocation()
   return (pathname: string) => ({ pathname, search: location.search })
+}
+
+/**
+ * A destination that keeps the period AND the page you are looking at.
+ *
+ * The overlays — add, a transaction, settings — are routes, so the back button
+ * closes them and a link to one can be shared. But a route has to render
+ * something, and every one of them was mapped to Overview. Opening a
+ * transaction from a fund's page therefore replaced that page with the month
+ * behind the modal, and closing it left you somewhere you had not gone.
+ *
+ * The remedy is React Router's own: remember which location was underneath and
+ * match the page routes against THAT, while the overlay keeps reading the real
+ * URL. Everything that opens an overlay goes through here so there is one place
+ * that has to remember to do it.
+ *
+ * `background` is deliberately not carried forward when one overlay opens
+ * another — settings moving between its own panels replaces rather than pushes,
+ * and stacking backgrounds would make closing return you to a page you were
+ * never on.
+ */
+export function useOverlay() {
+  const location = useLocation()
+  const state = location.state as { background?: Location } | null
+  const background = state?.background ?? location
+  return (pathname: string) => ({
+    to: { pathname, search: location.search },
+    options: { state: { background } },
+  })
+}
+
+/** The page the overlays are drawn over. The real location when there is none,
+ *  which is what a cold load on an overlay URL looks like. */
+export function useBackgroundLocation(): Location {
+  const location = useLocation()
+  const state = location.state as { background?: Location } | null
+  return state?.background ?? location
 }
