@@ -2,7 +2,7 @@ import { query, mutation, MutationCtx, QueryCtx } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import { Doc, Id } from "./_generated/dataModel";
 import { requireMember, requireDoc } from "./lib/auth";
-import { potBalance } from "./lib/balances";
+
 
 const direction = v.union(
   v.literal("income"),
@@ -215,25 +215,26 @@ async function writeFunding(
   }
 
   if (args.direction === "expense" && args.takeFromPotId) {
-    const bal = await potBalance(ctx, args.householdId, args.takeFromPotId);
-    const fromPot = Math.min(Math.max(bal, 0), args.amount);
-    const fromIncome = args.amount - fromPot;
-    if (fromPot > 0) {
-      await ctx.db.insert("transactionFunding", {
-        householdId: args.householdId,
-        transactionId,
-        potId: args.takeFromPotId,
-        amount: fromPot,
-      });
-    }
-    if (fromIncome > 0) {
-      await ctx.db.insert("transactionFunding", {
-        householdId: args.householdId,
-        transactionId,
-        potId: undefined,
-        amount: fromIncome,
-      });
-    }
+    // The whole thing, out of the fund named, even past what the fund holds.
+    //
+    // It used to SPLIT: the fund paid what it had and the month paid the rest,
+    // on the reasoning that money must not leave the account without reducing
+    // left-to-spend. But moving money between funds was already allowed to
+    // overdraw — a fund that gives more than it holds is owed the difference,
+    // and moves.test.ts has said so all along — so spending was the one
+    // operation held to a different rule.
+    //
+    // A negative fund is not a hole in the accounts. It is "I spent it and will
+    // put it back", which is a real thing people do and a thing worth being
+    // able to write down. It is also visible, where the split was not: the
+    // split quietly moved part of a fund's bill onto the month, and left a
+    // fund's page showing figures that did not add up to its own balance.
+    await ctx.db.insert("transactionFunding", {
+      householdId: args.householdId,
+      transactionId,
+      potId: args.takeFromPotId,
+      amount: args.amount,
+    });
     return;
   }
 

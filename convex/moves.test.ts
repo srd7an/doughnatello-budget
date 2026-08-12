@@ -258,12 +258,13 @@ describe("editing a move", () => {
     expect(pots.find((p) => p._id === repairs)!.balance).toBe(45_000_00);
   });
 
-  test("spending from a fund still splits rather than going negative", async () => {
+  test("spending more than a fund holds takes it negative, like a move does", async () => {
     const { t, householdId, holiday, groceryCat, month } = await setup();
 
-    // 70.000 out of a fund holding 50.000: the fund pays what it has and the
-    // month pays the rest. Left-to-spend has to see that 20.000, or money
-    // leaves the account without ever coming off the month.
+    // 70.000 out of a fund holding 50.000. It used to split — the fund paying
+    // what it had and the month the rest — which held spending to a stricter
+    // rule than MOVING, where a fund giving more than it holds has always been
+    // allowed and simply owed the difference.
     await asA(t).mutation(api.transactions.create, {
       householdId,
       direction: "expense",
@@ -274,21 +275,25 @@ describe("editing a move", () => {
     });
 
     const pots = await asA(t).query(api.pots.balances, { householdId });
-    expect(pots.find((p) => p._id === holiday)!.balance).toBe(0);
-    const m = await month();
+    expect(pots.find((p) => p._id === holiday)!.balance).toBe(-20_000_00);
 
-    // All 70.000 is spending, whichever pocket paid.
+    const m = await month();
     expect(m.expense).toBe(70_000_00);
-    // 50.000 of it came back out of the fund, so savings drops by that — the
-    // fund had 50 set aside this month and gave all of it up.
-    expect(m.drawnFromFunds).toBe(50_000_00);
-    expect(m.savings).toBe(0);
-    // What this month's own money paid for: the 50.000 put into the fund, plus
-    // the 20.000 the fund could not cover. 200 − 50 − 20.
-    expect(m.leftToSpend).toBe(130_000_00);
-    // The same figure the previous model gave, which is the point — this
-    // change moves money between `expense` and `savings` and nowhere else.
+    expect(m.drawnFromFunds).toBe(70_000_00);
+    // More came out of the funds than went in, so savings is negative — the
+    // month lived off money set aside earlier, which is exactly what happened.
+    expect(m.savings).toBe(-20_000_00);
+
+    // And this is the trade the change makes, stated rather than hidden: the
+    // 20.000 the fund could not cover no longer comes off the month. It shows
+    // as the fund being owed it instead. leftToSpend rises from 130 to 150,
+    // and `free` moves with it, so the two still agree.
+    expect(m.leftToSpend).toBe(150_000_00);
     expect(m.income).toBe(m.expense + m.savings + m.leftToSpend);
+
+    const b = await asA(t).query(api.overview.balances, { householdId });
+    expect(b.setAside).toBe(-20_000_00);
+    expect(b.free).toBe(m.leftToSpend);
   });
 
   test("dropping the source turns a move back into saving", async () => {

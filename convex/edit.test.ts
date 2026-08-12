@@ -96,7 +96,7 @@ describe("editing", () => {
     expect(rows[0].potId).toBe(pot); // still funded by the pot
   });
 
-  test("raising a pot-funded expense past the pot splits it", async () => {
+  test("raising a pot-funded expense past the pot takes the fund negative", async () => {
     const { t, householdId, grocery } = await setup();
     const pot = await asA(t).mutation(api.pots.create, {
       householdId,
@@ -121,16 +121,20 @@ describe("editing", () => {
       occurredOn: "2026-07-02",
     });
 
-    // 8.000 against a 5.000 pot: 5.000 from the pot, 3.000 from the month.
+    // 8.000 against a 5.000 fund: all 8.000 out of the fund, which is then
+    // owed 3.000.
     await asA(t).mutation(api.transactions.update, {
       transactionId: id,
       amount: 8_000_00,
     });
 
     const rows = await funding(t, id);
-    expect(rows).toHaveLength(2);
-    expect(rows.find((r) => r.potId === pot)!.amount).toBe(5_000_00);
-    expect(rows.find((r) => !r.potId)!.amount).toBe(3_000_00);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].potId).toBe(pot);
+    expect(rows[0].amount).toBe(8_000_00);
+
+    const balances = await asA(t).query(api.pots.balances, { householdId });
+    expect(balances.find((b) => b._id === pot)!.balance).toBe(-3_000_00);
   });
 
   test("clearing pot funding moves it back onto the month", async () => {
@@ -455,9 +459,11 @@ describe("detail", () => {
     expect(d.category?.name).toBe("Grocery");
     expect(d.accountName).toBe("Main account");
     expect(d.paidByName).toBe("Me");
-    expect(d.funding).toHaveLength(2);
-    expect(d.funding.find((f) => f.potName === "Car fund")!.amount).toBe(5_000_00);
-    expect(d.funding.find((f) => f.potId === null)!.amount).toBe(3_000_00);
+    // One source, all of it. A fund named as the payer pays the whole bill and
+    // is owed whatever it did not have.
+    expect(d.funding).toHaveLength(1);
+    expect(d.funding[0].potName).toBe("Car fund");
+    expect(d.funding[0].amount).toBe(8_000_00);
   });
 });
 

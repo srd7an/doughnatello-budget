@@ -185,8 +185,14 @@ export function PotPage() {
                               : 'text-stone-800'
                           }`}
                         >
-                          {row.direction === 'expense' ? '−' : ''}
-                          {formatMoney(row.amount)}
+                          {/* What this row did to THIS fund, which is not
+                              always what the transaction was. Older rows split
+                              — a 27.469 bill charged to a fund holding 10.000
+                              took 10.000 from it — and showing the transaction's
+                              own figure left a column that did not add up to
+                              the balance above it. */}
+                          {row.potAmount < 0 ? '−' : ''}
+                          {formatMoney(Math.abs(row.potAmount))}
                         </span>
                       </button>
                     </li>

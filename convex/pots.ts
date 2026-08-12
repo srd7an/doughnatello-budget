@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { Doc, Id } from "./_generated/dataModel";
 import { requireMember, requireDoc } from "./lib/auth";
 import { debtOwed, potBalance } from "./lib/balances";
 import { enrichRows } from "./transactions";
@@ -212,6 +213,37 @@ export const unarchive = mutation({
  *   funding row — spending it paid for
  * A single transaction can appear under two of those, so they are merged by id.
  */
+/**
+ * What each row did to THIS fund, as distinct from what the transaction was.
+ *
+ * They are not the same number and the difference is not rare. A fund pays what
+ * it can and the month pays the rest: a 27.469 service charged to a fund
+ * holding 10.000 takes 10.000 from it, and the page was showing 27.469 — so a
+ * column of figures that should sum to the balance above them did not, by
+ * exactly the part the fund never paid.
+ *
+ * Money in is the transfer's own amount. Money out is the funding row, which is
+ * the only record of how much of a transaction a fund actually carried, and
+ * covers both spending it and moving it somewhere else.
+ */
+async function withPotAmount<T extends { _id: Id<"transactions">; direction: string; amount: number; potId: Id<"pots"> | null }>(
+  rows: T[],
+  potId: Id<"pots">,
+  funding: Doc<"transactionFunding">[],
+): Promise<(T & { potAmount: number })[]> {
+  const out = new Map<Id<"transactions">, number>();
+  for (const f of funding) {
+    if (f.potId !== potId) continue;
+    out.set(f.transactionId, (out.get(f.transactionId) ?? 0) + f.amount);
+  }
+  return rows.map((r) => ({
+    ...r,
+    potAmount:
+      (r.direction === "transfer" && r.potId === potId ? r.amount : 0) -
+      (out.get(r._id) ?? 0),
+  }));
+}
+
 export const detail = query({
   args: { potId: v.id("pots") },
   handler: async (ctx, { potId }) => {
@@ -262,7 +294,11 @@ export const detail = query({
       originalAmount: doc.originalAmount ?? null,
       balance: await potBalance(ctx, householdId, potId),
       owed: doc.kind === "debt" ? await debtOwed(ctx, householdId, doc) : null,
-      rows: await enrichRows(ctx, householdId, [...byId.values()]),
+      rows: await withPotAmount(
+        await enrichRows(ctx, householdId, [...byId.values()]),
+        potId,
+        funding,
+      ),
     };
   },
 });

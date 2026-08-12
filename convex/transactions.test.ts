@@ -130,7 +130,7 @@ describe("funding — the two counting rules", () => {
     expect(rows.some((r) => r._id === spend)).toBe(true);
   });
 
-  test("take-from split: pot covers part, income covers the rest", async () => {
+  test("a fund pays the whole thing and goes negative for the difference", async () => {
     const { t, householdId, groceryCat } = await setup();
     const pot = await asA(t).mutation(api.pots.create, {
       householdId,
@@ -155,15 +155,19 @@ describe("funding — the two counting rules", () => {
       takeFromPotId: pot,
       occurredOn: "2026-07-05",
     });
+    // One row, for all of it. It used to split — the fund paying what it had
+    // and the month the rest — which held spending to a stricter rule than
+    // MOVING money, where a fund has always been allowed to give more than it
+    // holds and be owed the difference.
     const f = await funding(t, spend);
-    expect(f).toHaveLength(2);
-    const fromPot = f.find((x) => x.potId === pot)!;
-    const fromIncome = f.find((x) => x.potId === undefined)!;
-    expect(fromPot.amount).toBe(5_000_00);
-    expect(fromIncome.amount).toBe(3_000_00);
-    // Pot fully drained.
+    expect(f).toHaveLength(1);
+    expect(f[0].potId).toBe(pot);
+    expect(f[0].amount).toBe(8_000_00);
+
+    // And the fund owes 3.000 — "I spent it and will put it back", which is a
+    // real thing people do and now a thing this can write down.
     const balances = await asA(t).query(api.pots.balances, { householdId });
-    expect(balances.find((b) => b._id === pot)!.balance).toBe(0);
+    expect(balances.find((b) => b._id === pot)!.balance).toBe(-3_000_00);
   });
 });
 
