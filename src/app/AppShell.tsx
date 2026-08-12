@@ -256,10 +256,14 @@ function PrivacyToggle() {
       // the size rather than the padding is the only way that stays round.
       className="grid size-11 shrink-0 place-items-center rounded-full border border-stone-200 bg-white text-stone-600 hover:bg-stone-50 hover:text-stone-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:flex sm:size-auto sm:min-h-8 sm:items-center sm:gap-1.5 sm:px-2.5 sm:text-sm"
     >
+      {/* The icon names what the button DOES, like the word beside it and the
+          accessible name behind it — hidden, it offers you the eye. It used to
+          name the STATE instead, so the glyph and the word on one button
+          disagreed: a crossed-out eye labelled "Show numbers". */}
       {hidden ? (
-        <EyeSlashIcon size={18} aria-hidden />
-      ) : (
         <EyeIcon size={18} aria-hidden />
+      ) : (
+        <EyeSlashIcon size={18} aria-hidden />
       )}
       <span className="hidden sm:inline">
         {hidden ? 'Show numbers' : 'Hide numbers'}
