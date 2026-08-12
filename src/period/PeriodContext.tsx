@@ -177,10 +177,17 @@ export function useOverlay() {
   const location = useLocation()
   const state = location.state as { background?: Location } | null
   const background = state?.background ?? location
-  return (pathname: string) => ({
-    to: { pathname, search: location.search },
-    options: { state: { background } },
-  })
+  /** `extra` ADDS to the carried query string rather than replacing it, for the
+   *  overlay that takes an argument — `/add?copy=<id>` — so it does not drop
+   *  the period it is also carrying. */
+  return (pathname: string, extra?: Record<string, string>) => {
+    const params = new URLSearchParams(location.search)
+    for (const [k, v] of Object.entries(extra ?? {})) params.set(k, v)
+    return {
+      to: { pathname, search: params.toString() },
+      options: { state: { background } },
+    }
+  }
 }
 
 /** The page the overlays are drawn over. The real location when there is none,
@@ -189,4 +196,31 @@ export function useBackgroundLocation(): Location {
   const location = useLocation()
   const state = location.state as { background?: Location } | null
   return state?.background ?? location
+}
+
+/**
+ * The address bar, for the few things that must read it rather than the page.
+ *
+ * Inside `<Routes location={background}>` every router hook answers about the
+ * BACKGROUND. That is the whole point of passing a location and it is right for
+ * the pages — but the overlays are drawn by the layout, which is INSIDE that
+ * subtree, and they are the one thing that has to know the real URL. They took
+ * the background's word for it, and so not one of them could open: Add, a
+ * transaction, Settings, all of them.
+ *
+ * Provided from above the scoped Routes, where the router still answers about
+ * the address bar. It throws rather than falling back to `useLocation` when the
+ * provider is missing, because that silent fallback IS the bug.
+ */
+const RealLocation = createContext<Location | null>(null)
+
+export function RealLocationProvider({ children }: { children: ReactNode }) {
+  const location = useLocation()
+  return <RealLocation.Provider value={location}>{children}</RealLocation.Provider>
+}
+
+export function useRealLocation(): Location {
+  const ctx = useContext(RealLocation)
+  if (!ctx) throw new Error('useRealLocation needs RealLocationProvider')
+  return ctx
 }

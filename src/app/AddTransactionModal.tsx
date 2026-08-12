@@ -1,4 +1,4 @@
-import { useSearchParams } from 'react-router-dom'
+import { useRealLocation } from '../period/PeriodContext'
 import { Modal } from '../ui/Modal'
 import { TransactionForm } from './TransactionForm'
 import type { Id } from '../../convex/_generated/dataModel'
@@ -9,7 +9,11 @@ import type { Id } from '../../convex/_generated/dataModel'
  * — it is still Add — only what it starts out holding.
  */
 function useCopyOf(): Id<'transactions'> | undefined {
-  const [params] = useSearchParams()
+  // The address bar, not `useSearchParams` — this modal is drawn from inside
+  // the background-scoped Routes, where the query string belongs to the page
+  // BEHIND. That page carries no `copy`, so every duplicate opened blank.
+  const path = useRealLocation()
+  const params = new URLSearchParams(path.search)
   return (params.get('copy') as Id<'transactions'>) ?? undefined
 }
 

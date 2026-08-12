@@ -1,16 +1,14 @@
 import { useEffect } from 'react'
-import {
-  Link,
-  Outlet,
-  useLocation,
-  useMatch,
-  useNavigate,
-} from 'react-router-dom'
+import { Link, Outlet, matchPath, useMatch, useNavigate } from 'react-router-dom'
 import { useMutation } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { Button } from '../ui/Button'
 import { SM, useMediaQuery } from '../lib/useMediaQuery'
-import { useOverlay } from '../period/PeriodContext'
+import {
+  useKeepPeriod,
+  useOverlay,
+  useRealLocation,
+} from '../period/PeriodContext'
 import { Logo } from '../ui/Logo'
 import { PlusIcon } from '../ui/icons'
 import { EyeIcon, EyeSlashIcon } from '../ui/icons'
@@ -50,17 +48,28 @@ export function AppShell() {
   const { household } = useHousehold()
   const sync = useMutation(api.recurring.sync)
   const navigate = useNavigate()
-  const location = useLocation()
 
-  // EVERY useMatch is called on every render, unconditionally. Combining them
-  // with ?? or || short-circuits the calls, React sees a different number of
-  // hooks between two routes, and the app goes white on the way from one to
-  // the other. Match first, decide after.
-  const addMatch = useMatch('/add')
-  const txMatch = useMatch('/transactions/:transactionId')
-  const settingsItem = useMatch('/settings/:section/:itemId')
-  const settingsSection = useMatch('/settings/:section')
-  const settingsRoot = useMatch('/settings')
+  // TWO locations, and knowing which one a question belongs to is the whole of
+  // it.
+  //
+  // This component sits inside `<Routes location={background}>`, so its router
+  // hooks answer about the page UNDERNEATH. That is right for the page — the
+  // header asks "is a fund on screen behind me?" — and wrong for the overlays,
+  // which are the one thing that has to read the address bar. `useMatch` gave
+  // them the background's answer, so nothing matched and no overlay opened at
+  // all: Add, a transaction, Settings, every one of them.
+  //
+  // `matchPath` takes the pathname explicitly, which is what makes the choice
+  // visible in the code rather than a hook quietly making it for you.
+  const path = useRealLocation()
+  const addMatch = matchPath('/add', path.pathname)
+  const txMatch = matchPath('/transactions/:transactionId', path.pathname)
+  const settingsItem = matchPath('/settings/:section/:itemId', path.pathname)
+  const settingsSection = matchPath('/settings/:section', path.pathname)
+  const settingsRoot = matchPath('/settings', path.pathname)
+
+  // These two stay on the background deliberately: they ask what page is
+  // BEHIND, so opening a transaction over a fund keeps the fund's Back link.
   const potMatch = useMatch('/funds/:potId')
   const assetMatch = useMatch('/assets/:assetId')
 
@@ -78,8 +87,13 @@ export function AppShell() {
     navigate(to, options)
   }
 
+  // Closing is going back — an overlay is a history entry — unless there is no
+  // back to go to, which is what a cold load straight onto an overlay URL looks
+  // like. The real location's key, not the background's: on a cold load the
+  // background IS the overlay, so reading its key was right there by accident
+  // and wrong everywhere else.
   const close = () => {
-    if (location.key === 'default') navigate('/', { replace: true })
+    if (path.key === 'default') navigate('/', { replace: true })
     else navigate(-1)
   }
 
@@ -186,14 +200,23 @@ export function AppShell() {
   )
 }
 
-/** The way back off a page, in the slot the period control usually holds. */
+/**
+ * The way back off a page, in the slot the period control usually holds.
+ *
+ * Back through HISTORY rather than to a fixed destination, because a fund can
+ * be reached from the month or from the year and "back" means the one you came
+ * from. The fallback only fires when there is no history to walk — a shared
+ * link opened cold — and it carries the period, or backing out of a fund you
+ * were reading in March would land you in today.
+ */
 function BackLink() {
   const navigate = useNavigate()
-  const location = useLocation()
+  const path = useRealLocation()
+  const keepPeriod = useKeepPeriod()
   return (
     <button
       onClick={() =>
-        location.key === 'default' ? navigate('/') : navigate(-1)
+        path.key === 'default' ? navigate(keepPeriod('/')) : navigate(-1)
       }
       className="flex h-11 items-center gap-1.5 rounded-full border border-stone-200 bg-white pr-4 pl-2.5 text-sm font-medium text-stone-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:h-8"
     >

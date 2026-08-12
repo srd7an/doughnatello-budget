@@ -3,7 +3,7 @@ import { render } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { vi } from 'vitest'
 import { HouseholdProvider } from '../household/HouseholdContext'
-import { PeriodProvider } from '../period/PeriodContext'
+import { PeriodProvider, RealLocationProvider } from '../period/PeriodContext'
 
 /**
  * Rendering a screen the way the app does, minus the network.
@@ -79,9 +79,15 @@ const HOUSEHOLD = {
 export function renderScreen(ui: ReactNode, { route = '/' } = {}) {
   return render(
     <MemoryRouter initialEntries={[route]}>
-      <HouseholdProvider households={[HOUSEHOLD]}>
-        <PeriodProvider>{ui}</PeriodProvider>
-      </HouseholdProvider>
+      {/* Directly under the router, as in App: this is the level where
+          `useLocation` still means the address bar. A test that renders its own
+          `<Routes location={...}>` inside then gets the same two-locations
+          split the app has, which is the point — that is where overlays broke. */}
+      <RealLocationProvider>
+        <HouseholdProvider households={[HOUSEHOLD]}>
+          <PeriodProvider>{ui}</PeriodProvider>
+        </HouseholdProvider>
+      </RealLocationProvider>
     </MemoryRouter>,
   )
 }

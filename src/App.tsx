@@ -11,7 +11,11 @@ import { ErrorBoundary } from './ui/ErrorBoundary'
 import { SignInForm } from './SignInForm'
 import { AcceptInvite, CreateHousehold } from './Onboarding'
 import { HouseholdProvider } from './household/HouseholdContext'
-import { PeriodProvider, useBackgroundLocation } from './period/PeriodContext'
+import {
+  PeriodProvider,
+  RealLocationProvider,
+  useBackgroundLocation,
+} from './period/PeriodContext'
 import { AppShell } from './app/AppShell'
 import { Overview } from './screens/Overview'
 import { PotPage } from './screens/PotPage'
@@ -82,6 +86,10 @@ function AuthedApp() {
 function Shell() {
   const background = useBackgroundLocation()
   return (
+    // Out here the router still answers about the address bar; inside the
+    // Routes below it answers about `background`. AppShell lives inside and
+    // draws the overlays, so the real one is handed past them on the way in.
+    <RealLocationProvider>
           <Routes location={background}>
             <Route element={<AppShell />}>
               <Route index element={<Overview />} />
@@ -105,6 +113,7 @@ function Shell() {
               <Route path="*" element={<Overview />} />
             </Route>
           </Routes>
+    </RealLocationProvider>
   )
 }
 

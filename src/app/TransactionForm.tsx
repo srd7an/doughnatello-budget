@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAction, useMutation, useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { useHousehold } from '../household/HouseholdContext'
+import { useOverlay } from '../period/PeriodContext'
 import {
   formatMoney,
   inputToPara,
@@ -122,7 +123,7 @@ export function TransactionForm({
   const householdId = household._id
   const isEdit = transactionId !== undefined
   const navigate = useNavigate()
-  const location = useLocation()
+  const overlay = useOverlay()
 
   // Stop asking the moment it is on its way out. Deleting leaves the form
   // mounted for the instant before the route changes, and `detail` is reactive:
@@ -1089,11 +1090,11 @@ export function TransactionForm({
             variant="secondary"
             full
             onClick={() => {
-              // Carries the period across as every other jump does, and adds
-              // the one thing this jump is about.
-              const params = new URLSearchParams(location.search)
-              params.set('copy', transactionId)
-              navigate({ pathname: '/add', search: params.toString() })
+              // Through the overlay helper like every other jump: it carries
+              // the period AND the page underneath, so duplicating from a fund
+              // leaves the fund on screen instead of swapping in the month.
+              const { to, options } = overlay('/add', { copy: transactionId })
+              navigate(to, options)
             }}
           >
             Duplicate
