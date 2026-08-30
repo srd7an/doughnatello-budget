@@ -132,3 +132,35 @@
     }
   }
 }
+
+/* Sixteen pixels, on anything you type into with a finger.
+   
+   iOS zooms the whole page the moment you focus a field whose text is under
+   16px, and never zooms back out — so tapping "Name it" on a phone left the
+   form magnified and half of it off screen. Nothing here is a preference:
+   16px is the threshold Safari picks, and the only way to keep the page still
+   is to stay above it.
+
+   Deliberately UNLAYERED. Tailwind's utilities live in the `utilities` layer,
+   which outranks `base` no matter how specific the selector is, so a rule in
+   base would lose to every `text-sm` in the app. Unlayered CSS outranks all of
+   it, which is what a hard floor needs to be.
+
+   Only fields you actually type into — a checkbox has no text to zoom for.
+   [data-headline] is the escape hatch for a field that is deliberately BIGGER
+   than the floor (the amount), since this rule sets a size rather than a
+   minimum and would otherwise shrink it. */
+@media (pointer: coarse) {
+  input:not(
+      [type='checkbox'],
+      [type='radio'],
+      [type='file'],
+      [type='range'],
+      [type='color'],
+      [data-headline]
+    ),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}

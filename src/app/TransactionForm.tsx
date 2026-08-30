@@ -578,6 +578,9 @@ export function TransactionForm({
               onChange={(e) => setAmountStr(groupMoneyInput(e.target.value))}
               placeholder="0"
               data-money
+              /* Already far above the 16px touch floor in index.css, and the
+                 one field that has to opt out of it. */
+              data-headline
               className="min-w-px flex-1 border-0 bg-transparent p-0 text-[40px] leading-8 tracking-[-0.8px] text-stone-900 outline-none placeholder:text-stone-300"
             />
             <span className="shrink-0 text-sm text-stone-500">
