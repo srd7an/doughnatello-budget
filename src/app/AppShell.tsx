@@ -141,8 +141,20 @@ export function AppShell() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-[800px] px-4 pt-4 pb-32">
-        <Outlet />
+      {/* The same two boxes as the header and the footer, in the same order:
+          the gutter on the OUTSIDE, the 800 on the inside.
+
+          It read `mx-auto max-w-[800px] px-4` — one box doing both jobs — and
+          that is a different column: the padding comes out of the 800 rather
+          than sitting beside it, so the page ran 768 wide while the two strips
+          floating over it ran 800. The logo and the period control hung 16px
+          past every heading, figure and card on the page, at every width above
+          832. Whatever the number is, the three have to compute it the same
+          way, which is why the shape is repeated rather than the result. */}
+      <main className="px-4 pt-4 pb-32">
+        <div className="mx-auto max-w-[800px]">
+          <Outlet />
+        </div>
       </main>
 
       {/* The controls, at the bottom and over the page.
