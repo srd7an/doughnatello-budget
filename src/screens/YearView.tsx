@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { useHousehold } from '../household/HouseholdContext'
@@ -47,7 +48,15 @@ export function YearView() {
             {formatMoney(data.netWorth)}
           </span>
           {change !== 0 && (
-            <ChangeExplained change={change} parts={data.netWorthParts} />
+            <ChangeExplained
+              netWorth={data.netWorth}
+              change={change}
+              parts={data.netWorthParts}
+              bank={data.bank}
+              assets={data.assets.balance}
+              loans={data.loans.balance}
+              funds={data.funds.balance}
+            />
           )}
         </p>
       </section>
@@ -114,21 +123,38 @@ export function YearView() {
 }
 
 /**
- * The year's change, and where it came from.
+ * The hero, and its two arithmetics.
  *
- * This figure is the one number on the screen nobody can check. Income and
- * Expense sit right underneath it and do NOT subtract to it — a loan payment
- * is in one and not the other, and a flat that went up in value is in neither
- * — so the honest thing is to let the number show its own working rather than
- * leave the arithmetic looking wrong.
+ * The figure and its change answer different questions and are made of
+ * different things, so the panel says both:
+ *
+ *   WHAT IT IS      bank + assets − debt        (a stock, today)
+ *   WHAT CHANGED    income − spending + revaluation   (a flow, this year)
+ *
+ * Neither is checkable against the numbers beside them. Income minus Expense
+ * does not make the change — a loan payment is counted in one and not the
+ * other, and a flat that went up in value is in neither — and nothing on the
+ * screen adds up to the headline at all.
+ *
+ * Funds are deliberately NOT a line in the first sum. Money set aside in a
+ * fund is money in the account; a fund is a partition of `bank`, not a thing
+ * beside it, and adding the two is the double count the query is written to
+ * avoid. It is named in the note instead, because "why is my fund not in
+ * here?" is the question the panel would otherwise leave hanging.
  *
  * A popover, not a page: it is a reading of a figure already on screen, and
  * nothing here can be acted on.
  */
 function ChangeExplained({
+  netWorth,
   change,
   parts,
+  bank,
+  assets,
+  loans,
+  funds,
 }: {
+  netWorth: number
   change: number
   parts: {
     income: number
@@ -136,11 +162,17 @@ function ChangeExplained({
     revaluation: number
     loanPayments: number
   }
+  bank: number
+  assets: number
+  /** Negative: what is still owed. */
+  loans: number
+  /** Only to decide whether the note about funds is worth saying. */
+  funds: number
 }) {
   const tone = change > 0 ? 'text-gain' : 'text-debt'
   return (
     <Popover
-      label="How this year's change is made up"
+      label="What net worth is made of"
       align="left"
       // Padding out and margin back in: the tap target is 44px tall while the
       // paint stays exactly the inline figure it was, so the hero line does not
@@ -155,10 +187,25 @@ function ChangeExplained({
     >
       {() => (
         <div className="w-72 max-w-[min(20rem,calc(100vw-2rem))]">
-          <p className="px-1 pb-1 text-xs font-medium tracking-wide text-stone-400 uppercase">
-            Net worth change
-          </p>
-          <dl className="text-sm">
+          <Block title="Net worth today">
+            <Part label="Bank" amount={bank} signed={false} />
+            {assets !== 0 && (
+              <Part label="Assets" amount={assets} signed={false} />
+            )}
+            {loans !== 0 && (
+              <Part label="Loans" amount={loans} signed={false} />
+            )}
+            <Total label="Net worth" amount={netWorth} />
+          </Block>
+
+          {funds !== 0 && (
+            <Note>
+              A fund is not a line of its own: money you have set aside is still
+              money in the account, so it is already inside Bank.
+            </Note>
+          )}
+
+          <Block title="This year" className="mt-4">
             <Part label="Income" amount={parts.income} />
             <Part label="Spending" amount={-parts.spending} />
             {/* Only when the things you own actually moved. A row of zero
@@ -166,42 +213,92 @@ function ChangeExplained({
             {parts.revaluation !== 0 && (
               <Part label="Assets revalued" amount={parts.revaluation} />
             )}
-            <div className="mt-1 flex items-center gap-3 border-t border-stone-200 px-1 pt-2">
-              <dt className="min-w-0 flex-1 text-stone-800">This year</dt>
-              <dd data-money className={`tnum shrink-0 ${tone}`}>
-                {formatMoney(change, { signed: true })}
-              </dd>
-            </div>
-          </dl>
-          <p className="mt-2 px-1 text-xs leading-relaxed text-stone-500">
-            {parts.loanPayments > 0 ? (
-              <>
-                Loan payments (
-                <span data-money className="tnum">
-                  {formatMoney(parts.loanPayments)}
-                </span>
-                ) are not counted as spending here: the money left your account
-                and your debt shrank by exactly as much. Money moved into a fund
-                is left out for the same reason — it is still yours.
-              </>
-            ) : (
-              'Money moved into a fund is left out: it is still yours, just in another pocket.'
-            )}
-          </p>
+            <Total label="Change" amount={change} tone={tone} signed />
+          </Block>
+
+          {parts.loanPayments > 0 && (
+            <Note>
+              Loan payments (
+              <span data-money className="tnum">
+                {formatMoney(parts.loanPayments)}
+              </span>
+              ) are not counted as spending here: the money left your account
+              and your debt shrank by exactly as much.
+            </Note>
+          )}
         </div>
       )}
     </Popover>
   )
 }
 
-/** One term of the sum. The sign is the point, so it is always drawn. */
-function Part({ label, amount }: { label: string; amount: number }) {
+function Block({
+  title,
+  className = '',
+  children,
+}: {
+  title: string
+  className?: string
+  children: ReactNode
+}) {
+  return (
+    <section className={className}>
+      <p className="px-1 pb-1 text-xs font-medium tracking-wide text-stone-400 uppercase">
+        {title}
+      </p>
+      <dl className="text-sm">{children}</dl>
+    </section>
+  )
+}
+
+/** One term of a sum. In the flow the sign is the point and is always drawn;
+ *  in the stock it is not — a bank balance is not "+2.234.943". */
+function Part({
+  label,
+  amount,
+  signed = true,
+}: {
+  label: string
+  amount: number
+  signed?: boolean
+}) {
   return (
     <div className="flex items-center gap-3 px-1 py-1">
       <dt className="min-w-0 flex-1 text-stone-600">{label}</dt>
       <dd data-money className="tnum shrink-0 text-stone-800">
-        {formatMoney(amount, { signed: true })}
+        {formatMoney(amount, { signed })}
       </dd>
     </div>
+  )
+}
+
+/** What the terms above it come to, under a rule. */
+function Total({
+  label,
+  amount,
+  tone = 'text-stone-800',
+  signed = false,
+}: {
+  label: string
+  amount: number
+  tone?: string
+  signed?: boolean
+}) {
+  return (
+    <div className="mt-1 flex items-center gap-3 border-t border-stone-200 px-1 pt-2">
+      <dt className="min-w-0 flex-1 text-stone-800">{label}</dt>
+      <dd data-money className={`tnum shrink-0 ${tone}`}>
+        {formatMoney(amount, { signed })}
+      </dd>
+    </div>
+  )
+}
+
+/** The small print under a sum: what it left out, and why. */
+function Note({ children }: { children: ReactNode }) {
+  return (
+    <p className="mt-2 px-1 text-xs leading-relaxed text-stone-500">
+      {children}
+    </p>
   )
 }
