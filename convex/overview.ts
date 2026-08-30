@@ -1,8 +1,13 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
-import { Id } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 import { requireMember } from "./lib/auth";
-import { potBalance, debtOwed, bankTotal } from "./lib/balances";
+import {
+  potBalance,
+  debtOwed,
+  bankTotal,
+  bankTotalAsOf,
+} from "./lib/balances";
 
 /**
  * The month's headline numbers — a single pass over the month's transactions
@@ -370,27 +375,41 @@ export const year = query({
     ]);
 
     /**
-     * What an asset's value did across this year.
+     * What an asset was worth on a given day.
      *
-     * Only RE-valuations count. An asset whose first entry falls inside the
-     * year did not grow by its whole worth — it was written down for the first
-     * time, and treating that as a gain would put the price of a flat into one
-     * year's net-worth change. So an asset that did not exist at the start of
-     * the year contributes nothing to the change, however much it is worth.
+     * The latest valuation up to that day — and, before there is one, the
+     * EARLIEST there ever is. Writing a flat down for the first time in March
+     * is not March earning you a flat: the thing was already yours, the app
+     * simply had not heard of it. Falling back to its first known figure puts
+     * it on both ends of any comparison, so entering it moves nothing and a
+     * later revaluation moves exactly what it should.
+     *
+     * An asset with no valuations at all falls back to the figure on the asset
+     * itself, which is the only number there is.
      */
-    const valueAt = (rows: typeof valuations, on: string) => {
-      const before = rows.filter((v) => v.valuedOn <= on);
-      if (before.length === 0) return null;
-      return before.reduce((a, b) => (a.valuedOn >= b.valuedOn ? a : b)).value;
-    };
     const startOfYear = `${Number(year) - 1}-12-31`;
     const endOfYear = `${year}-12-31`;
+    const valuationsByAsset = new Map<Id<"assets">, typeof valuations>();
+    for (const v of valuations) {
+      const rows = valuationsByAsset.get(v.assetId) ?? [];
+      rows.push(v);
+      valuationsByAsset.set(v.assetId, rows);
+    }
+    const assetValueAt = (a: (typeof assets)[number], on: string) => {
+      const rows = valuationsByAsset.get(a._id) ?? [];
+      if (rows.length === 0) return a.value;
+      const upTo = rows.filter((v) => v.valuedOn <= on);
+      if (upTo.length > 0) {
+        return upTo.reduce((x, y) => (x.valuedOn >= y.valuedOn ? x : y)).value;
+      }
+      return rows.reduce((x, y) => (x.valuedOn <= y.valuedOn ? x : y)).value;
+    };
     const assetChange = new Map<Id<"assets">, number>();
     for (const a of assets) {
-      const rows = valuations.filter((v) => v.assetId === a._id);
-      const opened = valueAt(rows, startOfYear);
-      if (opened === null) continue; // first written down this year
-      assetChange.set(a._id, (valueAt(rows, endOfYear) ?? opened) - opened);
+      assetChange.set(
+        a._id,
+        assetValueAt(a, endOfYear) - assetValueAt(a, startOfYear),
+      );
     }
 
     const debtPotIds = new Set(
@@ -414,7 +433,6 @@ export const year = query({
       pots.filter((p) => p.kind === "sinking").map((p) => p._id),
     );
 
-    let realExpenseFull = 0; // income − this = net-worth change
     const transfersInYear = new Map<Id<"pots">, number>();
     const spentFromPotYear = new Map<Id<"pots">, number>();
     const debtPaidYear = new Map<Id<"pots">, number>();
@@ -472,8 +490,6 @@ export const year = query({
         }
         if (t.potId && debtPotIds.has(t.potId)) {
           debtPaidYear.set(t.potId, (debtPaidYear.get(t.potId) ?? 0) + t.amount);
-        } else {
-          realExpenseFull += t.amount;
         }
       }
     }
@@ -568,30 +584,82 @@ export const year = query({
     };
 
     const debtTotal = -loans.balance; // loans.balance is negative owed
+
+    /**
+     * Net worth AT A DATE — the same three lines as today's, read at the end
+     * of a given day.
+     *
+     * The year's change is the difference between two of these, and nothing
+     * else. It used to be derived from the year's flows instead — income minus
+     * real expenses plus revaluation — which is a good approximation and not
+     * the thing it claims to be: buy a car with money from the account and the
+     * flow version books the whole price as a loss, because the car it turned
+     * into was invisible to it. Two snapshots cannot drift from the balance
+     * sheet, because they ARE the balance sheet, twice.
+     *
+     * Archived pots, assets and accounts are out of both ends, exactly as they
+     * are out of today's figure. That keeps the comparison against the same
+     * hero it sits under, at the price of a real one: something you owned last
+     * year and have since archived leaves the older end too, so selling a car
+     * reads as income arriving rather than as a car becoming money.
+     */
+    const debtOwedAt = async (pot: Doc<"pots">, on: string) => {
+      const payments = await ctx.db
+        .query("transactions")
+        .withIndex("by_household_pot", (q) =>
+          q.eq("householdId", householdId).eq("potId", pot._id),
+        )
+        .collect();
+      const paid = payments
+        .filter((t) => t.direction === "expense" && t.occurredOn <= on)
+        .reduce((sum, t) => sum + t.amount, 0);
+      return (pot.originalAmount ?? 0) - paid;
+    };
+    const snapshot = async (on: string) => {
+      const bankThen = await bankTotalAsOf(ctx, householdId, on);
+      const assetsThen = assets
+        .filter((a) => !a.isArchived)
+        .reduce((sum, a) => sum + assetValueAt(a, on), 0);
+      let debtThen = 0;
+      for (const p of pots) {
+        if (!p.isArchived && p.kind === "debt") {
+          debtThen += await debtOwedAt(p, on);
+        }
+      }
+      return {
+        bank: bankThen,
+        assets: assetsThen,
+        debt: debtThen,
+        netWorth: bankThen + assetsThen - debtThen,
+      };
+    };
+    const opened = await snapshot(startOfYear);
+    const closed = await snapshot(endOfYear);
+
     return {
       netWorth: bank + assetGroup.balance - debtTotal,
-      // Money in minus money really out, PLUS what the things you own did on
-      // their own. A flat that went up 10% is net worth that arrived without
-      // passing through the account, and leaving it out was the one thing this
-      // figure knowingly missed.
-      netWorthChange: totals.income - realExpenseFull + assetGroup.change,
+      /** What you are worth at the end of this year, less what you were worth
+       *  at the end of the last one. A difference of two balance sheets. */
+      netWorthChange: closed.netWorth - opened.netWorth,
       /**
-       * The same figure, kept apart into the pieces it is made of, so the
-       * screen can show its working instead of re-deriving it from the four
-       * totals beside it — which is where a second, disagreeing definition of
-       * net worth would eventually come from.
+       * The same difference, line by line, so the screen can show its working
+       * rather than re-derive it from the totals beside it — which is where a
+       * second, disagreeing definition of net worth would come from.
        *
-       * income − spending + revaluation IS netWorthChange. `loanPayments` is
-       * NOT a term in that sum: it is the amount deliberately left out of
-       * `spending`, carried here only so the panel can say what it left out
-       * and why. `totals.expense` counts it; this does not, and that gap is
-       * the one thing anyone reading the two figures together will ask about.
+       *   bank + assets + loans = netWorthChange, always.
+       *
+       * `loans` is positive when you owe LESS than you did: money that left
+       * the account for good and took the debt with it. That is the line
+       * anyone comparing this figure with the year's spending is looking for.
        */
       netWorthParts: {
-        income: totals.income,
-        spending: realExpenseFull,
-        revaluation: assetGroup.change,
-        loanPayments: loans.change,
+        /** The day the comparison is against: last year's last. */
+        openedOn: startOfYear,
+        opening: opened.netWorth,
+        closing: closed.netWorth,
+        bank: closed.bank - opened.bank,
+        assets: closed.assets - opened.assets,
+        loans: opened.debt - closed.debt,
       },
       bank,
       months,

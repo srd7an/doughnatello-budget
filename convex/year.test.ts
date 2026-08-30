@@ -100,17 +100,45 @@ describe("overview.year", () => {
     expect(y.loans.change).toBe(5_000_000); // +paid
     expect(y.loans.balance).toBe(-45_000_000); // 50M owed − 5M paid, negative
 
-    // The same figure written out as the panel shows it: the three terms add
-    // up to it, spending is the expense total with the loan payment taken out,
-    // and the payment is carried on its own so the panel can say what it left
-    // out.
+    // And the change is a difference of two balance sheets rather than a sum
+    // of flows: 50.000 owed and nothing in the bank at the end of last year,
+    // 23.000 in the bank against 45.000 owed at the end of this one.
     const parts = y.netWorthParts;
-    expect(parts.income - parts.spending + parts.revaluation).toBe(
-      y.netWorthChange,
-    );
-    expect(parts.spending).toBe(2_000_000);
-    expect(parts.loanPayments).toBe(5_000_000);
-    expect(y.totals.expense).toBe(parts.spending + parts.loanPayments);
+    expect(parts.openedOn).toBe("2025-12-31");
+    expect(parts.opening).toBe(-50_000_000);
+    expect(parts.closing).toBe(-22_000_000);
+    expect(parts.closing - parts.opening).toBe(y.netWorthChange);
+    // Line by line, and the lines add up to the whole.
+    expect(parts.bank).toBe(23_000_000); // 30.000 in, 7.000 out — the loan too
+    expect(parts.loans).toBe(5_000_000); // owed 5.000 less than a year ago
+    expect(parts.assets).toBe(0);
+    expect(parts.bank + parts.assets + parts.loans).toBe(y.netWorthChange);
+  });
+
+  test("the year is measured against last year's sheet, offset and all", async () => {
+    const { t, householdId, incomeCat } = await setup();
+    // What the ledger never saw: the household's opening figure, carried on
+    // the account rather than as a transaction.
+    await t.run(async (ctx) => {
+      const acct = (
+        await ctx.db
+          .query("accounts")
+          .withIndex("by_household", (q) => q.eq("householdId", householdId))
+          .collect()
+      )[0];
+      await ctx.db.patch(acct._id, { bankBalance: 100_000_000 });
+    });
+    await asA(t).mutation(api.transactions.create, {
+      householdId, direction: "income", amount: 30_000_000,
+      categoryId: incomeCat, occurredOn: "2026-05-01",
+    });
+
+    const y = await asA(t).query(api.overview.year, { householdId, year: YEAR });
+    // The offset stands at BOTH ends. Counting it only at this one would hand
+    // the year a hundred thousand it did nothing to earn.
+    expect(y.netWorthParts.opening).toBe(100_000_000);
+    expect(y.netWorthParts.closing).toBe(130_000_000);
+    expect(y.netWorthChange).toBe(30_000_000);
   });
 
   test("funds row shows this-year change and current balance", async () => {
@@ -172,8 +200,9 @@ describe("asset revaluation", () => {
     expect(y.assets.change).toBe(2_000_000_00);
     expect(y.assets.balance).toBe(23_500_000_00);
     expect(y.netWorthChange).toBe(2_000_000_00); // no income, no spending
-    // Revaluation is a term of its own — it never passed through the account.
-    expect(y.netWorthParts.revaluation).toBe(2_000_000_00);
+    // It moved on the assets line, having never passed through the account.
+    expect(y.netWorthParts.assets).toBe(2_000_000_00);
+    expect(y.netWorthParts.bank).toBe(0);
   });
 
   test("a valuation after the year ends does not leak into it", async () => {

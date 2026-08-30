@@ -4,6 +4,7 @@ import { api } from '../../convex/_generated/api'
 import { useHousehold } from '../household/HouseholdContext'
 import { usePeriod } from '../period/PeriodContext'
 import { formatMoney } from '../lib/format'
+import { formatDayMonthYear } from '../lib/dates'
 import { Popover } from '../ui/Popover'
 import { CaretDownIcon } from '../ui/icons'
 import { YearChart } from './YearChart'
@@ -123,18 +124,22 @@ export function YearView() {
 }
 
 /**
- * The hero, and its two arithmetics.
+ * The hero, and where both halves of it come from.
  *
- * The figure and its change answer different questions and are made of
- * different things, so the panel says both:
+ *   WHAT IT IS       bank + assets − debt, today
+ *   WHAT CHANGED     that same sheet, today, less the one from the last day
+ *                    of last year — line by line
  *
- *   WHAT IT IS      bank + assets − debt        (a stock, today)
- *   WHAT CHANGED    income − spending + revaluation   (a flow, this year)
+ * The change is a DIFFERENCE OF TWO BALANCE SHEETS, not a sum of the year's
+ * flows, and the panel is written that way because the flow version cannot be
+ * checked and quietly disagrees at the edges. Here every line is "what this
+ * was then, what it is now", and the three of them are the change by
+ * construction.
  *
- * Neither is checkable against the numbers beside them. Income minus Expense
- * does not make the change — a loan payment is counted in one and not the
- * other, and a flat that went up in value is in neither — and nothing on the
- * screen adds up to the headline at all.
+ * The Loans line is the one that needs saying out loud: net worth went up by
+ * money that is GONE from the account. It is in the total because the debt
+ * left with it, not because it is still yours to spend — which is exactly the
+ * objection anyone has to this figure the first time they see it.
  *
  * Funds are deliberately NOT a line in the first sum. Money set aside in a
  * fund is money in the account; a fund is a partition of `bank`, not a thing
@@ -157,10 +162,12 @@ function ChangeExplained({
   netWorth: number
   change: number
   parts: {
-    income: number
-    spending: number
-    revaluation: number
-    loanPayments: number
+    openedOn: string
+    opening: number
+    closing: number
+    bank: number
+    assets: number
+    loans: number
   }
   bank: number
   assets: number
@@ -205,27 +212,36 @@ function ChangeExplained({
             </Note>
           )}
 
-          <Block title="This year" className="mt-4">
-            <Part label="Income" amount={parts.income} />
-            <Part label="Spending" amount={-parts.spending} />
-            {/* Only when the things you own actually moved. A row of zero
-                revaluation on a household with no assets explains nothing. */}
-            {parts.revaluation !== 0 && (
-              <Part label="Assets revalued" amount={parts.revaluation} />
+          <Block
+            title={`Since ${formatDayMonthYear(parts.openedOn)}`}
+            className="mt-4"
+          >
+            {/* The three lines of the sheet above, each as far as it moved.
+                They add up to the change by construction — it IS their sum.
+                The figure they are measured FROM is in the note rather than in
+                the column, because a stock sitting among three movements looks
+                like a fourth term and adds up to nothing. */}
+            <Part label="Bank" amount={parts.bank} />
+            {parts.assets !== 0 && (
+              <Part label="Assets" amount={parts.assets} />
             )}
+            {parts.loans !== 0 && <Part label="Loans" amount={parts.loans} />}
             <Total label="Change" amount={change} tone={tone} signed />
           </Block>
 
-          {parts.loanPayments > 0 && (
-            <Note>
-              Loan payments (
-              <span data-money className="tnum">
-                {formatMoney(parts.loanPayments)}
-              </span>
-              ) are not counted as spending here: the money left your account
-              and your debt shrank by exactly as much.
-            </Note>
-          )}
+          <Note>
+            On {formatDayMonthYear(parts.openedOn)} you were worth{' '}
+            <span data-money className="tnum">
+              {formatMoney(parts.opening)}
+            </span>
+            . {parts.loans > 0 && (
+              <>
+                The Loans line is debt you paid off since: that money is gone
+                from the account, and is here because the debt went with it —
+                not because you still have it.
+              </>
+            )}
+          </Note>
         </div>
       )}
     </Popover>

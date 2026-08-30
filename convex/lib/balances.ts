@@ -123,3 +123,46 @@ export async function bankTotal(
   }
   return total;
 }
+
+/**
+ * What the accounts held at the END OF A GIVEN DAY.
+ *
+ * The same sum as `bankTotal`, with the ledger cut off at a date — which is
+ * what any comparison with "a year ago" has to stand on. `bankBalance` is an
+ * offset (see `accountBalance`), and the offset is applied at both ends: it is
+ * the household's own correction for money the ledger never saw, and dropping
+ * it from the older end would invent a year's growth out of it.
+ *
+ * Archived accounts are left out at both ends, as they are today, so an account
+ * you closed does not read as a loss.
+ */
+export async function bankTotalAsOf(
+  ctx: Ctx,
+  householdId: Id<"households">,
+  on: string, // YYYY-MM-DD
+): Promise<number> {
+  const accounts = await ctx.db
+    .query("accounts")
+    .withIndex("by_household", (q) => q.eq("householdId", householdId))
+    .collect();
+  const live = new Set(
+    accounts.filter((a) => !a.isArchived).map((a) => a._id as string),
+  );
+
+  const txs = await ctx.db
+    .query("transactions")
+    .withIndex("by_household_date", (q) =>
+      q.eq("householdId", householdId).lte("occurredOn", on),
+    )
+    .collect();
+
+  let total = 0;
+  for (const a of accounts) if (!a.isArchived) total += a.bankBalance;
+  for (const t of txs) {
+    if (!live.has(t.accountId as string)) continue;
+    // Transfers move money inside the same balance — see `accountBalance`.
+    if (t.direction === "income") total += t.amount;
+    else if (t.direction === "expense") total -= t.amount;
+  }
+  return total;
+}
