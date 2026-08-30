@@ -575,6 +575,24 @@ export const year = query({
       // passing through the account, and leaving it out was the one thing this
       // figure knowingly missed.
       netWorthChange: totals.income - realExpenseFull + assetGroup.change,
+      /**
+       * The same figure, kept apart into the pieces it is made of, so the
+       * screen can show its working instead of re-deriving it from the four
+       * totals beside it — which is where a second, disagreeing definition of
+       * net worth would eventually come from.
+       *
+       * income − spending + revaluation IS netWorthChange. `loanPayments` is
+       * NOT a term in that sum: it is the amount deliberately left out of
+       * `spending`, carried here only so the panel can say what it left out
+       * and why. `totals.expense` counts it; this does not, and that gap is
+       * the one thing anyone reading the two figures together will ask about.
+       */
+      netWorthParts: {
+        income: totals.income,
+        spending: realExpenseFull,
+        revaluation: assetGroup.change,
+        loanPayments: loans.change,
+      },
       bank,
       months,
       totals,

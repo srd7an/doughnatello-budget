@@ -99,6 +99,18 @@ describe("overview.year", () => {
     // Loans accordion shows the payment as this-year change and reduced owed.
     expect(y.loans.change).toBe(5_000_000); // +paid
     expect(y.loans.balance).toBe(-45_000_000); // 50M owed − 5M paid, negative
+
+    // The same figure written out as the panel shows it: the three terms add
+    // up to it, spending is the expense total with the loan payment taken out,
+    // and the payment is carried on its own so the panel can say what it left
+    // out.
+    const parts = y.netWorthParts;
+    expect(parts.income - parts.spending + parts.revaluation).toBe(
+      y.netWorthChange,
+    );
+    expect(parts.spending).toBe(2_000_000);
+    expect(parts.loanPayments).toBe(5_000_000);
+    expect(y.totals.expense).toBe(parts.spending + parts.loanPayments);
   });
 
   test("funds row shows this-year change and current balance", async () => {
@@ -160,6 +172,8 @@ describe("asset revaluation", () => {
     expect(y.assets.change).toBe(2_000_000_00);
     expect(y.assets.balance).toBe(23_500_000_00);
     expect(y.netWorthChange).toBe(2_000_000_00); // no income, no spending
+    // Revaluation is a term of its own — it never passed through the account.
+    expect(y.netWorthParts.revaluation).toBe(2_000_000_00);
   });
 
   test("a valuation after the year ends does not leak into it", async () => {

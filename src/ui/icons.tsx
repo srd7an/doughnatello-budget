@@ -20,6 +20,7 @@ import { ArrowRightIcon } from '@phosphor-icons/react/dist/csr/ArrowRight'
 import { BarbellIcon } from '@phosphor-icons/react/dist/csr/Barbell'
 import { BasketIcon } from '@phosphor-icons/react/dist/csr/Basket'
 import { CalendarDotsIcon } from '@phosphor-icons/react/dist/csr/CalendarDots'
+import { CaretDownIcon } from '@phosphor-icons/react/dist/csr/CaretDown'
 import { CaretLeftIcon } from '@phosphor-icons/react/dist/csr/CaretLeft'
 import { CaretRightIcon } from '@phosphor-icons/react/dist/csr/CaretRight'
 import { CarProfileIcon } from '@phosphor-icons/react/dist/csr/CarProfile'
@@ -238,6 +239,7 @@ export function CategoryIcon({
 // Shell icons, re-exported under the names the app already uses so the design's
 // caret/calendar shapes replace the hand-drawn chevrons.
 export {
+  CaretDownIcon,
   CaretLeftIcon,
   CaretRightIcon,
   CalendarDotsIcon,
