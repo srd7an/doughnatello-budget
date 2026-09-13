@@ -1,7 +1,7 @@
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useKeepPeriod } from '../period/PeriodContext'
-import { formatMoney } from '../lib/format'
-import { CaretRightIcon, CategoryIcon } from '../ui/icons'
+import { CaretRightIcon } from '../ui/icons'
+import { BarRow } from './CategoriesList'
 
 export type TagRowData = {
   direction: string
@@ -25,6 +25,7 @@ export type TagRowData = {
  */
 export function TagsList({ rows }: { rows: TagRowData[] }) {
   const keepPeriod = useKeepPeriod()
+  const navigate = useNavigate()
 
   const totals = new Map<
     string,
@@ -68,44 +69,47 @@ export function TagsList({ rows }: { rows: TagRowData[] }) {
   const total = items.reduce((sum, [, t]) => sum + t.spent, 0)
 
   return (
-    <ul className="flex flex-col gap-1">
+    // The same row the Categories list draws, because it is the same kind of
+    // row: a name, a share, a figure, and a fill behind it carrying the share.
+    // The bar is this tag's share of what the period's TAGGED spending came to
+    // — not of income. Tags cover an arbitrary slice of a period, and measured
+    // against income every bar would be a sliver, saying nothing about the one
+    // comparison worth making here: these tags against each other.
+    <div className="flex flex-col gap-1">
       {items.map(([id, t]) => (
-        <li key={id} className="relative">
-          {/* The bar is this tag's share of what the period's TAGGED spending
-              came to — not of income. Tags cover an arbitrary slice of a
-              period, and a bar measured against income would be a sliver on
-              every row, saying nothing about the one comparison worth making
-              here: these tags against each other. */}
-          <span
-            aria-hidden
-            className="absolute inset-y-0 left-0 rounded-lg bg-stone-100"
-            style={{ width: total > 0 ? `${(t.spent / total) * 100}%` : '0%' }}
-          />
-          <Link
-            to={keepPeriod(`/tags/${id}`)}
-            className="relative flex min-h-11 items-center gap-2 border-b border-dashed border-stone-300 px-3 py-1.5 hover:rounded-lg hover:border-transparent hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:min-h-9"
-          >
-            <CategoryIcon icon={t.icon} color={t.color} className="shrink-0" />
-            <span className="min-w-0 flex-1 truncate text-sm font-medium text-stone-800">
-              {t.name}
-            </span>
-            <span data-money className="shrink-0 text-xs text-stone-500">
-              {t.count}
-            </span>
-            <span
-              data-money
-              className="w-[100px] shrink-0 text-right text-sm text-stone-800"
-            >
-              {t.spent > 0 ? `−${formatMoney(t.spent)}` : formatMoney(0)}
-            </span>
-            <CaretRightIcon
-              size={16}
-              className="shrink-0 text-stone-400"
-              aria-hidden
-            />
-          </Link>
-        </li>
+        <BarRow
+          key={id}
+          share={total > 0 ? t.spent / total : 0}
+          tone="bg-stone-200 group-hover:bg-stone-300"
+          track="bg-stone-50"
+          // It GOES to the tag's page rather than opening in place, so no
+          // disclosure chevron at the front — the one at the end says "away".
+          caret={false}
+          expanded={false}
+          onClick={() => navigate(keepPeriod(`/tags/${id}`))}
+          icon={t.icon}
+          iconColor={t.color}
+          label={t.name}
+          amount={t.spent}
+          shareTitle="Share of what this period tagged"
+          trailing={
+            <>
+              {/* How many rows this period put into it — the figure beside it
+                  says how much, and on a tag the two are worth reading
+                  together: eleven small ones and one big one are different
+                  holidays. */}
+              <span data-money className="shrink-0 text-xs text-stone-400">
+                {t.count}
+              </span>
+              <CaretRightIcon
+                size={16}
+                className="shrink-0 text-stone-400"
+                aria-hidden
+              />
+            </>
+          }
+        />
       ))}
-    </ul>
+    </div>
   )
 }

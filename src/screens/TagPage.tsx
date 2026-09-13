@@ -1,11 +1,13 @@
+import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { useOverlay } from '../period/PeriodContext'
-import { formatMonth, formatMoney, formatPercent } from '../lib/format'
+import { formatMonth, formatMoney } from '../lib/format'
 import { dayLabel, formatDayMonthYear } from '../lib/dates'
 import { CategoryIcon } from '../ui/icons'
+import { BarRow, TxnList, type Txn } from './CategoriesList'
 
 /**
  * One tag, in full — the whole point of tagging.
@@ -30,6 +32,21 @@ export function TagPage() {
     api.tags.detail,
     tagId ? { tagId: tagId as Id<'tags'> } : 'skip',
   )
+  const [open, setOpen] = useState<Set<string>>(new Set())
+  const toggle = (key: string) =>
+    setOpen((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+
+  // A transaction found by opening a category is the same transaction as one
+  // found down the list below — so it opens the same editor.
+  const openTransaction = (id: Id<'transactions'>) => {
+    const { to, options } = overlay(`/transactions/${id}`)
+    navigate(to, options)
+  }
 
   if (tag === undefined) {
     return <p className="py-8 text-center text-sm text-stone-400">Loading…</p>
@@ -44,6 +61,25 @@ export function TagPage() {
     if (last && last.month === month) last.rows.push(row)
     else groups.push({ month, rows: [row] })
   }
+
+  /**
+   * The spending inside one category of this tag. Expenses only, so the rows
+   * that open under a figure add up to the figure they opened out of — the
+   * refund and the transfer are elsewhere on this page, in their own words.
+   */
+  const spentBy = (categoryId: string): Txn[] =>
+    tag.rows
+      .filter(
+        (r) =>
+          r.direction === 'expense' && (r.categoryId ?? 'none') === categoryId,
+      )
+      .map((r) => ({
+        id: r._id,
+        payee: r.payee || r.category?.name || '—',
+        occurredOn: r.occurredOn,
+        amount: r.amount,
+      }))
+      .sort((a, b) => (a.occurredOn < b.occurredOn ? 1 : -1))
 
   return (
     <div className="space-y-6">
@@ -112,40 +148,36 @@ export function TagPage() {
           <h2 className="mb-3 text-base font-medium tracking-[-0.16px] text-stone-800">
             What it went on
           </h2>
-          <ul className="flex flex-col gap-1">
+          {/* The SAME row the overview's category list draws — two layers of
+              one hue, the faint one the whole and the stronger one this row's
+              share of it — down to the chevron that opens the transactions
+              inside. Drawn a second time by hand it came out a bar on a dashed
+              rule with no track behind it, which is a different encoding of
+              the same number on two screens showing the same thing. */}
+          <div className="flex flex-col gap-1">
             {tag.byCategory.map((c) => (
-              <li key={c.categoryId} className="relative">
-                <span
-                  aria-hidden
-                  className="absolute inset-y-0 left-0 rounded-lg bg-stone-100"
-                  style={{ width: `${(c.total / tag.spent) * 100}%` }}
+              <div key={c.categoryId}>
+                <BarRow
+                  share={tag.spent > 0 ? c.total / tag.spent : 0}
+                  tone="bg-stone-200 group-hover:bg-stone-300"
+                  track="bg-stone-50"
+                  expanded={open.has(c.categoryId)}
+                  onClick={() => toggle(c.categoryId)}
+                  icon={c.icon}
+                  iconColor={c.color}
+                  label={c.name}
+                  amount={c.total}
+                  shareTitle="Share of this tag's spending"
                 />
-                <div className="relative flex min-h-11 items-center gap-2 border-b border-dashed border-stone-300 px-3 py-1.5 sm:min-h-9">
-                  <CategoryIcon
-                    icon={c.icon}
-                    color={c.color}
-                    className="shrink-0"
+                {open.has(c.categoryId) && (
+                  <TxnList
+                    txns={spentBy(c.categoryId)}
+                    onOpen={openTransaction}
                   />
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-stone-800">
-                    {c.name}
-                  </span>
-                  <span
-                    data-money
-                    className="shrink-0 text-xs text-stone-500"
-                    title="Share of this tag's spending"
-                  >
-                    {formatPercent(c.total / tag.spent)}
-                  </span>
-                  <span
-                    data-money
-                    className="w-[100px] shrink-0 text-right text-sm text-stone-800"
-                  >
-                    {formatMoney(c.total)}
-                  </span>
-                </div>
-              </li>
+                )}
+              </div>
             ))}
-          </ul>
+          </div>
         </section>
       )}
 
@@ -175,12 +207,7 @@ export function TagPage() {
                   {g.rows.map((row) => (
                     <li key={row._id}>
                       <button
-                        onClick={() => {
-                          const { to, options } = overlay(
-                            `/transactions/${row._id}`,
-                          )
-                          navigate(to, options)
-                        }}
+                        onClick={() => openTransaction(row._id)}
                         className="flex min-h-11 w-full items-center gap-2 border-b border-dashed border-stone-300 px-3 py-1.5 text-left hover:rounded-lg hover:border-transparent hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:min-h-9"
                       >
                         <CategoryIcon

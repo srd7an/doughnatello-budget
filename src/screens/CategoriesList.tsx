@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useOverlay } from '../period/PeriodContext'
 import type { Id } from '../../convex/_generated/dataModel'
@@ -16,7 +16,7 @@ export type CategoryRowData = {
   category: { name: string; icon: string; color: string; kind: string } | null
 }
 
-type Txn = {
+export type Txn = {
   id: Id<'transactions'>
   payee: string
   occurredOn: string
@@ -136,7 +136,9 @@ export function CategoriesList({ rows }: { rows: CategoryRowData[] }) {
           label="Income"
           amount={income}
         />
-        {open.has('income') && <TxnList txns={incomeTxns} onOpen={openTransaction} />}
+        {open.has('income') && (
+          <TxnList txns={incomeTxns} onOpen={openTransaction} />
+        )}
 
         <Group
           label="Needs"
@@ -155,14 +157,18 @@ export function CategoriesList({ rows }: { rows: CategoryRowData[] }) {
           onOpen={openTransaction}
         />
       </div>
-
     </div>
   )
 }
 
 /**
  * A category row: a full-width row of text, with a tinted fill behind it whose
- * width is this row's share of income.
+ * width is this row's share of the whole.
+ *
+ * Exported, because the tag page draws the same breakdown and a second row that
+ * merely resembled this one is how two screens showing the same thing start
+ * disagreeing about what it looks like. Only the denominator differs there —
+ * a tag's spending rather than income — and that is the caller's to decide.
  *
  * The fill and the text are separate layers, and that is the whole point. When
  * the tinted block WAS the row, it had to be wide enough to hold a name — an
@@ -179,7 +185,7 @@ export function CategoriesList({ rows }: { rows: CategoryRowData[] }) {
  * category's bar is read against its siblings, which share that indent, and
  * against the % printed beside it either way.
  */
-function BarRow({
+export function BarRow({
   share,
   tone,
   track,
@@ -190,6 +196,9 @@ function BarRow({
   label,
   amount,
   showShare = true,
+  shareTitle = 'Share of income',
+  caret = true,
+  trailing,
 }: {
   share: number
   /** The proportional fill — the stronger of the two tints. */
@@ -204,6 +213,16 @@ function BarRow({
   amount: number
   /** Income is not a share of spending — it has no percentage to show. */
   showShare?: boolean
+  /** The disclosure chevron. Off for a row that GOES somewhere rather than
+   *  opening in place — a caret pointing right at the start of a row is a
+   *  promise that the thing under it is about to appear. */
+  caret?: boolean
+  /** After the figure. The tags list puts its "go" chevron here. */
+  trailing?: ReactNode
+  /** What the % is a share OF. The denominator is the caller's decision, so
+   *  the word for it has to be too — on a tag's page it is that tag's own
+   *  spending, not income. */
+  shareTitle?: string
 }) {
   const pct = Math.max(0, Math.min(share, 1)) * 100
   return (
@@ -224,19 +243,23 @@ function BarRow({
         aria-expanded={expanded}
         className="relative flex min-h-11 w-full items-center gap-2 px-3 py-1.5 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:min-h-9"
       >
-        <CaretRightIcon
-          size={16}
-          aria-hidden
-          className={`shrink-0 text-stone-500 transition-transform ${expanded ? 'rotate-90' : ''}`}
-        />
-        {icon && <CategoryIcon icon={icon} color={iconColor} className="shrink-0" />}
+        {caret && (
+          <CaretRightIcon
+            size={16}
+            aria-hidden
+            className={`shrink-0 text-stone-500 transition-transform ${expanded ? 'rotate-90' : ''}`}
+          />
+        )}
+        {icon && (
+          <CategoryIcon icon={icon} color={iconColor} className="shrink-0" />
+        )}
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-stone-800">
           {label}
         </span>
         {showShare && (
           <span
             data-money
-            title="Share of income"
+            title={shareTitle}
             className="shrink-0 text-sm text-stone-500"
           >
             {formatPercent(share)}
@@ -248,6 +271,7 @@ function BarRow({
         >
           {formatMoney(amount)}
         </span>
+        {trailing}
       </button>
     </div>
   )
@@ -360,7 +384,7 @@ function CategoryRow({
  * only works if the row owns it. The radius arrives with the fill — a row that
  * is only a line has no corners to round.
  */
-function TxnList({
+export function TxnList({
   txns,
   onOpen,
 }: {
