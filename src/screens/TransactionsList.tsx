@@ -181,9 +181,13 @@ export function TransactionsList({
 
   return (
     <div className="space-y-6">
+      {/* Left, with everything else on the page. It sat on the right, which
+          only made sense while the left held a filter chip — and there is no
+          chip on almost every visit, so the row read as one control stranded
+          across an empty line from nothing. */}
       <div className="flex flex-wrap items-center gap-2">
         {chip}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex items-center gap-2">
           {picked === null ? (
             // The way in. Off by default: on almost every visit this list is
             // read, not edited, and a checkbox on every row would say otherwise.
