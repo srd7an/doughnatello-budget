@@ -30,11 +30,24 @@ export type Fixtures = Record<string, unknown>
 
 let fixtures: Fixtures = {}
 
+/**
+ * What a mutation does when the screen calls it, by the same name a fixture
+ * uses. Unlisted mutations are a no-op that resolves — which is all most
+ * screens need — but a test about what a button SENDS has to be able to see
+ * the arguments, and a fresh vi.fn() per render cannot be looked at.
+ */
+let mutations: Record<string, (args: never) => unknown> = {}
+
+export function setMutations(next: Record<string, (args: never) => unknown>) {
+  mutations = next
+}
+
 /** What each query answers with. Anything unlisted stays `undefined`, which
  *  is how a component sees a query that has not landed yet — the loading
  *  state is a state worth testing, not an accident to paper over. */
 export function setFixtures(next: Fixtures) {
   fixtures = next
+  mutations = {}
 }
 
 // Sign-out lives behind the same wall as the queries; the shell only needs it
@@ -48,7 +61,8 @@ vi.mock('convex/react', () => ({
     if (args === 'skip') return undefined
     return fixtures[nameOf(fn)]
   },
-  useMutation: () => vi.fn(async () => undefined),
+  useMutation: (fn: unknown) =>
+    mutations[nameOf(fn)] ?? vi.fn(async () => undefined),
   useAction: () => vi.fn(async () => undefined),
   Authenticated: ({ children }: { children: ReactNode }) => children,
   Unauthenticated: () => null,

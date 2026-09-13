@@ -8,11 +8,12 @@ import { Swatch } from '../ui/Swatch'
 import { ChartTooltip, SERIES } from '../ui/ChartTooltip'
 import { TransactionsList, type TxFilter } from './TransactionsList'
 import { CategoriesList } from './CategoriesList'
+import { TagsList } from './TagsList'
 import { Legend } from './Legend'
 import { StockTabs } from './StockTabs'
 import { DueSoon } from './DueSoon'
 
-type Lens = 'transactions' | 'categories'
+type Lens = 'transactions' | 'categories' | 'tags'
 
 /** The segment under the pointer, and where to put its readout. */
 type Hover = {
@@ -61,9 +62,18 @@ export function MonthView() {
   // Categories with spending in them, which is what that list draws — not how
   // many categories exist. Undefined while the rows are still loading, so the
   // tab shows no count rather than a confident zero.
-  const categoryCount = rows && new Set(
-    rows.filter((r) => r.direction === 'expense').map((r) => r.categoryId ?? 'none'),
-  ).size
+  const categoryCount =
+    rows &&
+    new Set(
+      rows
+        .filter((r) => r.direction === 'expense')
+        .map((r) => r.categoryId ?? 'none'),
+    ).size
+
+  // How many different tags this month touched — not how many exist. A tag
+  // that had nothing happen in July is not part of July.
+  const tagCount =
+    rows && new Set(rows.flatMap((r) => r.tags.map((t) => t._id))).size
 
   const now = new Date()
   const isCurrentMonth =
@@ -116,94 +126,102 @@ export function MonthView() {
             detail goes underneath. 16px between them, and 16px from the
             headline above. */}
         <div className="mt-4 flex flex-col gap-4">
-        <div
-          className="relative order-1 flex h-5 gap-1 sm:order-2"
-          onPointerLeave={() => setHover(null)}
-        >
-          {/* The frame IS the income: the segments are what became of it, and
+          <div
+            className="relative order-1 flex h-5 gap-1 sm:order-2"
+            onPointerLeave={() => setHover(null)}
+          >
+            {/* The frame IS the income: the segments are what became of it, and
               the outline is how much there was to become anything. Drawn around
               them rather than behind, so a month that overspent has segments
               visibly running out past their own frame — which is the whole
               story of that month in one shape. */}
-          {income > 0 && (
-            <span
-              aria-hidden
-              className="pointer-events-none absolute -inset-y-1 -left-1 z-10 rounded-lg border border-stone-300"
-              style={{ width: `calc(${(income / denom) * 100}% + 0.5rem)` }}
-            />
-          )}
-          {income > 0 ? (
-            <>
-              {/* Leftover has no click: it is what did NOT happen, the
+            {income > 0 && (
+              <span
+                aria-hidden
+                className="pointer-events-none absolute -inset-y-1 -left-1 z-10 rounded-lg border border-stone-300"
+                style={{ width: `calc(${(income / denom) * 100}% + 0.5rem)` }}
+              />
+            )}
+            {income > 0 ? (
+              <>
+                {/* Leftover has no click: it is what did NOT happen, the
                   residue of the other two. There are no transactions behind
                   it to show. */}
-              <Seg
-                className="bg-leftover"
-                color={SERIES.leftover}
-                label={isCurrentMonth ? 'Left to spend' : 'Leftover'}
-                amount={Math.max(leftToSpend, 0)}
-                frac={Math.max(leftToSpend, 0) / denom}
-                onHover={setHover}
-              />
-              <Seg
-                className="bg-expense"
-                color={SERIES.expense}
-                label="Expense"
-                amount={summary?.expense ?? 0}
-                frac={(summary?.expense ?? 0) / denom}
-                onHover={setHover}
-                onSelect={() =>
-                  show({ kind: 'direction', direction: 'expense', label: 'Expenses' })
-                }
-              />
-              {/* Only when it is positive. A negative saving is not a slice of
+                <Seg
+                  className="bg-leftover"
+                  color={SERIES.leftover}
+                  label={isCurrentMonth ? 'Left to spend' : 'Leftover'}
+                  amount={Math.max(leftToSpend, 0)}
+                  frac={Math.max(leftToSpend, 0) / denom}
+                  onHover={setHover}
+                />
+                <Seg
+                  className="bg-expense"
+                  color={SERIES.expense}
+                  label="Expense"
+                  amount={summary?.expense ?? 0}
+                  frac={(summary?.expense ?? 0) / denom}
+                  onHover={setHover}
+                  onSelect={() =>
+                    show({
+                      kind: 'direction',
+                      direction: 'expense',
+                      label: 'Expenses',
+                    })
+                  }
+                />
+                {/* Only when it is positive. A negative saving is not a slice of
                   this bar — it is the reason the bar is longer than the income,
                   and it is already drawn as the part of Expense that reaches
                   past the mark. */}
-              {savings > 0 && (
-                <Seg
-                  className="bg-saved"
-                  color={SERIES.saved}
-                  label="Savings"
-                  amount={savings}
-                  frac={savings / denom}
-                  onHover={setHover}
-                  onSelect={() =>
-                    show({ kind: 'direction', direction: 'transfer', label: 'Money set aside' })
-                  }
-                />
-              )}
-            </>
-          ) : (
-            <div className="w-full rounded-sm bg-stone-100" />
-          )}
-        </div>
+                {savings > 0 && (
+                  <Seg
+                    className="bg-saved"
+                    color={SERIES.saved}
+                    label="Savings"
+                    amount={savings}
+                    frac={savings / denom}
+                    onHover={setHover}
+                    onSelect={() =>
+                      show({
+                        kind: 'direction',
+                        direction: 'transfer',
+                        label: 'Money set aside',
+                      })
+                    }
+                  />
+                )}
+              </>
+            ) : (
+              <div className="w-full rounded-sm bg-stone-100" />
+            )}
+          </div>
 
-        <div className="order-2 sm:order-1">
-        <Legend
-          items={[
-            { label: 'Income', amount: income, share: null },
-            {
-              swatch: 'bg-expense',
-              label: 'Expense',
-              amount: summary?.expense ?? 0,
-              share: income > 0 ? (summary?.expense ?? 0) / income : null,
-            },
-            {
-              swatch: 'bg-saved',
-              label: 'Savings',
-              amount: savings,
-              share: income > 0 ? savings / income : null,
-            },
-            {
-              swatch: 'bg-leftover',
-              label: isCurrentMonth ? 'Left to spend' : 'Leftover',
-              amount: leftToSpend,
-              share: income > 0 ? leftToSpend / income : null,
-            },
-          ]}
-        />
-        </div>
+          <div className="order-2 sm:order-1">
+            <Legend
+              items={[
+                { label: 'Income', amount: income, share: null },
+                {
+                  swatch: 'bg-expense',
+                  label: 'Expense',
+                  amount: summary?.expense ?? 0,
+                  share: income > 0 ? (summary?.expense ?? 0) / income : null,
+                },
+                {
+                  swatch: 'bg-saved',
+                  label: 'Savings',
+                  amount: savings,
+                  share: income > 0 ? savings / income : null,
+                },
+                {
+                  swatch: 'bg-leftover',
+                  label: isCurrentMonth ? 'Left to spend' : 'Leftover',
+                  amount: leftToSpend,
+                  share: income > 0 ? leftToSpend / income : null,
+                },
+              ]}
+            />
+          </div>
         </div>
 
         {hover && (
@@ -213,12 +231,20 @@ export function MonthView() {
             title={label}
             rows={[
               {
-                label: hover.label + (income > 0 ? ` · ${formatPercent(hover.amount / income)}` : ''),
+                label:
+                  hover.label +
+                  (income > 0
+                    ? ` · ${formatPercent(hover.amount / income)}`
+                    : ''),
                 value: formatMoney(hover.amount),
                 color: hover.color,
                 lead: true,
               },
-              { label: 'of income', value: formatMoney(income), color: SERIES.income },
+              {
+                label: 'of income',
+                value: formatMoney(income),
+                color: SERIES.income,
+              },
             ]}
           />
         )}
@@ -245,11 +271,26 @@ export function MonthView() {
             active={lens === 'categories'}
             onClick={() => setLens('categories')}
           />
+          {/* Only once there is something to see. A third tab that is always
+              empty teaches you to stop looking at it. */}
+          {!!tagCount && (
+            <LensTab
+              label="Tags"
+              count={tagCount}
+              active={lens === 'tags'}
+              onClick={() => setLens('tags')}
+            />
+          )}
         </div>
       </div>
 
       {lens === 'transactions' ? (
-        <TransactionsList filter={filter} onClearFilter={() => setFilter(null)} />
+        <TransactionsList
+          filter={filter}
+          onClearFilter={() => setFilter(null)}
+        />
+      ) : lens === 'tags' ? (
+        <TagsList rows={rows ?? []} />
       ) : (
         <CategoriesList rows={rows ?? []} />
       )}

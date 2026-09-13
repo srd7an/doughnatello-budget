@@ -45,7 +45,10 @@ export const preview = internalQuery({
     const txs = await ctx.db
       .query("transactions")
       .withIndex("by_household_date", (q) =>
-        q.eq("householdId", household._id).gte("occurredOn", from).lte("occurredOn", to),
+        q
+          .eq("householdId", household._id)
+          .gte("occurredOn", from)
+          .lte("occurredOn", to),
       )
       .collect();
 
@@ -65,7 +68,10 @@ export const preview = internalQuery({
       // Enough to recognise the batch, not enough to fill a terminal.
       sample: txs
         .slice(0, 8)
-        .map((t) => `${t.occurredOn} ${t.direction} ${t.amount / 100} ${t.payee ?? ""}`),
+        .map(
+          (t) =>
+            `${t.occurredOn} ${t.direction} ${t.amount / 100} ${t.payee ?? ""}`,
+        ),
     };
   },
 });
@@ -77,7 +83,10 @@ export const removeRange = internalMutation({
     const txs = await ctx.db
       .query("transactions")
       .withIndex("by_household_date", (q) =>
-        q.eq("householdId", household._id).gte("occurredOn", from).lte("occurredOn", to),
+        q
+          .eq("householdId", household._id)
+          .gte("occurredOn", from)
+          .lte("occurredOn", to),
       )
       .collect();
 
@@ -98,6 +107,13 @@ export const removeRange = internalMutation({
         await ctx.db.delete(f._id);
         fundingRows += 1;
       }
+      // The labels go with the row they labelled; a join row pointing at a
+      // deleted transaction would count towards a tag's total forever.
+      const tagLinks = await ctx.db
+        .query("transactionTags")
+        .withIndex("by_transaction", (q) => q.eq("transactionId", t._id))
+        .collect();
+      for (const l of tagLinks) await ctx.db.delete(l._id);
       await ctx.db.delete(t._id);
     }
 
@@ -138,7 +154,9 @@ export const strays = internalQuery({
     const [txs, categories] = await Promise.all([
       ctx.db
         .query("transactions")
-        .withIndex("by_household_date", (q) => q.eq("householdId", household._id))
+        .withIndex("by_household_date", (q) =>
+          q.eq("householdId", household._id),
+        )
         .collect(),
       ctx.db
         .query("categories")
@@ -156,7 +174,8 @@ export const strays = internalQuery({
     for (const t of txs) {
       if (!t.categoryId) continue;
       const cat = byId.get(t.categoryId);
-      const wrongSide = cat && (cat.kind === "income") !== (t.direction === "income");
+      const wrongSide =
+        cat && (cat.kind === "income") !== (t.direction === "income");
       if (cat && !cat.isArchived && !wrongSide) continue;
 
       const reason = !cat
@@ -187,7 +206,11 @@ export const reviveCategory = internalMutation({
   args: {
     categoryId: v.id("categories"),
     kind: v.optional(
-      v.union(v.literal("committed"), v.literal("discretionary"), v.literal("income")),
+      v.union(
+        v.literal("committed"),
+        v.literal("discretionary"),
+        v.literal("income"),
+      ),
     ),
     name: v.optional(v.string()),
     icon: v.optional(v.string()),
@@ -202,10 +225,14 @@ export const reviveCategory = internalMutation({
     if (kind) {
       const txs = await ctx.db
         .query("transactions")
-        .withIndex("by_household_date", (q) => q.eq("householdId", cat.householdId))
+        .withIndex("by_household_date", (q) =>
+          q.eq("householdId", cat.householdId),
+        )
         .collect();
       const held = txs.filter((t) => t.categoryId === categoryId);
-      const clash = held.find((t) => (t.direction === "income") !== (kind === "income"));
+      const clash = held.find(
+        (t) => (t.direction === "income") !== (kind === "income"),
+      );
       if (clash) {
         throw new Error(
           `Refusing: "${cat.name}" holds a ${clash.direction} on ${clash.occurredOn}, ` +
@@ -252,12 +279,15 @@ export const refile = internalMutation({
   handler: async (ctx, { from, to, toNew, expect, strayRows }) => {
     const source = await ctx.db.get(from);
     if (!source) throw new Error("No such category");
-    if (!to === !toNew) throw new Error("Give either `to` or `toNew`, not both");
+    if (!to === !toNew)
+      throw new Error("Give either `to` or `toNew`, not both");
 
     if (!to) {
       const siblings = await ctx.db
         .query("categories")
-        .withIndex("by_household", (q) => q.eq("householdId", source.householdId))
+        .withIndex("by_household", (q) =>
+          q.eq("householdId", source.householdId),
+        )
         .collect();
       const clash = siblings.find(
         (c) =>
@@ -270,7 +300,8 @@ export const refile = internalMutation({
         (await ctx.db.insert("categories", {
           householdId: source.householdId,
           ...toNew!,
-          sortOrder: siblings.reduce((max, c) => Math.max(max, c.sortOrder), -1) + 1,
+          sortOrder:
+            siblings.reduce((max, c) => Math.max(max, c.sortOrder), -1) + 1,
           isArchived: false,
         }));
     }
@@ -278,19 +309,25 @@ export const refile = internalMutation({
     const target = await ctx.db.get(to);
     if (!target) throw new Error("No such category");
     if (source.householdId !== target.householdId) {
-      throw new Error("Refusing: those categories belong to different households");
+      throw new Error(
+        "Refusing: those categories belong to different households",
+      );
     }
 
     const txs = await ctx.db
       .query("transactions")
-      .withIndex("by_household_date", (q) => q.eq("householdId", source.householdId))
+      .withIndex("by_household_date", (q) =>
+        q.eq("householdId", source.householdId),
+      )
       .collect();
     const all = txs.filter((t) => t.categoryId === from);
     // A live category usually holds one wrong row among many right ones — a
     // single income filed under a spending category. `strays` takes just those
     // and leaves the rest where they are.
     const held = strayRows
-      ? all.filter((t) => (t.direction === "income") !== (source.kind === "income"))
+      ? all.filter(
+          (t) => (t.direction === "income") !== (source.kind === "income"),
+        )
       : all;
 
     if (held.length !== expect) {

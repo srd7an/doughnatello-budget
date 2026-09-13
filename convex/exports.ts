@@ -19,32 +19,59 @@ export const transactions = query({
   handler: async (ctx, { householdId }) => {
     await requireMember(ctx, householdId);
 
-    const [txs, categories, pots, members, funding] = await Promise.all([
-      ctx.db
-        .query("transactions")
-        .withIndex("by_household_date", (q) => q.eq("householdId", householdId))
-        .collect(),
-      ctx.db
-        .query("categories")
-        .withIndex("by_household", (q) => q.eq("householdId", householdId))
-        .collect(),
-      ctx.db
-        .query("pots")
-        .withIndex("by_household", (q) => q.eq("householdId", householdId))
-        .collect(),
-      ctx.db
-        .query("householdMembers")
-        .withIndex("by_household", (q) => q.eq("householdId", householdId))
-        .collect(),
-      ctx.db
-        .query("transactionFunding")
-        .withIndex("by_household_pot", (q) => q.eq("householdId", householdId))
-        .collect(),
-    ]);
+    const [txs, categories, pots, members, funding, tags, tagLinks] =
+      await Promise.all([
+        ctx.db
+          .query("transactions")
+          .withIndex("by_household_date", (q) =>
+            q.eq("householdId", householdId),
+          )
+          .collect(),
+        ctx.db
+          .query("categories")
+          .withIndex("by_household", (q) => q.eq("householdId", householdId))
+          .collect(),
+        ctx.db
+          .query("pots")
+          .withIndex("by_household", (q) => q.eq("householdId", householdId))
+          .collect(),
+        ctx.db
+          .query("householdMembers")
+          .withIndex("by_household", (q) => q.eq("householdId", householdId))
+          .collect(),
+        ctx.db
+          .query("transactionFunding")
+          .withIndex("by_household_pot", (q) =>
+            q.eq("householdId", householdId),
+          )
+          .collect(),
+        ctx.db
+          .query("tags")
+          .withIndex("by_household", (q) => q.eq("householdId", householdId))
+          .collect(),
+        ctx.db
+          .query("transactionTags")
+          .withIndex("by_household_tag", (q) =>
+            q.eq("householdId", householdId),
+          )
+          .collect(),
+      ]);
 
     const catName = new Map(categories.map((c) => [c._id, c.name]));
     const potName = new Map(pots.map((p) => [p._id, p.name]));
     const memberName = new Map(members.map((m) => [m.userId, m.displayName]));
+    const tagName = new Map(tags.map((t) => [t._id, t.name]));
+
+    // Several tags in one cell, joined by "; " — a column per tag would change
+    // shape with the data, and a tag is a label, not a field.
+    const tagged = new Map<string, string[]>();
+    for (const l of tagLinks) {
+      const name = tagName.get(l.tagId);
+      if (!name) continue;
+      const list = tagged.get(l.transactionId) ?? [];
+      list.push(name);
+      tagged.set(l.transactionId, list);
+    }
 
     // Which pot funded each expense, if any — the fact that makes a row
     // interpretable, since a pot-funded expense did not come out of the month.
@@ -64,6 +91,7 @@ export const transactions = query({
         fundedFrom: fundedFrom.get(t._id) ?? "",
         payee: t.payee ?? "",
         note: t.note ?? "",
+        tags: (tagged.get(t._id) ?? []).sort().join("; "),
         paidBy: memberName.get(t.paidBy) ?? "",
       }));
   },

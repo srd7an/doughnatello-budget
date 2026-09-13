@@ -111,6 +111,9 @@ import { InvoiceIcon } from '@phosphor-icons/react/dist/csr/Invoice'
 import { BuildingsIcon } from '@phosphor-icons/react/dist/csr/Buildings'
 import { VaultIcon } from '@phosphor-icons/react/dist/csr/Vault'
 import { TrendDownIcon } from '@phosphor-icons/react/dist/csr/TrendDown'
+import { TagIcon } from '@phosphor-icons/react/dist/csr/Tag'
+import { TagChevronIcon } from '@phosphor-icons/react/dist/csr/TagChevron'
+import { MinusIcon } from '@phosphor-icons/react/dist/csr/Minus'
 
 type PhosphorIcon = ComponentType<{
   size?: number | string
@@ -202,6 +205,9 @@ const CATEGORY_ICONS: Record<string, PhosphorIcon> = {
   vault: VaultIcon,
   // The counterpart to `invest` (TrendUp): a balance on its way down.
   paydown: TrendDownIcon,
+  // A tag's own default, and the glyph the form's Tags row wears.
+  tag: TagIcon,
+  label: TagChevronIcon,
 }
 
 /** Every selectable icon key, for the pickers. */
@@ -258,6 +264,8 @@ export {
   NoteIcon,
   PlusCircleIcon,
   BankIcon,
+  TagIcon,
+  MinusIcon,
 }
 
 export function PlusIcon({ className }: { className?: string }) {

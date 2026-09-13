@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react'
 import { Popover } from '../ui/Popover'
 import { SearchField, useSearch } from '../ui/SearchField'
-import { CategoryIcon } from '../ui/icons'
+import { CategoryIcon, TagIcon } from '../ui/icons'
+import { TagChip } from '../ui/TagChip'
+import { TagOptions } from '../ui/TagPicker'
 
 /**
  * The pieces the transaction form is made of.
@@ -50,7 +52,9 @@ const FILL_BRAND = `${HOVER} text-brand hover:bg-violet-100`
 
 /** The glyph column, so every row's text starts at the same x. */
 function Glyph({ children }: { children: ReactNode }) {
-  return <span className="grid w-5 shrink-0 place-items-center">{children}</span>
+  return (
+    <span className="grid w-5 shrink-0 place-items-center">{children}</span>
+  )
 }
 
 /** A row you type into. */
@@ -175,7 +179,12 @@ export function PickRow<T>({
       }
     >
       {(close) => (
-        <Options options={options} onPick={onPick} close={close} label={label} />
+        <Options
+          options={options}
+          onPick={onPick}
+          close={close}
+          label={label}
+        />
       )}
     </Popover>
   )
@@ -247,7 +256,9 @@ export function EndBlock<T>({
             size={20}
             className="shrink-0"
           />
-          <span className="min-w-0 flex-1 truncate text-stone-800">{value.text}</span>
+          <span className="min-w-0 flex-1 truncate text-stone-800">
+            {value.text}
+          </span>
           <span className="shrink-0 rounded-md bg-white px-2 py-0.5 text-xs text-stone-600">
             {side}
           </span>
@@ -255,7 +266,12 @@ export function EndBlock<T>({
       }
     >
       {(close) => (
-        <Options options={options} onPick={onPick} close={close} label={label} />
+        <Options
+          options={options}
+          onPick={onPick}
+          close={close}
+          label={label}
+        />
       )}
     </Popover>
   )
@@ -343,5 +359,76 @@ export function SkeletonRow({ last }: { last?: boolean }) {
       </Glyph>
       <span aria-hidden className="h-4 w-28 rounded bg-stone-100" />
     </div>
+  )
+}
+
+/**
+ * The tags row — the only row on this form that holds more than one answer.
+ *
+ * It is the invitation shape until something is chosen, for the same reason
+ * "Pay from a fund" is: most transactions carry no tag, and a row that says
+ * nothing on most transactions should not be there on most transactions.
+ *
+ * The panel does not close on a choice. Tagging is plural by nature — a
+ * holiday's dinner is Greece 2026 AND Anniversary — and a picker that shut
+ * after each tick would make the second one cost a second opening.
+ *
+ * Typing does two jobs at once: it filters, and it names a tag that does not
+ * exist yet. That matters more here than anywhere else in the app, because a
+ * tag is always invented in the middle of entering the thing that needs it —
+ * nobody goes to Settings first to declare that they went to Greece.
+ */
+export function TagRow<T extends string>({
+  tags,
+  selected,
+  onToggle,
+  onCreate,
+  last,
+}: {
+  tags: { _id: T; name: string; color: string; count?: number }[]
+  selected: T[]
+  onToggle: (id: T) => void
+  /** Makes a tag with this name and selects it. */
+  onCreate: (name: string) => void
+  last?: boolean
+}) {
+  const chosen = tags.filter((t) => selected.includes(t._id))
+
+  return (
+    <Popover
+      label="Tags"
+      align="left"
+      triggerClassName={`${ROW} ${chosen.length === 0 ? FILL_BRAND : FILL} ${
+        last ? 'border-b-0' : ''
+      }`}
+      trigger={
+        <>
+          <Glyph>
+            <TagIcon size={20} aria-hidden />
+          </Glyph>
+          {chosen.length === 0 ? (
+            <span className="flex-1">Add a tag</span>
+          ) : (
+            // Wraps rather than truncates: a transaction with three tags has
+            // three answers, and hiding two of them behind an ellipsis would
+            // make the row's own content unreadable to save a few pixels.
+            <span className="flex min-w-0 flex-1 flex-wrap gap-1">
+              {chosen.map((t) => (
+                <TagChip key={t._id} name={t.name} color={t.color} />
+              ))}
+            </span>
+          )}
+        </>
+      }
+    >
+      {() => (
+        <TagOptions
+          tags={tags}
+          selected={selected}
+          onToggle={onToggle}
+          onCreate={onCreate}
+        />
+      )}
+    </Popover>
   )
 }

@@ -34,6 +34,7 @@ import {
   OpenRow,
   PickRow,
   SkeletonRow,
+  TagRow,
   TypeRow,
 } from './TransactionRows'
 // The one implementation of the recurrence calendar, shared with the backend so
@@ -74,9 +75,17 @@ type Repeat = 'once' | 'weekly' | 'monthly' | 'yearly'
  *  for them. Only the count and the labels matter — the values are what is
  *  still arriving. */
 const SKELETON: Record<Direction, string[]> = {
-  expense: ['Category', 'Payee', 'Pay from', 'Paying off', 'Repeat', 'Note'],
-  income: ['Category', 'Payee', 'Repeat', 'Note'],
-  transfer: ['Payee', 'Pay from', 'Into', 'Repeat', 'Note'],
+  expense: [
+    'Category',
+    'Payee',
+    'Pay from',
+    'Paying off',
+    'Repeat',
+    'Note',
+    'Tags',
+  ],
+  income: ['Category', 'Payee', 'Repeat', 'Note', 'Tags'],
+  transfer: ['Payee', 'Pay from', 'Into', 'Repeat', 'Note', 'Tags'],
 }
 
 const REPEATS: { id: Repeat; label: string }[] = [
@@ -138,9 +147,11 @@ export function TransactionForm({
   const categoryList = useQuery(api.categories.list, { householdId })
   const potList = useQuery(api.pots.balances, { householdId })
   const accountList = useQuery(api.accounts.list, { householdId })
+  const tagList = useQuery(api.tags.list, { householdId })
   const categories = categoryList ?? []
   const potBalances = potList ?? []
   const accounts = accountList ?? []
+  const tags = tagList ?? []
   // Everything the ROWS need. The header, the date and the amount need none of
   // it, so they are drawn straight away — the amount is the first thing anyone
   // types, and making it wait on a query for a list of funds would be absurd.
@@ -148,11 +159,13 @@ export function TransactionForm({
     categoryList !== undefined &&
     potList !== undefined &&
     accountList !== undefined &&
+    tagList !== undefined &&
     (source === undefined || detail !== undefined)
   const create = useMutation(api.transactions.create)
   const update = useMutation(api.transactions.update)
   const remove = useMutation(api.transactions.remove)
   const createRule = useMutation(api.recurring.create)
+  const createTag = useMutation(api.tags.create)
 
   const incomeCats = categories.filter((c) => c.kind === 'income')
   const expenseCats = categories.filter((c) => c.kind !== 'income')
@@ -200,6 +213,9 @@ export function TransactionForm({
     fiscalDevice ? { householdId, fiscalDevice } : 'skip',
   )
   const [note, setNote] = useState('')
+  // What this belongs to besides its category. A copy keeps them: the same
+  // thing happening again is nearly always part of the same story.
+  const [tagIds, setTagIds] = useState<Id<'tags'>[]>([])
   const [accountId, setAccountId] = useState<Id<'accounts'> | null>(null)
   const [repeat, setRepeat] = useState<Repeat>('once')
   const [estimate, setEstimate] = useState(false)
@@ -238,6 +254,7 @@ export function TransactionForm({
     if (isEdit) setOccurredOn(detail.occurredOn)
     setPayee(detail.payee ?? '')
     setNote(detail.note ?? '')
+    setTagIds(detail.tags.map((t) => t._id))
     setAccountId(detail.accountId)
     setError(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -357,6 +374,7 @@ export function TransactionForm({
     occurredOn,
     payee.trim(),
     note.trim(),
+    [...tagIds].sort().join(','),
     accountId ?? '',
   ].join('|')
   const savedShape = detail
@@ -365,7 +383,9 @@ export function TransactionForm({
         detail.amount,
         detail.categoryId ?? '',
         detail.direction === 'transfer' ? (detail.potId ?? '') : '',
-        detail.direction === 'transfer' ? (detail.fromPotId ?? 'income') : 'income',
+        detail.direction === 'transfer'
+          ? (detail.fromPotId ?? 'income')
+          : 'income',
         detail.direction === 'expense'
           ? (detail.funding.find((f) => f.potId)?.potId ?? 'income')
           : 'income',
@@ -373,6 +393,10 @@ export function TransactionForm({
         detail.occurredOn,
         detail.payee ?? '',
         detail.note ?? '',
+        detail.tags
+          .map((t) => t._id)
+          .sort()
+          .join(','),
         detail.accountId,
       ].join('|')
     : null
@@ -410,7 +434,10 @@ export function TransactionForm({
     if (!recurrence || !ruleStartsOn) return undefined
     if (endMode === 'on') return endOn || undefined
     if (endMode === 'after') {
-      return untilDateForCount(ruleStartsOn, recurrence, Number(times), nextDue) ?? undefined
+      return (
+        untilDateForCount(ruleStartsOn, recurrence, Number(times), nextDue) ??
+        undefined
+      )
     }
     return undefined
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -468,6 +495,9 @@ export function TransactionForm({
           // Empty means empty here — the field was cleared on purpose.
           payee: payee.trim(),
           note: note.trim(),
+          // The whole set every time: unlike the text fields, an empty list
+          // here means "no tags", which is a thing you can choose.
+          tagIds,
         })
       } else {
         const text = {
@@ -482,6 +512,7 @@ export function TransactionForm({
           takeFromPotId,
           fromPotId,
           occurredOn,
+          tagIds,
         })
         if (repeatsAtAll && ruleStartsOn) {
           await createRule({
@@ -506,7 +537,13 @@ export function TransactionForm({
   }
 
   const catOptions = (direction === 'income' ? incomeCats : expenseCats).map(
-    (c) => ({ key: c._id, icon: c.icon, color: c.color, text: c.name, value: c._id }),
+    (c) => ({
+      key: c._id,
+      icon: c.icon,
+      color: c.color,
+      text: c.name,
+      value: c._id,
+    }),
   )
   const chosenCat = categories.find((c) => c._id === categoryId)
   const chosenTakeFrom = potBalances.find((p) => p._id === takeFrom)
@@ -664,7 +701,11 @@ export function TransactionForm({
                 text: chosenFrom?.name ?? "Month's income",
               }}
               options={[
-                { key: 'income', text: "Month's income", value: 'income' as const },
+                {
+                  key: 'income',
+                  text: "Month's income",
+                  value: 'income' as const,
+                },
                 ...sourceFunds.map((p) => ({
                   key: p._id,
                   icon: p.icon,
@@ -764,14 +805,19 @@ export function TransactionForm({
                 />
               )}
 
-              <OpenRow icon={<CalendarDotsIcon size={20} aria-hidden />} label="Date">
+              <OpenRow
+                icon={<CalendarDotsIcon size={20} aria-hidden />}
+                label="Date"
+              >
                 <label className="relative block cursor-pointer text-stone-800">
                   {formatDayMonthYear(occurredOn)}
                   <input
                     type="date"
                     value={occurredOn}
                     aria-label="Date"
-                    onChange={(e) => setOccurredOn(e.target.value || occurredOn)}
+                    onChange={(e) =>
+                      setOccurredOn(e.target.value || occurredOn)
+                    }
                     onClick={(e) => e.currentTarget.showPicker?.()}
                     className="absolute inset-0 cursor-pointer opacity-0"
                   />
@@ -796,112 +842,123 @@ export function TransactionForm({
                   ends, and whether the amount is a guess. All of it belongs to
                   the same decision, so all of it lives behind the same row. */}
               {!isEdit && (
-                <OpenRow icon={<RepeatIcon size={20} aria-hidden />} label="Repeat">
+                <OpenRow
+                  icon={<RepeatIcon size={20} aria-hidden />}
+                  label="Repeat"
+                >
                   <Popover
                     label="Repeat"
                     align="left"
                     triggerClassName="w-full truncate text-left text-stone-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
                     trigger={repeatLabel}
                   >
-                {() => (
-                  <div className="w-64 p-1">
-                    <ul>
-                      {REPEATS.map((r) => (
-                        <li key={r.id}>
-                          <button
-                            type="button"
-                            onClick={() => setRepeat(r.id)}
-                            aria-pressed={repeat === r.id}
-                            className={`flex min-h-11 w-full items-center rounded-lg px-2 text-left text-sm hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:min-h-9 ${
-                              repeat === r.id ? 'text-stone-900' : 'text-stone-600'
-                            }`}
-                          >
-                            {r.label}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-
-                    {repeat !== 'once' && ruleStartsOn && (
-                      <div className="mt-2 border-t border-stone-100 pt-2">
-                        <p className="px-2 text-xs text-stone-500">
-                          {cadenceLabel(repeat, 1, anchorDay, ruleStartsOn)} · next
-                          on {ruleStartsOn}. This one is saved now.
-                        </p>
-                        <div className="mt-2 flex flex-wrap items-center gap-2 px-2">
-                          <span className="text-xs text-stone-500">Ends</span>
-                          {(
-                            [
-                              ['forever', 'Never'],
-                              ['after', 'After'],
-                              ['on', 'On'],
-                            ] as const
-                          ).map(([mode, label]) => (
-                            <button
-                              key={mode}
-                              type="button"
-                              onClick={() => setEndMode(mode)}
-                              aria-pressed={endMode === mode}
-                              className={`min-h-11 rounded-full border px-2.5 text-xs sm:min-h-8 ${
-                                endMode === mode
-                                  ? 'border-brand bg-violet-50 text-stone-900'
-                                  : 'border-stone-200 text-stone-600 hover:bg-stone-50'
-                              }`}
-                            >
-                              {label}
-                            </button>
+                    {() => (
+                      <div className="w-64 p-1">
+                        <ul>
+                          {REPEATS.map((r) => (
+                            <li key={r.id}>
+                              <button
+                                type="button"
+                                onClick={() => setRepeat(r.id)}
+                                aria-pressed={repeat === r.id}
+                                className={`flex min-h-11 w-full items-center rounded-lg px-2 text-left text-sm hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:min-h-9 ${
+                                  repeat === r.id
+                                    ? 'text-stone-900'
+                                    : 'text-stone-600'
+                                }`}
+                              >
+                                {r.label}
+                              </button>
+                            </li>
                           ))}
-                          {endMode === 'after' && (
-                            <span className="flex items-center gap-1.5">
+                        </ul>
+
+                        {repeat !== 'once' && ruleStartsOn && (
+                          <div className="mt-2 border-t border-stone-100 pt-2">
+                            <p className="px-2 text-xs text-stone-500">
+                              {cadenceLabel(repeat, 1, anchorDay, ruleStartsOn)}{' '}
+                              · next on {ruleStartsOn}. This one is saved now.
+                            </p>
+                            <div className="mt-2 flex flex-wrap items-center gap-2 px-2">
+                              <span className="text-xs text-stone-500">
+                                Ends
+                              </span>
+                              {(
+                                [
+                                  ['forever', 'Never'],
+                                  ['after', 'After'],
+                                  ['on', 'On'],
+                                ] as const
+                              ).map(([mode, label]) => (
+                                <button
+                                  key={mode}
+                                  type="button"
+                                  onClick={() => setEndMode(mode)}
+                                  aria-pressed={endMode === mode}
+                                  className={`min-h-11 rounded-full border px-2.5 text-xs sm:min-h-8 ${
+                                    endMode === mode
+                                      ? 'border-brand bg-violet-50 text-stone-900'
+                                      : 'border-stone-200 text-stone-600 hover:bg-stone-50'
+                                  }`}
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                              {endMode === 'after' && (
+                                <span className="flex items-center gap-1.5">
+                                  <input
+                                    inputMode="numeric"
+                                    value={times}
+                                    onChange={(e) =>
+                                      setTimes(
+                                        e.target.value
+                                          .replace(/[^\d]/g, '')
+                                          .slice(0, 3),
+                                      )
+                                    }
+                                    aria-label="Number of times"
+                                    data-money
+                                    className="w-14 rounded-lg border border-stone-200 bg-white px-2 py-1 text-right text-xs outline-none focus-visible:border-brand"
+                                  />
+                                  <span className="text-xs text-stone-500">
+                                    times
+                                  </span>
+                                </span>
+                              )}
+                              {endMode === 'on' && (
+                                <input
+                                  type="date"
+                                  value={endOn}
+                                  min={ruleStartsOn}
+                                  onChange={(e) => setEndOn(e.target.value)}
+                                  aria-label="Repeat until"
+                                  className="rounded-lg border border-stone-200 bg-white px-2 py-1 text-xs outline-none focus-visible:border-brand"
+                                />
+                              )}
+                            </div>
+                            {untilDate && (
+                              <p className="mt-1.5 px-2 text-xs text-stone-500">
+                                Last one on {untilDate}.
+                              </p>
+                            )}
+                            {endMode === 'after' && !repeatsAtAll && (
+                              <p className="mt-1.5 px-2 text-xs text-stone-500">
+                                Once is just this one — nothing will repeat.
+                              </p>
+                            )}
+                            <label className="mt-2 flex items-center gap-2 px-2 text-xs text-stone-600">
                               <input
-                                inputMode="numeric"
-                                value={times}
-                                onChange={(e) =>
-                                  setTimes(
-                                    e.target.value.replace(/[^\d]/g, '').slice(0, 3),
-                                  )
-                                }
-                                aria-label="Number of times"
-                                data-money
-                                className="w-14 rounded-lg border border-stone-200 bg-white px-2 py-1 text-right text-xs outline-none focus-visible:border-brand"
+                                type="checkbox"
+                                checked={estimate}
+                                onChange={(e) => setEstimate(e.target.checked)}
+                                className="size-4 accent-brand"
                               />
-                              <span className="text-xs text-stone-500">times</span>
-                            </span>
-                          )}
-                          {endMode === 'on' && (
-                            <input
-                              type="date"
-                              value={endOn}
-                              min={ruleStartsOn}
-                              onChange={(e) => setEndOn(e.target.value)}
-                              aria-label="Repeat until"
-                              className="rounded-lg border border-stone-200 bg-white px-2 py-1 text-xs outline-none focus-visible:border-brand"
-                            />
-                          )}
-                        </div>
-                        {untilDate && (
-                          <p className="mt-1.5 px-2 text-xs text-stone-500">
-                            Last one on {untilDate}.
-                          </p>
+                              The amount varies — ask me to confirm it each time
+                            </label>
+                          </div>
                         )}
-                        {endMode === 'after' && !repeatsAtAll && (
-                          <p className="mt-1.5 px-2 text-xs text-stone-500">
-                            Once is just this one — nothing will repeat.
-                          </p>
-                        )}
-                        <label className="mt-2 flex items-center gap-2 px-2 text-xs text-stone-600">
-                          <input
-                            type="checkbox"
-                            checked={estimate}
-                            onChange={(e) => setEstimate(e.target.checked)}
-                            className="size-4 accent-brand"
-                          />
-                          The amount varies — ask me to confirm it each time
-                        </label>
                       </div>
                     )}
-                  </div>
-                )}
                   </Popover>
                 </OpenRow>
               )}
@@ -912,6 +969,30 @@ export function TransactionForm({
                 value={note}
                 onChange={setNote}
                 placeholder="Note"
+              />
+
+              {/* What this belongs to, if it belongs to anything — a holiday,
+                  a renovation. It sits with Note because it is the same kind
+                  of thing: something you add ABOUT the transaction, after the
+                  money question has been answered. */}
+              <TagRow
+                tags={tags}
+                selected={tagIds}
+                onToggle={(id) =>
+                  setTagIds((prev) =>
+                    prev.includes(id)
+                      ? prev.filter((t) => t !== id)
+                      : [...prev, id],
+                  )
+                }
+                onCreate={async (name) => {
+                  try {
+                    const id = await createTag({ householdId, name })
+                    setTagIds((prev) => [...prev, id])
+                  } catch (e) {
+                    setError(reason(e, 'Could not make that tag'))
+                  }
+                }}
                 last={direction !== 'expense'}
               />
 
@@ -947,7 +1028,11 @@ export function TransactionForm({
                           }
                     }
                     options={[
-                      { key: 'income', text: "Month's income", value: 'income' as const },
+                      {
+                        key: 'income',
+                        text: "Month's income",
+                        value: 'income' as const,
+                      },
                       ...fundablePots.map((p) => ({
                         key: p._id,
                         icon: p.icon,
@@ -1062,7 +1147,9 @@ export function TransactionForm({
               if (prefill.amount)
                 setAmountStr(groupMoneyInput(paraToInput(prefill.amount)))
 
-              setPayee((p) => applyScan(p, scanWrote.current.payee, prefill.payee))
+              setPayee((p) =>
+                applyScan(p, scanWrote.current.payee, prefill.payee),
+              )
               setNote((n) => applyScan(n, scanWrote.current.note, prefill.note))
               scanWrote.current = { payee: prefill.payee, note: prefill.note }
               // A receipt knows the day it happened, and it is often not today.

@@ -2,7 +2,11 @@ import { query, mutation, MutationCtx, QueryCtx } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import { Doc, Id } from "./_generated/dataModel";
 import { requireMember, requireDoc } from "./lib/auth";
-
+import {
+  clearTransactionTags,
+  setTransactionTags,
+  tagsForTransactions,
+} from "./lib/tags";
 
 const direction = v.union(
   v.literal("income"),
@@ -58,6 +62,9 @@ export const create = mutation({
     note: v.optional(v.string()),
     paidBy: v.optional(v.string()), // defaults to the caller
     accountId: v.optional(v.id("accounts")), // defaults to the primary account
+    // What this row belongs to besides its category — a holiday, a wedding.
+    // It changes nothing about how the money counts; see convex/tags.ts.
+    tagIds: v.optional(v.array(v.id("tags"))),
   },
   handler: async (ctx, args) => {
     const { userId } = await requireMember(ctx, args.householdId);
@@ -79,6 +86,7 @@ export type TransactionInput = {
   note?: string;
   paidBy?: string;
   accountId?: Id<"accounts">;
+  tagIds?: Id<"tags">[];
 };
 
 /**
@@ -116,7 +124,8 @@ export async function insertTransaction(
     if (args.categoryId) throw new ConvexError("Transfers are uncategorised");
     await assertMove(ctx, args);
   } else {
-    if (args.fromPotId) throw new ConvexError("Only a transfer moves money out of a fund");
+    if (args.fromPotId)
+      throw new ConvexError("Only a transfer moves money out of a fund");
     if (!args.categoryId) throw new ConvexError("A category is required");
     const cat = await ctx.db.get(args.categoryId);
     if (!cat || cat.householdId !== args.householdId) {
@@ -134,7 +143,8 @@ export async function insertTransaction(
       );
     }
     // An expense may also name the LOAN it pays down (see assertLoan).
-    if (args.potId) await assertLoan(ctx, args.householdId, args.direction, args.potId);
+    if (args.potId)
+      await assertLoan(ctx, args.householdId, args.direction, args.potId);
   }
 
   if (args.takeFromPotId) {
@@ -176,6 +186,10 @@ export async function insertTransaction(
   });
 
   await writeFunding(ctx, transactionId, args);
+
+  if (args.tagIds?.length) {
+    await setTransactionTags(ctx, args.householdId, transactionId, args.tagIds);
+  }
 
   return transactionId;
 }
@@ -254,7 +268,8 @@ async function assertPot(
   potId: Id<"pots">,
 ) {
   const pot = await ctx.db.get(potId);
-  if (!pot || pot.householdId !== householdId) throw new ConvexError("Pot not found");
+  if (!pot || pot.householdId !== householdId)
+    throw new ConvexError("Pot not found");
   return pot;
 }
 
@@ -297,7 +312,9 @@ async function assertMove(
     if (!id) continue;
     const pot = await assertPot(ctx, householdId, id);
     if (pot.kind === "debt") {
-      throw new ConvexError("A loan is paid off, not moved into — record it as an expense");
+      throw new ConvexError(
+        "A loan is paid off, not moved into — record it as an expense",
+      );
     }
   }
 }
@@ -324,7 +341,9 @@ async function assertLoan(
   }
   const pot = await assertPot(ctx, householdId, potId);
   if (pot.kind !== "debt") {
-    throw new ConvexError("That is a fund, not a loan — use Take from to spend it");
+    throw new ConvexError(
+      "That is a fund, not a loan — use Take from to spend it",
+    );
   }
 }
 
@@ -356,6 +375,13 @@ export async function enrichRows(
   const catById = new Map(categories.map((c) => [c._id, c]));
   const potById = new Map(pots.map((p) => [p._id, p]));
   const nameByUser = new Map(members.map((m) => [m.userId, m.displayName]));
+  // What each row belongs to beyond its category. Fetched for the batch rather
+  // than per row, so the list pays one read per transaction and not two.
+  const tagsByTx = await tagsForTransactions(
+    ctx,
+    householdId,
+    txs.map((t) => t._id),
+  );
 
   const rows = await Promise.all(
     txs.map(async (t) => {
@@ -416,6 +442,7 @@ export async function enrichRows(
           ? { name: fromPot.name, icon: fromPot.icon, color: fromPot.color }
           : null,
         paidByName: nameByUser.get(t.paidBy) ?? "?",
+        tags: tagsByTx.get(t._id) ?? [],
       };
     }),
   );
@@ -476,6 +503,7 @@ export const remove = mutation({
       .withIndex("by_transaction", (q) => q.eq("transactionId", transactionId))
       .collect();
     for (const f of funding) await ctx.db.delete(f._id);
+    await clearTransactionTags(ctx, transactionId);
     await ctx.db.delete(transactionId);
   },
 });
@@ -510,6 +538,10 @@ export const update = mutation({
     note: v.optional(v.string()),
     paidBy: v.optional(v.string()),
     accountId: v.optional(v.id("accounts")),
+    // The whole set, or nothing. Unlike every other field here, tags are not
+    // merged: the form hands back what it is showing, and an omitted list means
+    // "this edit is not about tags" rather than "remove them all".
+    tagIds: v.optional(v.array(v.id("tags"))),
   },
   handler: async (ctx, args) => {
     const { doc } = await requireDoc(ctx, "transactions", args.transactionId);
@@ -548,7 +580,8 @@ export const update = mutation({
     // been given.
     let potId = args.potId ?? doc.potId;
     if (args.clearLoan && nextDirection === "expense") potId = undefined;
-    if (args.clearDestination && nextDirection === "transfer") potId = undefined;
+    if (args.clearDestination && nextDirection === "transfer")
+      potId = undefined;
     const fromPotId =
       nextDirection === "transfer" && !args.clearFromPot
         ? (args.fromPotId ?? doc.fromPotId)
@@ -572,12 +605,15 @@ export const update = mutation({
       if (potId) {
         const pot = await ctx.db.get(potId);
         potId =
-          nextDirection === "expense" && pot?.kind === "debt" ? potId : undefined;
+          nextDirection === "expense" && pot?.kind === "debt"
+            ? potId
+            : undefined;
         if (potId) await assertLoan(ctx, householdId, nextDirection, potId);
       }
     }
 
-    const takeFromPotId = nextDirection === "expense" ? nextTakeFrom : undefined;
+    const takeFromPotId =
+      nextDirection === "expense" ? nextTakeFrom : undefined;
     if (takeFromPotId) await assertPot(ctx, householdId, takeFromPotId);
 
     if (args.accountId) {
@@ -608,8 +644,11 @@ export const update = mutation({
       // An omitted field keeps what is there; an EMPTY one clears it. Without
       // the distinction, deleting a payee in the form silently put it back.
       payee:
-        args.payee === "" ? undefined : clamp(args.payee ?? doc.payee, MAX_TEXT),
-      note: args.note === "" ? undefined : clamp(args.note ?? doc.note, MAX_NOTE),
+        args.payee === ""
+          ? undefined
+          : clamp(args.payee ?? doc.payee, MAX_TEXT),
+      note:
+        args.note === "" ? undefined : clamp(args.note ?? doc.note, MAX_NOTE),
       paidBy: args.paidBy ?? doc.paidBy,
       accountId: args.accountId ?? doc.accountId,
     });
@@ -626,6 +665,15 @@ export const update = mutation({
       takeFromPotId,
       fromPotId,
     });
+
+    if (args.tagIds !== undefined) {
+      await setTransactionTags(
+        ctx,
+        householdId,
+        args.transactionId,
+        args.tagIds,
+      );
+    }
   },
 });
 
@@ -649,7 +697,9 @@ export const detail = query({
         .collect(),
       ctx.db
         .query("transactionFunding")
-        .withIndex("by_transaction", (q) => q.eq("transactionId", transactionId))
+        .withIndex("by_transaction", (q) =>
+          q.eq("transactionId", transactionId),
+        )
         .collect(),
     ]);
 
@@ -659,6 +709,7 @@ export const detail = query({
       .collect();
     const potById = new Map(pots.map((p) => [p._id, p]));
     const nameByUser = new Map(members.map((m) => [m.userId, m.displayName]));
+    const tags = await tagsForTransactions(ctx, doc.householdId, [doc._id]);
 
     return {
       _id: doc._id,
@@ -683,6 +734,7 @@ export const detail = query({
         const p = doc.fromPotId ? potById.get(doc.fromPotId) : undefined;
         return p ? { name: p.name, icon: p.icon, color: p.color } : null;
       })(),
+      tags: tags.get(doc._id) ?? [],
       funding: funding.map((f) => ({
         amount: f.amount,
         potId: f.potId ?? null,

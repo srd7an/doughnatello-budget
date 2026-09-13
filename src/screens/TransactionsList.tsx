@@ -1,10 +1,20 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from 'convex/react'
+import { useMutation, useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { useHousehold } from '../household/HouseholdContext'
 import { usePeriod, useOverlay } from '../period/PeriodContext'
 import { formatMoney } from '../lib/format'
-import { ArrowRightIcon, CategoryIcon, XIcon } from '../ui/icons'
+import {
+  ArrowRightIcon,
+  CategoryIcon,
+  CheckIcon,
+  TagIcon,
+  XIcon,
+} from '../ui/icons'
+import { TagChip } from '../ui/TagChip'
+import { TagOptions } from '../ui/TagPicker'
+import { Popover } from '../ui/Popover'
 import { dayLabel } from '../lib/dates'
 import type { Id } from '../../convex/_generated/dataModel'
 
@@ -28,11 +38,17 @@ function useMonthRows() {
  * the question is always "show me the ones behind THAT number".
  */
 export type TxFilter =
-  | { kind: 'direction'; direction: 'expense' | 'income' | 'transfer'; label: string }
+  | {
+      kind: 'direction'
+      direction: 'expense' | 'income' | 'transfer'
+      label: string
+    }
   | { kind: 'pot'; potId: Id<'pots'>; label: string }
+  | { kind: 'tag'; tagId: Id<'tags'>; label: string }
 
 function matches(row: Row, filter: TxFilter): boolean {
   if (filter.kind === 'direction') return row.direction === filter.direction
+  if (filter.kind === 'tag') return row.tags.some((t) => t._id === filter.tagId)
   // Everything that touched this fund: money set aside into it, moved out of
   // it, and spending it paid for.
   return (
@@ -49,14 +65,63 @@ export function TransactionsList({
   filter?: TxFilter | null
   onClearFilter?: () => void
 } = {}) {
+  const { household } = useHousehold()
   const all = useMonthRows()
   const navigate = useNavigate()
   const overlay = useOverlay()
+  const tagList = useQuery(api.tags.list, { householdId: household._id })
+  const createTag = useMutation(api.tags.create)
+  const applyTag = useMutation(api.tags.applyToMany)
+  /**
+   * Which rows are picked out, or null when nothing is being picked.
+   *
+   * Null rather than an empty set plus a boolean: "selecting nothing" and "not
+   * selecting" are the same state as far as this list is concerned, and two
+   * fields that must agree are one field waiting to disagree.
+   */
+  const [picked, setPicked] = useState<Set<Id<'transactions'>> | null>(null)
+  const [busy, setBusy] = useState(false)
+  const { month } = usePeriod()
+
+  // A selection belongs to the month it was made in, like the filter above it.
+  useEffect(() => setPicked(null), [month])
 
   if (all === undefined) {
     return <p className="py-8 text-center text-sm text-stone-400">Loading…</p>
   }
   const rows = filter ? all.filter((r) => matches(r, filter)) : all
+  const tags = tagList ?? []
+  const pickedRows = picked ? rows.filter((r) => picked.has(r._id)) : []
+
+  const toggle = (id: Id<'transactions'>) =>
+    setPicked((prev) => {
+      const next = new Set(prev ?? [])
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
+  /**
+   * Put a tag on everything picked — or, when they ALL have it already, take
+   * it off. One control, and its meaning is read off the rows rather than off a
+   * mode you had to choose first.
+   */
+  const apply = async (tagId: Id<'tags'>) => {
+    if (pickedRows.length === 0) return
+    const everyone = pickedRows.every((r) =>
+      r.tags.some((t) => t._id === tagId),
+    )
+    setBusy(true)
+    try {
+      await applyTag({
+        tagId,
+        transactionIds: pickedRows.map((r) => r._id),
+        on: !everyone,
+      })
+    } finally {
+      setBusy(false)
+    }
+  }
 
   // A visible, removable chip whenever the list is showing less than it has.
   // A list that quietly holds 8 of 40 rows is how people conclude their data
@@ -64,7 +129,7 @@ export function TransactionsList({
   const chip = filter && (
     <button
       onClick={onClearFilter}
-      className="mb-3 inline-flex min-h-11 sm:min-h-9 items-center gap-1.5 rounded-full border border-brand bg-violet-50 px-3 text-sm text-stone-900 hover:bg-violet-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+      className="inline-flex min-h-11 sm:min-h-9 items-center gap-1.5 rounded-full border border-brand bg-violet-50 px-3 text-sm text-stone-900 hover:bg-violet-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
     >
       {filter.label}
       <XIcon size={14} aria-hidden />
@@ -75,7 +140,7 @@ export function TransactionsList({
   if (rows.length === 0) {
     return (
       <div>
-        {chip}
+        <div className="mb-3">{chip}</div>
         <div className="rounded-2xl border border-dashed border-stone-200 bg-white p-8 text-center">
           <p className="text-stone-500">
             {filter
@@ -83,7 +148,9 @@ export function TransactionsList({
               : 'Nothing logged this month yet.'}
           </p>
           <p className="mt-1 text-sm text-stone-400">
-            {filter ? 'Clear the filter to see the rest.' : 'Tap Add transaction to start.'}
+            {filter
+              ? 'Clear the filter to see the rest.'
+              : 'Tap Add transaction to start.'}
           </p>
         </div>
       </div>
@@ -98,9 +165,94 @@ export function TransactionsList({
     else groups.push({ day: row.occurredOn, rows: [row] })
   }
 
+  // Which tags are on ALL of the picked rows, and which on only some. The
+  // difference is what stops one tap from stripping a tag off the rows that
+  // already had it while adding it to the rest.
+  const onAll = tags
+    .filter(
+      (t) =>
+        pickedRows.length > 0 &&
+        pickedRows.every((r) => r.tags.some((x) => x._id === t._id)),
+    )
+    .map((t) => t._id)
+  const onSome = tags
+    .filter((t) => pickedRows.some((r) => r.tags.some((x) => x._id === t._id)))
+    .map((t) => t._id)
+
   return (
     <div className="space-y-6">
-      {chip}
+      <div className="flex flex-wrap items-center gap-2">
+        {chip}
+        <div className="ml-auto flex items-center gap-2">
+          {picked === null ? (
+            // The way in. Off by default: on almost every visit this list is
+            // read, not edited, and a checkbox on every row would say otherwise.
+            <button
+              onClick={() => setPicked(new Set())}
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-stone-200 px-3 text-sm text-stone-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-9"
+            >
+              <TagIcon size={16} aria-hidden />
+              Tag several
+            </button>
+          ) : (
+            <>
+              <span data-money className="text-sm text-stone-500">
+                {picked.size} selected
+              </span>
+              <button
+                onClick={() =>
+                  setPicked(
+                    picked.size === rows.length
+                      ? new Set()
+                      : new Set(rows.map((r) => r._id)),
+                  )
+                }
+                className="min-h-11 rounded-full border border-stone-200 px-3 text-sm text-stone-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-9"
+              >
+                {picked.size === rows.length ? 'None' : 'All'}
+              </button>
+              <Popover
+                label="Tag the selected transactions"
+                align="right"
+                triggerClassName={`inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm sm:min-h-9 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
+                  picked.size === 0 || busy
+                    ? 'pointer-events-none bg-stone-100 text-stone-400'
+                    : 'bg-brand text-white hover:opacity-90'
+                }`}
+                trigger={
+                  <>
+                    <TagIcon size={16} aria-hidden />
+                    Tag
+                  </>
+                }
+              >
+                {() => (
+                  <TagOptions
+                    tags={tags}
+                    selected={onAll}
+                    partial={onSome}
+                    onToggle={(id) => void apply(id)}
+                    onCreate={async (name) => {
+                      const id = await createTag({
+                        householdId: household._id,
+                        name,
+                      })
+                      await apply(id)
+                    }}
+                  />
+                )}
+              </Popover>
+              <button
+                onClick={() => setPicked(null)}
+                className="min-h-11 rounded-full px-3 text-sm text-stone-500 hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-9"
+              >
+                Done
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
       {groups.map((g) => (
         <section key={g.day}>
           <h3 className="mb-1 text-xs tracking-[0.24px] text-stone-600 uppercase">
@@ -111,7 +263,15 @@ export function TransactionsList({
               <TransactionRow
                 key={row._id}
                 row={row}
+                picking={picked !== null}
+                picked={picked?.has(row._id) ?? false}
                 onOpen={() => {
+                  // While picking, a row is a checkbox. Opening the editor from
+                  // under a half-made selection would throw it away.
+                  if (picked) {
+                    toggle(row._id)
+                    return
+                  }
                   const { to, options } = overlay(`/transactions/${row._id}`)
                   navigate(to, options)
                 }}
@@ -132,7 +292,18 @@ export function TransactionsList({
  * whose spending you would want to tell apart, and nothing about that is lost
  * by not drawing it today.
  */
-function TransactionRow({ row, onOpen }: { row: Row; onOpen: () => void }) {
+function TransactionRow({
+  row,
+  onOpen,
+  picking,
+  picked,
+}: {
+  row: Row
+  onOpen: () => void
+  /** The list is in selecting mode: the row is a checkbox, not a door. */
+  picking?: boolean
+  picked?: boolean
+}) {
   // The category you chose is what the row wears. A fund or a loan is context —
   // where the money came from, what it paid off — and it says so in the pill
   // beside the name; letting it take the icon meant picking Grocery and being
@@ -170,12 +341,30 @@ function TransactionRow({ row, onOpen }: { row: Row; onOpen: () => void }) {
           row that is only a line has nothing to round. */}
       <button
         onClick={onOpen}
-        className="flex min-h-11 w-full items-center gap-2 border-b border-dashed border-stone-300 px-3 py-1.5 text-left hover:rounded-lg hover:border-transparent hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:min-h-9"
+        aria-pressed={picking ? picked : undefined}
+        className={`flex min-h-11 w-full items-center gap-2 border-b border-dashed border-stone-300 px-3 py-1.5 text-left hover:rounded-lg hover:border-transparent hover:bg-stone-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:min-h-9 ${
+          picked ? 'rounded-lg border-transparent bg-violet-50' : ''
+        }`}
       >
+        {picking && (
+          <span
+            aria-hidden
+            className={`grid size-5 shrink-0 place-items-center rounded-md border ${
+              picked ? 'border-brand bg-brand text-white' : 'border-stone-300'
+            }`}
+          >
+            {picked && <CheckIcon size={14} />}
+          </span>
+        )}
+
         {ends ? (
           <span className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium text-stone-800">
             <End pot={ends.from} />
-            <ArrowRightIcon size={14} className="shrink-0 text-stone-400" aria-hidden />
+            <ArrowRightIcon
+              size={14}
+              className="shrink-0 text-stone-400"
+              aria-hidden
+            />
             <End pot={ends.to} />
           </span>
         ) : (
@@ -183,7 +372,11 @@ function TransactionRow({ row, onOpen }: { row: Row; onOpen: () => void }) {
             {/* A bare icon in the category's own colour. The design has no disc
               behind it — the tinted circle it replaced added weight to every
               single row. */}
-            <CategoryIcon icon={glyph?.icon} color={color} className="shrink-0" />
+            <CategoryIcon
+              icon={glyph?.icon}
+              color={color}
+              className="shrink-0"
+            />
 
             <span className="min-w-0 flex-1 truncate text-sm font-medium text-stone-800">
               {name}
@@ -202,6 +395,26 @@ function TransactionRow({ row, onOpen }: { row: Row; onOpen: () => void }) {
               </span>
             )}
           </>
+        )}
+
+        {/* What it belongs to, whichever kind of row it is — a transfer into
+            the holiday fund is as much part of the holiday as the dinners.
+            First one only, with a count for the rest: a row is a line, and
+            three chips on it leave no room for the name the row is actually
+            called. The full set is on the transaction, and on the tag's page. */}
+        {row.tags.length > 0 && (
+          <span className="flex shrink-0 items-center gap-1">
+            <TagChip
+              name={row.tags[0].name}
+              color={row.tags[0].color}
+              className="max-w-24"
+            />
+            {row.tags.length > 1 && (
+              <span data-money className="text-xs text-stone-400">
+                +{row.tags.length - 1}
+              </span>
+            )}
+          </span>
         )}
 
         {/* Only income is green. A transfer into a fund is money MOVING, not money
@@ -225,7 +438,11 @@ function TransactionRow({ row, onOpen }: { row: Row; onOpen: () => void }) {
  * has not been promised to anything, which is where a plain "set some aside"
  * comes from and where a release puts it back.
  */
-function End({ pot }: { pot: { name: string; icon: string; color: string } | null }) {
+function End({
+  pot,
+}: {
+  pot: { name: string; icon: string; color: string } | null
+}) {
   return (
     <span className="flex min-w-0 items-center gap-1.5">
       <CategoryIcon

@@ -150,6 +150,26 @@ export default defineSchema({
     isArchived: v.boolean(),
   }).index("by_household", ["householdId"]),
 
+  /**
+   * A label you stick on transactions so a thing that happened across months
+   * and across categories — a holiday, a wedding, a renovation — can be read
+   * back as one thing.
+   *
+   * It is deliberately NOT a category and NOT a fund. A category is the one
+   * answer to "what kind of spending is this", and a holiday's rows keep their
+   * own (fuel is still fuel); a fund is money set aside in advance, and a tag
+   * is written afterwards. So a tag changes no total anywhere in the app: it
+   * only gathers rows that already counted where they counted.
+   */
+  tags: defineTable({
+    householdId: v.id("households"),
+    name: v.string(),
+    color: v.string(),
+    icon: v.string(),
+    createdAt: v.number(),
+    isArchived: v.boolean(),
+  }).index("by_household", ["householdId"]),
+
   transactions: defineTable({
     householdId: v.id("households"),
     accountId: v.id("accounts"),
@@ -208,6 +228,23 @@ export default defineSchema({
   })
     .index("by_transaction", ["transactionId"])
     .index("by_household_pot", ["householdId", "potId"]),
+
+  /**
+   * Which tags a transaction wears. A join table rather than an array on the
+   * transaction, for one reason: a tag's own page asks the reverse question —
+   * "every row in Greece 2026" — and an array field cannot be indexed, so that
+   * page would have to read every transaction the household has ever had.
+   *
+   * Uniqueness of (transactionId, tagId) is enforced in the mutation by reading
+   * by_transaction first, the same way the recurring generator does.
+   */
+  transactionTags: defineTable({
+    householdId: v.id("households"),
+    transactionId: v.id("transactions"),
+    tagId: v.id("tags"),
+  })
+    .index("by_transaction", ["transactionId"])
+    .index("by_household_tag", ["householdId", "tagId"]),
 
   // NOTE: budgetTargets was removed in the 2026-07-25 IA revision. There are no
   // budget targets — the "%" shown next to a category is its computed SHARE of

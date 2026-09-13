@@ -1,5 +1,11 @@
 import { useEffect } from 'react'
-import { Link, Outlet, matchPath, useMatch, useNavigate } from 'react-router-dom'
+import {
+  Link,
+  Outlet,
+  matchPath,
+  useMatch,
+  useNavigate,
+} from 'react-router-dom'
 import { useMutation } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { Button } from '../ui/Button'
@@ -72,10 +78,11 @@ export function AppShell() {
   // BEHIND, so opening a transaction over a fund keeps the fund's Back link.
   const potMatch = useMatch('/funds/:potId')
   const assetMatch = useMatch('/assets/:assetId')
+  const tagMatch = useMatch('/tags/:tagId')
 
   const addOpen = !!addMatch
   const settingsMatch = settingsItem ?? settingsSection ?? settingsRoot
-  const onPage = !!potMatch || !!assetMatch
+  const onPage = !!potMatch || !!assetMatch || !!tagMatch
 
   const isDesktop = useMediaQuery(SM)
 
@@ -188,7 +195,9 @@ export function AppShell() {
                   <PlusIcon className="size-6" />
                 </button>
               )}
-              {addOpen && isDesktop && <AddTransactionPopover onClose={close} />}
+              {addOpen && isDesktop && (
+                <AddTransactionPopover onClose={close} />
+              )}
             </div>
           </div>
         </div>

@@ -17,6 +17,7 @@ import { FundsPanel } from './FundsPanel'
 import { AssetsPanel } from './AssetsPanel'
 import { LoansPanel } from './LoansPanel'
 import { CategoriesPanel } from './CategoriesPanel'
+import { TagsPanel } from './TagsPanel'
 import { PeoplePanel } from './PeoplePanel'
 import { InvitesPanel } from './InvitesPanel'
 import { FormatPanel } from './FormatPanel'
@@ -31,10 +32,18 @@ import { Repeating } from '../Repeating'
  */
 
 type SectionId =
-  | 'accounts' | 'funds' | 'assets' | 'loans'
-  | 'categories' | 'repeating'
-  | 'people' | 'invites'
-  | 'format' | 'export' | 'import'
+  | 'accounts'
+  | 'funds'
+  | 'assets'
+  | 'loans'
+  | 'categories'
+  | 'tags'
+  | 'repeating'
+  | 'people'
+  | 'invites'
+  | 'format'
+  | 'export'
+  | 'import'
 
 const GROUPS: { label: string; items: { id: SectionId; label: string }[] }[] = [
   {
@@ -50,6 +59,7 @@ const GROUPS: { label: string; items: { id: SectionId; label: string }[] }[] = [
     label: 'Organizing',
     items: [
       { id: 'categories', label: 'Categories' },
+      { id: 'tags', label: 'Tags' },
       { id: 'repeating', label: 'Repeating' },
     ],
   },
@@ -81,6 +91,7 @@ const BODIES: Record<SectionId, (editId?: string) => ReactNode> = {
   assets: (editId) => <AssetsPanel editId={editId} />,
   loans: (editId) => <LoansPanel editId={editId} />,
   categories: () => <CategoriesPanel />,
+  tags: (editId) => <TagsPanel editId={editId} />,
   repeating: () => <Repeating />,
   people: () => <PeoplePanel />,
   invites: () => <InvitesPanel />,
@@ -218,7 +229,9 @@ export function SettingsModal({
                     onClick={() => setSection(item.id)}
                     aria-current={section === item.id}
                     className={`min-h-11 sm:min-h-9 w-full rounded-lg px-3 py-1.5 text-left text-sm font-medium whitespace-nowrap text-stone-800 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand ${
-                      section === item.id ? 'bg-stone-200' : 'hover:bg-stone-100'
+                      section === item.id
+                        ? 'bg-stone-200'
+                        : 'hover:bg-stone-100'
                     }`}
                   >
                     {item.label}
@@ -246,7 +259,11 @@ export function SettingsModal({
                   >
                     <span className="min-w-0 truncate">{h.name}</span>
                     {h._id === household._id && (
-                      <CheckIcon size={16} className="shrink-0 text-brand" aria-hidden />
+                      <CheckIcon
+                        size={16}
+                        className="shrink-0 text-brand"
+                        aria-hidden
+                      />
                     )}
                   </button>
                 ))}

@@ -12,9 +12,27 @@ import { TransactionForm } from './TransactionForm'
  * and rendering rows that do not belong to the direction you are in.
  */
 const CATEGORIES = [
-  { _id: 'c1', name: 'Grocery', kind: 'committed', icon: 'basket', color: '#E8632A' },
-  { _id: 'c2', name: 'Salary', kind: 'income', icon: 'wallet', color: '#1D9E75' },
-  { _id: 'c3', name: 'Takeout', kind: 'discretionary', icon: 'utensils', color: '#DB2777' },
+  {
+    _id: 'c1',
+    name: 'Grocery',
+    kind: 'committed',
+    icon: 'basket',
+    color: '#E8632A',
+  },
+  {
+    _id: 'c2',
+    name: 'Salary',
+    kind: 'income',
+    icon: 'wallet',
+    color: '#1D9E75',
+  },
+  {
+    _id: 'c3',
+    name: 'Takeout',
+    kind: 'discretionary',
+    icon: 'utensils',
+    color: '#DB2777',
+  },
 ]
 const POTS = [
   {
@@ -36,10 +54,14 @@ const POTS = [
     owed: 900_000_00,
   },
 ]
+const TAGS = [
+  { _id: 't1', name: 'Grčka 2026', color: '#14B8A6', icon: 'palm', count: 6 },
+]
 const READY = {
   'categories:list': CATEGORIES,
   'pots:balances': POTS,
   'accounts:list': [{ _id: 'a1', name: 'Main', isPrimary: true }],
+  'tags:list': TAGS,
 }
 
 describe('while the data is still coming', () => {
@@ -54,7 +76,9 @@ describe('while the data is still coming', () => {
     // And the rows still coming hold their places rather than appearing one
     // at a time underneath. They carry no text now — the design dropped the
     // labels — so what is counted is the number of placeholder rows.
-    expect(document.querySelectorAll('.animate-none, [aria-hidden]').length).toBeGreaterThan(0)
+    expect(
+      document.querySelectorAll('.animate-none, [aria-hidden]').length,
+    ).toBeGreaterThan(0)
     expect(screen.getByRole('button', { name: /save/i })).toBeDisabled()
   })
 })
@@ -64,20 +88,30 @@ describe('once it has', () => {
     setFixtures(READY)
     renderScreen(<TransactionForm onDone={() => {}} />)
 
-    expect(screen.getByRole('button', { name: 'Category' })).toHaveTextContent('Grocery')
+    expect(screen.getByRole('button', { name: 'Category' })).toHaveTextContent(
+      'Grocery',
+    )
 
     // Unset, both are actions. A row reading "Month's income" on every single
     // expense is a row that says nothing on every single expense.
-    expect(screen.getByRole('button', { name: 'Pay from a fund' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Pay a loan' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Pay from' })).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Pay from a fund' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Pay a loan' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Pay from' }),
+    ).not.toBeInTheDocument()
   })
 
   test('choosing a fund turns the invitation into an ordinary row', async () => {
     setFixtures(READY)
     renderScreen(<TransactionForm onDone={() => {}} />)
 
-    await userEvent.click(screen.getByRole('button', { name: 'Pay from a fund' }))
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Pay from a fund' }),
+    )
     expect(screen.getByRole('button', { name: 'Pay from' })).toHaveTextContent(
       'Rainy day',
     )
@@ -92,8 +126,12 @@ describe('once it has', () => {
     expect(
       screen.queryByRole('button', { name: 'Pay from a fund' }),
     ).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Pay a loan' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Category' })).toHaveTextContent('Salary')
+    expect(
+      screen.queryByRole('button', { name: 'Pay a loan' }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Category' })).toHaveTextContent(
+      'Salary',
+    )
   })
 
   test('a transfer swaps its category for two ends', async () => {
@@ -102,7 +140,9 @@ describe('once it has', () => {
 
     await userEvent.click(screen.getByRole('tab', { name: 'Transfer' }))
 
-    expect(screen.queryByRole('button', { name: 'Category' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Category' }),
+    ).not.toBeInTheDocument()
     // Two filled blocks and a swap between them: on a transfer these ARE the
     // transaction, so they lead rather than sitting among the fields.
     expect(screen.getByRole('button', { name: 'From' })).toHaveTextContent(
@@ -134,11 +174,15 @@ describe('once it has', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Category' }))
     // An expense is offered expense categories only — Salary is not among them.
-    expect(screen.queryByRole('button', { name: 'Salary' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Salary' }),
+    ).not.toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Takeout' }))
 
-    expect(screen.getByRole('button', { name: 'Category' })).toHaveTextContent('Takeout')
+    expect(screen.getByRole('button', { name: 'Category' })).toHaveTextContent(
+      'Takeout',
+    )
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })
@@ -166,6 +210,7 @@ describe('deleting', () => {
         pot: null,
         fromPot: null,
         funding: [{ amount: 2_000_00, potId: null, potName: null }],
+        tags: [],
       },
     })
     renderScreen(
@@ -188,15 +233,21 @@ describe('deleting', () => {
 describe('searching a long picker', () => {
   const MANY = [
     ...CATEGORIES,
-    ...['Štednja', 'Kućni računi', 'Fitness', 'Travel', 'Pets', 'Health', 'Fuel'].map(
-      (name, i) => ({
-        _id: `m${i}`,
-        name,
-        kind: 'discretionary',
-        icon: 'star',
-        color: '#78716C',
-      }),
-    ),
+    ...[
+      'Štednja',
+      'Kućni računi',
+      'Fitness',
+      'Travel',
+      'Pets',
+      'Health',
+      'Fuel',
+    ].map((name, i) => ({
+      _id: `m${i}`,
+      name,
+      kind: 'discretionary',
+      icon: 'star',
+      color: '#78716C',
+    })),
   ]
 
   test('a short list has no search field to get in the way', async () => {
@@ -217,7 +268,9 @@ describe('searching a long picker', () => {
 
     // Typed without the accent, found with it.
     expect(screen.getByRole('button', { name: 'Štednja' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Grocery' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Grocery' }),
+    ).not.toBeInTheDocument()
   })
 
   test('two fragments mean both, and no match says so', async () => {
@@ -226,7 +279,9 @@ describe('searching a long picker', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Category' }))
 
     await userEvent.type(screen.getByRole('searchbox'), 'kuc rac')
-    expect(screen.getByRole('button', { name: 'Kućni računi' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Kućni računi' }),
+    ).toBeInTheDocument()
 
     await userEvent.clear(screen.getByRole('searchbox'))
     await userEvent.type(screen.getByRole('searchbox'), 'zzz')
@@ -251,6 +306,7 @@ describe('duplicating a transaction', () => {
     note: 'weekly shop',
     accountId: 'a1',
     funding: [{ potId: undefined, amount: 2_500_00 }],
+    tags: [],
   }
 
   test('it prefills the copy but dates it today, and offers no Delete', async () => {
@@ -265,7 +321,9 @@ describe('duplicating a transaction', () => {
     expect(screen.getByDisplayValue('Idea')).toBeInTheDocument()
 
     // A copy is a new transaction: there is nothing yet to delete or duplicate.
-    expect(screen.queryByRole('button', { name: /delete/i })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /delete/i }),
+    ).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: /duplicate/i }),
     ).not.toBeInTheDocument()
@@ -276,7 +334,9 @@ describe('duplicating a transaction', () => {
 
   test('editing the same transaction keeps its own date and can duplicate', async () => {
     setFixtures({ ...READY, 'transactions:detail': DETAIL })
-    renderScreen(<TransactionForm transactionId={'t1' as never} onDone={() => {}} />)
+    renderScreen(
+      <TransactionForm transactionId={'t1' as never} onDone={() => {}} />,
+    )
 
     expect(
       await screen.findByRole('button', { name: /duplicate/i }),
@@ -289,7 +349,9 @@ describe('scanning', () => {
   test('adding offers the scanner', () => {
     setFixtures(READY)
     renderScreen(<TransactionForm onDone={() => {}} />)
-    expect(screen.getByRole('button', { name: 'Scan a QR code' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Scan a QR code' }),
+    ).toBeInTheDocument()
   })
 
   test('editing does not — a code describes a purchase, not a correction', async () => {
@@ -304,9 +366,12 @@ describe('scanning', () => {
         payee: 'Idea',
         accountId: 'a1',
         funding: [{ potId: undefined, amount: 1_000_00 }],
+        tags: [],
       },
     })
-    renderScreen(<TransactionForm transactionId={'t1' as never} onDone={() => {}} />)
+    renderScreen(
+      <TransactionForm transactionId={'t1' as never} onDone={() => {}} />,
+    )
     await screen.findByRole('button', { name: /delete/i })
     expect(
       screen.queryByRole('button', { name: 'Scan a QR code' }),
@@ -347,11 +412,14 @@ describe('what counts as a change', () => {
     note: '',
     accountId: 'a1',
     funding: [{ potId: undefined, amount: 1_000_00 }],
+    tags: [],
   }
 
   const open = async () => {
     setFixtures({ ...READY, 'transactions:detail': DETAIL })
-    renderScreen(<TransactionForm transactionId={'t1' as never} onDone={() => {}} />)
+    renderScreen(
+      <TransactionForm transactionId={'t1' as never} onDone={() => {}} />,
+    )
     await screen.findByRole('button', { name: /delete/i })
     return screen.getByRole('button', { name: /^save$/i })
   }
@@ -379,11 +447,17 @@ describe('swapping a transfer around', () => {
     expect(screen.getByRole('button', { name: 'From' })).toHaveTextContent(
       "Month's income",
     )
-    expect(screen.getByRole('button', { name: 'Into' })).toHaveTextContent('Rainy day')
+    expect(screen.getByRole('button', { name: 'Into' })).toHaveTextContent(
+      'Rainy day',
+    )
 
     // Swapped, it is the same move read backwards: taking it back out.
-    await userEvent.click(screen.getByRole('button', { name: 'Swap from and into' }))
-    expect(screen.getByRole('button', { name: 'From' })).toHaveTextContent('Rainy day')
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Swap from and into' }),
+    )
+    expect(screen.getByRole('button', { name: 'From' })).toHaveTextContent(
+      'Rainy day',
+    )
     expect(screen.getByRole('button', { name: 'Into' })).toHaveTextContent(
       "Month's income",
     )

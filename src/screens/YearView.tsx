@@ -11,6 +11,7 @@ import { YearChart } from './YearChart'
 import { Legend } from './Legend'
 import { StockTabs } from './StockTabs'
 import { CategoriesList } from './CategoriesList'
+import { TagsList } from './TagsList'
 
 // Year zoom: FLOW over twelve months. Hero is net worth (a stock, deliberately
 // the one exception on this flow screen), with the year's change beside it. The
@@ -31,7 +32,11 @@ export function YearView() {
 
   const now = new Date()
   const currentMonthIndex =
-    year === now.getFullYear() ? now.getMonth() : year < now.getFullYear() ? 11 : -1
+    year === now.getFullYear()
+      ? now.getMonth()
+      : year < now.getFullYear()
+        ? 11
+        : -1
 
   if (data === undefined) {
     return <p className="py-8 text-center text-sm text-stone-400">Loading…</p>
@@ -67,37 +72,37 @@ export function YearView() {
       <div className="flex flex-col gap-4">
         {/* The twelve columns are navigation: click one to zoom into it. */}
         <div className="order-1 sm:order-2">
-        <YearChart
-          months={data.months}
-          currentMonthIndex={currentMonthIndex}
-          onOpenMonth={(i) => openMonth(year, i + 1)}
-        />
+          <YearChart
+            months={data.months}
+            currentMonthIndex={currentMonthIndex}
+            onOpenMonth={(i) => openMonth(year, i + 1)}
+          />
         </div>
 
         <div className="order-2 sm:order-1">
-        <Legend
-          items={[
-            { label: 'Income', amount: data.totals.income, share: null },
-            {
-              swatch: 'bg-expense',
-              label: 'Expense',
-              amount: data.totals.expense,
-              share: income > 0 ? data.totals.expense / income : null,
-            },
-            {
-              swatch: 'bg-saved',
-              label: 'Savings',
-              amount: data.totals.savings,
-              share: income > 0 ? data.totals.savings / income : null,
-            },
-            {
-              swatch: 'bg-leftover',
-              label: 'Leftover',
-              amount: data.totals.leftToSpend,
-              share: income > 0 ? data.totals.leftToSpend / income : null,
-            },
-          ]}
-        />
+          <Legend
+            items={[
+              { label: 'Income', amount: data.totals.income, share: null },
+              {
+                swatch: 'bg-expense',
+                label: 'Expense',
+                amount: data.totals.expense,
+                share: income > 0 ? data.totals.expense / income : null,
+              },
+              {
+                swatch: 'bg-saved',
+                label: 'Savings',
+                amount: data.totals.savings,
+                share: income > 0 ? data.totals.savings / income : null,
+              },
+              {
+                swatch: 'bg-leftover',
+                label: 'Leftover',
+                amount: data.totals.leftToSpend,
+                share: income > 0 ? data.totals.leftToSpend / income : null,
+              },
+            ]}
+          />
         </div>
       </div>
 
@@ -119,6 +124,20 @@ export function YearView() {
         </h2>
         <CategoriesList rows={rows ?? []} />
       </section>
+
+      {/* The year is the zoom a tag is actually read at: a holiday runs from
+          the booking in March to the last card payment in September, and this
+          is the first screen wide enough to hold the whole of it. Only when
+          the year has some — a heading over nothing is a heading you learn to
+          scroll past. */}
+      {!!rows?.some((r) => r.tags.length > 0) && (
+        <section>
+          <h2 className="mb-3 text-base font-medium tracking-[-0.16px] text-stone-800">
+            Tags
+          </h2>
+          <TagsList rows={rows} />
+        </section>
+      )}
     </div>
   )
 }
@@ -234,7 +253,8 @@ function ChangeExplained({
             <span data-money className="tnum">
               {formatMoney(parts.opening)}
             </span>
-            . {parts.loans > 0 && (
+            .{' '}
+            {parts.loans > 0 && (
               <>
                 The Loans line is debt you paid off since: that money is gone
                 from the account, and is here because the debt went with it —

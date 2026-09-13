@@ -15,6 +15,7 @@ const HEADERS = [
   'Paid from fund',
   'Payee',
   'Note',
+  'Tags',
   'Paid by',
 ]
 
@@ -27,7 +28,9 @@ const HEADERS = [
  */
 export function ExportPanel() {
   const { household } = useHousehold()
-  const rows = useQuery(api.exports.transactions, { householdId: household._id })
+  const rows = useQuery(api.exports.transactions, {
+    householdId: household._id,
+  })
   const [done, setDone] = useState(false)
 
   if (rows === undefined) return <Loading />
@@ -46,6 +49,7 @@ export function ExportPanel() {
         r.fundedFrom,
         r.payee,
         r.note,
+        r.tags,
         r.paidBy,
       ]),
     )
@@ -54,9 +58,7 @@ export function ExportPanel() {
   }
 
   return (
-    <Panel
-      description="Your money, in a file you own. Nothing here locks your history into this app."
-    >
+    <Panel description="Your money, in a file you own. Nothing here locks your history into this app.">
       {rows.length === 0 ? (
         <Empty>Nothing to export yet.</Empty>
       ) : (

@@ -72,6 +72,14 @@ async function seedTwoHouseholds() {
       isRealAccount: false,
       isArchived: false,
     });
+    const tagB = await ctx.db.insert("tags", {
+      householdId: hB,
+      name: "Greece 2026",
+      color: "#14B8A6",
+      icon: "tag",
+      createdAt: now,
+      isArchived: false,
+    });
     const txB = await ctx.db.insert("transactions", {
       householdId: hB,
       accountId: accountB,
@@ -84,7 +92,7 @@ async function seedTwoHouseholds() {
       createdAt: now,
     });
 
-    return { hB, potB, txB };
+    return { hB, potB, txB, tagB };
   });
 
   // Everything below runs as user A, a member of A but a stranger to B.
@@ -96,14 +104,17 @@ async function seedTwoHouseholds() {
 describe("cross-household isolation", () => {
   test("A cannot READ B's household or its pots (by householdId)", async () => {
     const { asA, hB } = await seedTwoHouseholds();
-    await expect(asA.query(api.households.get, { householdId: hB })).rejects.toThrow(
-      /Not a member/,
-    );
+    await expect(
+      asA.query(api.households.get, { householdId: hB }),
+    ).rejects.toThrow(/Not a member/);
     await expect(asA.query(api.pots.list, { householdId: hB })).rejects.toThrow(
       /Not a member/,
     );
     await expect(
-      asA.query(api.transactions.listMonth, { householdId: hB, month: "2026-07" }),
+      asA.query(api.transactions.listMonth, {
+        householdId: hB,
+        month: "2026-07",
+      }),
     ).rejects.toThrow(/Not a member/);
   });
 
@@ -134,13 +145,104 @@ describe("cross-household isolation", () => {
     ).rejects.toThrow(/Not a member/);
   });
 
+  test("A cannot read or write B's TAGS, by householdId or by tag id", async () => {
+    const { asA, hB, tagB, txB } = await seedTwoHouseholds();
+    await expect(asA.query(api.tags.list, { householdId: hB })).rejects.toThrow(
+      /Not a member/,
+    );
+    await expect(asA.query(api.tags.detail, { tagId: tagB })).rejects.toThrow(
+      /Not a member/,
+    );
+    await expect(
+      asA.mutation(api.tags.create, { householdId: hB, name: "hacked" }),
+    ).rejects.toThrow(/Not a member/);
+    await expect(
+      asA.mutation(api.tags.update, { tagId: tagB, name: "hacked" }),
+    ).rejects.toThrow(/Not a member/);
+    await expect(
+      asA.mutation(api.tags.remove, { tagId: tagB }),
+    ).rejects.toThrow(/Not a member/);
+    await expect(
+      asA.mutation(api.tags.setForTransaction, {
+        transactionId: txB,
+        tagIds: [tagB],
+      }),
+    ).rejects.toThrow(/Not a member/);
+    await expect(
+      asA.mutation(api.tags.applyToMany, {
+        tagId: tagB,
+        transactionIds: [txB],
+        on: true,
+      }),
+    ).rejects.toThrow(/Not a member/);
+    await expect(
+      asA.query(api.tags.forTransaction, { transactionId: txB }),
+    ).rejects.toThrow(/Not a member/);
+  });
+
+  /**
+   * The one case a per-id check cannot catch on its own: BOTH ids are real and
+   * both belong to households the caller is in — but not to the SAME one.
+   */
+  test("a member of both households cannot tag A's row with B's tag", async () => {
+    const { t, hB, tagB } = await seedTwoHouseholds();
+    const { txA } = await t.run(async (ctx) => {
+      const now = Date.now();
+      const hA = (await ctx.db
+        .query("households")
+        .filter((q) => q.eq(q.field("name"), "Household A"))
+        .unique())!._id;
+      // Make A's owner a member of B as well.
+      await ctx.db.insert("householdMembers", {
+        householdId: hB,
+        userId: "user-a",
+        displayName: "A",
+        role: "member",
+        joinedAt: now,
+      });
+      const accountA = await ctx.db.insert("accounts", {
+        householdId: hA,
+        name: "Main",
+        bankBalance: 0,
+        isPrimary: true,
+        isArchived: false,
+      });
+      const txA = await ctx.db.insert("transactions", {
+        householdId: hA,
+        accountId: accountA,
+        direction: "expense",
+        amount: 1_000,
+        occurredOn: "2026-07-01",
+        paidBy: "user-a",
+        createdBy: "user-a",
+        createdAt: now,
+      });
+      return { txA };
+    });
+
+    const asA = t.withIdentity({ subject: "user-a" });
+    await expect(
+      asA.mutation(api.tags.applyToMany, {
+        tagId: tagB,
+        transactionIds: [txA],
+        on: true,
+      }),
+    ).rejects.toThrow(/Not found/);
+    await expect(
+      asA.mutation(api.tags.setForTransaction, {
+        transactionId: txA,
+        tagIds: [tagB],
+      }),
+    ).rejects.toThrow(/Tag not found/);
+  });
+
   test("an UNAUTHENTICATED caller is rejected everywhere", async () => {
     // Same instance, no identity attached — so the ids genuinely exist and we
     // prove the auth check (not a missing-doc error) is what rejects them.
     const { t, hB, potB } = await seedTwoHouseholds();
-    await expect(t.query(api.households.get, { householdId: hB })).rejects.toThrow(
-      /Not authenticated/,
-    );
+    await expect(
+      t.query(api.households.get, { householdId: hB }),
+    ).rejects.toThrow(/Not authenticated/);
     await expect(t.query(api.pots.get, { potId: potB })).rejects.toThrow(
       /Not authenticated/,
     );
