@@ -12,6 +12,7 @@ import { TagsList } from './TagsList'
 import { Legend } from './Legend'
 import { StockTabs } from './StockTabs'
 import { DueSoon } from './DueSoon'
+import { MonthPace } from './MonthPace'
 
 type Lens = 'transactions' | 'categories' | 'tags'
 
@@ -41,6 +42,13 @@ export function MonthView() {
     month: monthKey,
   })
   const stocks = useQuery(api.overview.monthStocks, {
+    householdId: household._id,
+    month: monthKey,
+  })
+
+  // How the month got to where the bar says it ended: spending day by day,
+  // against a typical month.
+  const pace = useQuery(api.overview.monthPace, {
     householdId: household._id,
     month: monthKey,
   })
@@ -249,6 +257,18 @@ export function MonthView() {
           />
         )}
       </section>
+
+      {pace && (
+        <MonthPace
+          data={pace}
+          year={year}
+          month={month}
+          isCurrentMonth={isCurrentMonth}
+          onSelectDay={(day, dayLabel) =>
+            show({ kind: 'day', day, label: `Spent ${dayLabel}` })
+          }
+        />
+      )}
 
       {stocks && <StockTabs groups={stocks} />}
 

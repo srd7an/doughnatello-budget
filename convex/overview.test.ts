@@ -525,3 +525,50 @@ describe("what the funds did this month", () => {
     expect(by("Cash fund").change + by("Car stuff").change).toBe(10_000_00);
   });
 })
+
+describe("monthPace — the month day by day, against a typical one", () => {
+  test("spending lands on its day; typical averages only months that spent", async () => {
+    const { t, householdId, incomeCat, groceryCat } = await setup();
+    const spend = (occurredOn: string, amount: number) =>
+      asA(t).mutation(api.transactions.create, {
+        householdId,
+        direction: "expense",
+        amount,
+        categoryId: groceryCat,
+        occurredOn,
+      });
+    // Two earlier months with spending, one (April) with none at all.
+    await spend("2026-05-01", 1_000);
+    await spend("2026-05-31", 3_000);
+    await spend("2026-06-10", 2_000);
+    // This month.
+    await spend("2026-07-03", 500);
+    await spend("2026-07-03", 250);
+    await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "income",
+      amount: 90_000,
+      categoryId: incomeCat,
+      occurredOn: "2026-07-01",
+    });
+
+    const p = await asA(t).query(api.overview.monthPace, { householdId, month: MONTH });
+    expect(p.days).toBe(31);
+    expect(p.daily[2]).toBe(750);
+    expect(p.daily.reduce((s, x) => s + x, 0)).toBe(750);
+    expect(p.income[0]).toBe(90_000);
+    expect(p.typicalMonths).toBe(2);
+    // Day 1: May had 1.000, June nothing yet → 500.
+    expect(p.typical![0]).toBe(500);
+    // Day 10: May 1.000, June 2.000 → 1.500. June (30 days) carries to the 31st.
+    expect(p.typical![9]).toBe(1_500);
+    expect(p.typical![30]).toBe(3_000);
+  });
+
+  test("no history means no typical month", async () => {
+    const { t, householdId } = await setup();
+    const p = await asA(t).query(api.overview.monthPace, { householdId, month: "2026-02" });
+    expect(p.days).toBe(28);
+    expect(p.typical).toBeNull();
+  });
+});

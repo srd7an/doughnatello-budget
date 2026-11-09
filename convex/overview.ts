@@ -670,3 +670,97 @@ export const year = query({
     };
   },
 });
+
+/** Days in a YYYY-MM month. */
+function daysIn(month: string): number {
+  const [y, m] = month.split("-").map(Number);
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
+}
+
+/** The YYYY-MM `delta` months away from `month`. */
+function shiftMonth(month: string, delta: number): string {
+  const [y, m] = month.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+/** How many earlier months the "typical month" is averaged over. */
+const PACE_LOOKBACK = 3;
+
+/**
+ * How the month's spending ACCUMULATED, day by day — the shape `month` sums
+ * away — and the same shape for a typical month to hold it against.
+ *
+ *   daily[d]   = Σ expense transactions on day d+1        (this month)
+ *   income[d]  = Σ income transactions on day d+1         (this month)
+ *   typical[d] = average, over the earlier months that had any spending at
+ *                all, of what had been spent by day d+1
+ *
+ * Expense is the transaction's amount, whichever pocket paid for it — the same
+ * total `month.expense` arrives at through the funding rows, because a
+ * transaction's funding always adds up to its amount.
+ *
+ * A month with no spending is left out of the typical one rather than averaged
+ * in as a zero: the months before anyone started using the app would otherwise
+ * drag "typical" towards nothing, and every real month would look like a spree.
+ * A shorter month carries its final total across the days it does not have, so
+ * the 31st of a typical month is never lower than the 28th.
+ */
+export const monthPace = query({
+  args: { householdId: v.id("households"), month: v.string() }, // YYYY-MM
+  handler: async (ctx, { householdId, month }) => {
+    await requireMember(ctx, householdId);
+
+    const first = shiftMonth(month, -PACE_LOOKBACK);
+    const txs = await ctx.db
+      .query("transactions")
+      .withIndex("by_household_date", (q) =>
+        q
+          .eq("householdId", householdId)
+          .gte("occurredOn", `${first}-01`)
+          .lte("occurredOn", `${month}-31`),
+      )
+      .collect();
+
+    const days = daysIn(month);
+    const daily = Array<number>(days).fill(0);
+    const income = Array<number>(days).fill(0);
+    const earlier = new Map<string, number[]>();
+
+    for (const t of txs) {
+      const key = t.occurredOn.slice(0, 7);
+      const day = Number(t.occurredOn.slice(8, 10));
+      if (key === month) {
+        if (t.direction === "expense") daily[day - 1] += t.amount;
+        else if (t.direction === "income") income[day - 1] += t.amount;
+        continue;
+      }
+      if (t.direction !== "expense") continue;
+      let row = earlier.get(key);
+      if (!row) {
+        row = Array<number>(31).fill(0);
+        earlier.set(key, row);
+      }
+      row[day - 1] += t.amount;
+    }
+
+    const cumulative = [...earlier.entries()].map(([key, row]) => {
+      const len = daysIn(key);
+      let run = 0;
+      return Array.from({ length: days }, (_, d) => {
+        if (d < len) run += row[d];
+        return run;
+      });
+    });
+    const typical =
+      cumulative.length > 0
+        ? Array.from(
+            { length: days },
+            (_, d) =>
+              cumulative.reduce((s, c) => s + c[d], 0) / cumulative.length,
+          )
+        : null;
+
+    return { days, daily, income, typical, typicalMonths: cumulative.length };
+  },
+});
