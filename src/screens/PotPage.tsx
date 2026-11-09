@@ -6,6 +6,8 @@ import type { Id } from '../../convex/_generated/dataModel'
 import { formatMonth, formatMoney, formatPercent } from '../lib/format'
 import { dayLabel } from '../lib/dates'
 import { ArrowRightIcon, CategoryIcon } from '../ui/icons'
+import { localISO } from '../lib/dates'
+import { PotHistory, projectFinish } from './PotHistory'
 
 /**
  * One fund or one loan, in full.
@@ -47,6 +49,11 @@ export function PotPage() {
 
   // Newest first, grouped by the month it happened in — a fund's history is
   // read in months, not days.
+  // When it gets where it is going, at the pace of the last six months.
+  const today = localISO(new Date())
+  const remaining = isLoan ? (pot.owed ?? 0) : goal > 0 ? goal - pot.balance : 0
+  const finish = projectFinish(pot.rows, remaining, today)
+
   const groups: { month: string; rows: typeof pot.rows }[] = []
   for (const row of pot.rows) {
     const month = row.occurredOn.slice(0, 7)
@@ -114,6 +121,35 @@ export function PotPage() {
           ) : (
             <Fact label="Movements" value={String(pot.rows.length)} />
           )}
+        </div>
+
+        {/* The forecast, in a sentence, with what it assumed. */}
+        {finish && (
+          <p className="mt-4 text-sm text-stone-500">
+            At about{' '}
+            <span data-money className="text-stone-800">
+              {formatMoney(finish.perMonth, { whole: true })}
+            </span>{' '}
+            a month, the pace of the last six,{' '}
+            {isLoan ? 'it is paid off' : 'it reaches its target'} around{' '}
+            <span className="text-stone-800">
+              {formatMonth(
+                Number(finish.month.slice(0, 4)),
+                Number(finish.month.slice(5, 7)),
+              )}
+            </span>
+            {isLoan && ' — interest not counted'}.
+          </p>
+        )}
+
+        <div className="mt-5">
+          <PotHistory
+            rows={pot.rows}
+            loan={isLoan ? { original: pot.originalAmount ?? 0 } : null}
+            goal={!isLoan && goal > 0 ? goal : null}
+            color={isLoan ? 'var(--color-debt)' : pot.color}
+            today={today}
+          />
         </div>
 
         <button

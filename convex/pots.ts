@@ -238,9 +238,16 @@ async function withPotAmount<T extends { _id: Id<"transactions">; direction: str
   }
   return rows.map((r) => ({
     ...r,
+    // A transfer into it adds; anything funded out of it takes away. And an
+    // EXPENSE pointing at it is a loan payment — the pot is the debt, and the
+    // payment is what the row did to it. That third case was missing, so every
+    // row on a loan's page read 0: the page listed the payments and showed
+    // none of them.
     potAmount:
-      (r.direction === "transfer" && r.potId === potId ? r.amount : 0) -
-      (out.get(r._id) ?? 0),
+      ((r.direction === "transfer" || r.direction === "expense") &&
+      r.potId === potId
+        ? r.amount
+        : 0) - (out.get(r._id) ?? 0),
   }));
 }
 
