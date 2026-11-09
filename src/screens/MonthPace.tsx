@@ -21,6 +21,134 @@ const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ]
 
+/** Whole dinars: a pace is an estimate, and para on it claim a precision it
+ *  does not have. */
+const whole = (para: number) => Math.round(para / 100) * 100
+
+/**
+ * The month's pace as figures — what the chart draws, and what the tile above
+ * it says without drawing anything. One function so the two cannot disagree.
+ */
+export function summarisePace(
+  data: PaceData,
+  year: number,
+  month: number,
+  isCurrentMonth: boolean,
+) {
+  const { days, daily, typical } = data
+  const now = new Date()
+  // The last day that has happened. A past month has happened in full; a
+  // future one not at all.
+  const lastDay = isCurrentMonth
+    ? now.getDate()
+    : new Date(year, month - 1, 1) > now
+      ? 0
+      : days
+
+  const cumulative: number[] = []
+  daily.reduce((run, x, i) => (cumulative[i] = run + x), 0)
+  const spent = lastDay > 0 ? cumulative[lastDay - 1] : 0
+  const totalIncome = data.income.reduce((s, x) => s + x, 0)
+
+  const typicalNow = typical && lastDay > 0 ? typical[lastDay - 1] : null
+  const typicalEnd = typical ? typical[days - 1] : null
+
+  const perDay = lastDay > 0 ? whole(spent / lastDay) : 0
+
+  // Where the month lands if the rest of it goes as the rest of a typical
+  // month does. Not today's average times thirty: a month that paid its rent on
+  // the 1st would "be on pace" for thirty rents. Without history, the same idea
+  // from this month alone — its average day, leaving out its single biggest.
+  const projected = (() => {
+    if (!isCurrentMonth || lastDay < 3 || lastDay >= days) return null
+    if (typical && typicalEnd !== null && typicalNow !== null) {
+      return whole(spent + (typicalEnd - typicalNow))
+    }
+    const seen = daily.slice(0, lastDay)
+    const ordinary = (spent - Math.max(...seen)) / (lastDay - 1)
+    return whole(spent + ordinary * (days - lastDay))
+  })()
+
+  const diff = typicalNow !== null ? spent - typicalNow : null
+  const diffShare = typicalNow ? Math.abs(diff ?? 0) / typicalNow : null
+
+  return {
+    lastDay,
+    cumulative,
+    spent,
+    totalIncome,
+    typicalNow,
+    typicalEnd,
+    perDay,
+    projected,
+    diff,
+    diffShare,
+  }
+}
+
+export type PaceSummary = ReturnType<typeof summarisePace>
+
+/**
+ * The chart at the size of a word: the running total against the typical
+ * month, no axes, no labels. It says "above" or "below" and "since when", and
+ * the figures beside it say how much.
+ */
+export function PaceSpark({
+  data,
+  summary,
+  className = '',
+}: {
+  data: PaceData
+  summary: PaceSummary
+  className?: string
+}) {
+  const W = 72
+  const H = 24
+  const { cumulative, lastDay, typicalEnd, projected } = summary
+  const top = Math.max(typicalEnd ?? 0, projected ?? 0, summary.spent, 1)
+  const x = (d: number) => ((d + 1) / data.days) * W
+  const y = (v: number) => H - 1 - (v / top) * (H - 2)
+  const line = (vs: number[]) =>
+    `M0,${H - 1} ` + vs.map((v, d) => `L${x(d).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
+  return (
+    <svg
+      aria-hidden
+      width={W}
+      height={H}
+      viewBox={`0 0 ${W} ${H}`}
+      className={`shrink-0 overflow-visible ${className}`}
+    >
+      {data.typical && (
+        <path
+          d={line(data.typical)}
+          fill="none"
+          className="stroke-stone-300"
+          strokeWidth={1.25}
+          strokeDasharray="2 2"
+        />
+      )}
+      {lastDay > 0 && (
+        <>
+          <path
+            d={line(cumulative.slice(0, lastDay))}
+            fill="none"
+            className="stroke-expense"
+            strokeWidth={1.75}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+          <circle
+            cx={x(lastDay - 1)}
+            cy={y(summary.spent)}
+            r={2.25}
+            className="fill-expense"
+          />
+        </>
+      )}
+    </svg>
+  )
+}
+
 /**
  * HOW the month went, where the bar above only says how it ENDED.
  *
@@ -69,41 +197,18 @@ export function MonthPace({
   }, [])
 
   const { days, daily, typical } = data
-  const now = new Date()
-  // The last day that has happened. A past month has happened in full; a
-  // future one not at all.
-  const lastDay = isCurrentMonth
-    ? now.getDate()
-    : new Date(year, month - 1, 1) > now
-      ? 0
-      : days
-
-  const cumulative: number[] = []
-  daily.reduce((run, x, i) => (cumulative[i] = run + x), 0)
-  const spent = lastDay > 0 ? cumulative[lastDay - 1] : 0
-  const totalIncome = data.income.reduce((s, x) => s + x, 0)
-
-  const typicalNow = typical && lastDay > 0 ? typical[lastDay - 1] : null
-  const typicalEnd = typical ? typical[days - 1] : null
-
-  // Whole dinars: a pace is an estimate, and kopecks on it claim a precision
-  // it does not have.
-  const whole = (para: number) => Math.round(para / 100) * 100
-  const perDay = lastDay > 0 ? whole(spent / lastDay) : 0
-
-  // Where the month lands if the rest of it goes as the rest of a typical
-  // month does. Not today's average times thirty: a month that paid its rent on
-  // the 1st would "be on pace" for thirty rents. Without history, the same idea
-  // from this month alone — its average day, leaving out its single biggest.
-  const projected = (() => {
-    if (!isCurrentMonth || lastDay < 3 || lastDay >= days) return null
-    if (typical && typicalEnd !== null && typicalNow !== null) {
-      return whole(spent + (typicalEnd - typicalNow))
-    }
-    const seen = daily.slice(0, lastDay)
-    const ordinary = (spent - Math.max(...seen)) / (lastDay - 1)
-    return whole(spent + ordinary * (days - lastDay))
-  })()
+  const {
+    lastDay,
+    cumulative,
+    spent,
+    totalIncome,
+    typicalNow,
+    typicalEnd,
+    perDay,
+    projected,
+    diff,
+    diffShare,
+  } = summarisePace(data, year, month, isCurrentMonth)
 
   const peak = Math.max(
     spent,
@@ -144,9 +249,6 @@ export function MonthPace({
   const dayIso = (d: number) =>
     `${year}-${String(month).padStart(2, '0')}-${String(d + 1).padStart(2, '0')}`
   const dayName = (d: number) => `${d + 1} ${MONTHS[month - 1]}`
-
-  const diff = typicalNow !== null ? spent - typicalNow : null
-  const diffShare = typicalNow ? Math.abs(diff ?? 0) / typicalNow : null
 
   const rowsFor = (d: number): TooltipRow[] => {
     const rows: TooltipRow[] = [
@@ -191,26 +293,19 @@ export function MonthPace({
   if (lastDay === 0) {
     return (
       <section aria-label="Spending pace">
-        <h2 className="text-base font-medium tracking-[-0.16px] text-stone-800">
-          Spending pace
-        </h2>
-        <p className="mt-1 text-sm text-stone-500">
-          This month has not started yet.
-        </p>
+        <p className="text-sm text-stone-500">This month has not started yet.</p>
       </section>
     )
   }
 
   return (
     <section aria-label="Spending pace">
-      <h2 className="text-base font-medium tracking-[-0.16px] text-stone-800">
-        Spending pace
-      </h2>
-      {/* The chart as a sentence. Status is said in words and an arrow, never
-          by the colour of the number alone. */}
-      <p className="mt-1 text-sm text-stone-500">
+      {/* No heading: the tile that opens this is its heading. The chart as a
+          sentence — status said in words and an arrow, never by the colour of
+          the number alone. */}
+      <p className="text-sm text-stone-500">
         <span data-money className="text-stone-800">
-          {formatMoney(spent)}
+          {formatMoney(spent, { whole: true })}
         </span>{' '}
         spent {lastDay < days ? `by ${dayName(lastDay - 1)}` : 'this month'}
         {diff !== null && diffShare !== null && Math.abs(diff) >= 100 ? (
@@ -222,7 +317,7 @@ export function MonthPace({
               }
             >
               {diff > 0 ? '▲' : '▼'}{' '}
-              <span data-money>{formatMoney(Math.abs(diff))}</span> (
+              <span data-money>{formatMoney(Math.abs(diff), { whole: true })}</span> (
               {formatPercent(diffShare)}) {diff > 0 ? 'more' : 'less'}
             </span>{' '}
             than a typical month{lastDay < days ? ' by this day' : ''}

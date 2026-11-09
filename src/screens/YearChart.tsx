@@ -34,10 +34,14 @@ const HEIGHT = 160
 export function YearChart({
   months,
   currentMonthIndex,
+  fromMonthIndex,
   onOpenMonth,
 }: {
   months: MonthDatum[]
   currentMonthIndex: number
+  /** The month you zoomed out of, 0-based — marked, so the way back is the
+   *  column you can already see. */
+  fromMonthIndex?: number
   /** Given a 0-based month index — clicking a column zooms into it. */
   onOpenMonth?: (index: number) => void
 }) {
@@ -91,25 +95,18 @@ export function YearChart({
         style={{ height: HEIGHT }}
         onPointerLeave={() => setHover(null)}
       >
-        {/* The average line, and what it IS. An unexplained dashed rule
-            across a chart is a question mark: it was drawn as an aid and read
-            as a mystery, so it now says which number it is and what that
-            number means. Months with no income are left out of the average —
-            a year still being lived would otherwise average itself down
+        {/* The average line. What it IS is written in the caption under the
+            chart, beside a stroke of the same dashes: the label used to sit on
+            the line itself, at the right, and on a phone that is on top of the
+            autumn's columns. Months with no income are left out of the average
+            — a year still being lived would otherwise average itself down
             towards zero as it goes. */}
         {avg > 0 && (
           <div
             aria-hidden
             className="pointer-events-none absolute inset-x-0 border-t border-dashed border-stone-300"
             style={{ bottom: avgBottom }}
-          >
-            <p className="tnum absolute right-0 bottom-1 bg-white px-1 text-xs text-stone-400">
-              Average income{' '}
-              <span data-money className="text-stone-500">
-                {formatMoney(avg)}
-              </span>
-            </p>
-          </div>
+          />
         )}
 
         {months.map((m, i) => {
@@ -175,13 +172,39 @@ export function YearChart({
           <div
             key={label}
             className={`flex-1 text-center text-xs ${
-              i > currentMonthIndex ? 'text-stone-300' : 'text-stone-500'
+              i === fromMonthIndex
+                ? 'font-medium text-stone-800 underline decoration-brand decoration-2 underline-offset-4'
+                : i > currentMonthIndex
+                  ? 'text-stone-300'
+                  : 'text-stone-500'
             }`}
           >
             {label}
           </div>
         ))}
       </div>
+
+      {/* What the dashes are, and that the columns are doors. Neither was
+          written anywhere a thumb could find it: the average had a label a
+          phone drew over the bars, and "click to open" lived in a tooltip,
+          which a touch screen never shows. */}
+      {(avg > 0 || onOpenMonth) && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-stone-400">
+          {avg > 0 && (
+            <p className="flex items-center gap-1.5">
+              <span
+                aria-hidden
+                className="w-3 border-t border-dashed border-stone-400"
+              />
+              Average income{' '}
+              <span data-money className="text-stone-500">
+                {formatMoney(avg, { whole: true })}
+              </span>
+            </p>
+          )}
+          {onOpenMonth && <p>Select a month to open it</p>}
+        </div>
+      )}
 
       {hover && (
         <ChartTooltip

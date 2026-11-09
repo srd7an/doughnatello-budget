@@ -47,10 +47,14 @@ export type TxFilter =
   | { kind: 'tag'; tagId: Id<'tags'>; label: string }
   /** One day's spending — what clicking a day on the pace chart asks for. */
   | { kind: 'day'; day: string; label: string }
+  /** One category's spending. Null is the uncategorised remainder. */
+  | { kind: 'category'; categoryId: Id<'categories'> | null; label: string }
 
 function matches(row: Row, filter: TxFilter): boolean {
   if (filter.kind === 'day')
     return row.occurredOn === filter.day && row.direction === 'expense'
+  if (filter.kind === 'category')
+    return row.direction === 'expense' && row.categoryId === filter.categoryId
   if (filter.kind === 'direction') return row.direction === filter.direction
   if (filter.kind === 'tag') return row.tags.some((t) => t._id === filter.tagId)
   // Everything that touched this fund: money set aside into it, moved out of

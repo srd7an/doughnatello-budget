@@ -171,3 +171,83 @@ function DueRow({
     </li>
   )
 }
+
+export type UpcomingItem = {
+  ruleId: Id<'recurringRules'>
+  dueOn: string
+  direction: 'income' | 'expense' | 'transfer'
+  amount: number
+  amountMode: 'exact' | 'estimate'
+  autoPost: boolean
+  payee: string | null
+  category: { name: string; icon: string; color: string } | null
+  pot: { name: string; icon: string; color: string } | null
+}
+
+/**
+ * What the repeating rules will still ask for before the month is out.
+ *
+ * A list to read, not to act on: none of it is due, so there is nothing to
+ * confirm. It is here because it is the other half of "what is this month
+ * still promised to" — the Due block above answers for today and before, and
+ * until this existed the rest of the answer was in Settings, one rule at a
+ * time, with the arithmetic left to the reader.
+ */
+export function ComingUp({
+  items,
+  through,
+}: {
+  items: UpcomingItem[]
+  /** YYYY-MM-DD — the last day the list runs to. */
+  through: string
+}) {
+  const today = localISO(new Date())
+  if (items.length === 0) return null
+  const [, m, d] = through.split('-').map(Number)
+  const until = new Intl.DateTimeFormat('en-US', {
+    day: 'numeric',
+    month: 'long',
+  }).format(new Date(2000, m - 1, d))
+
+  return (
+    <section className="rounded-2xl border border-stone-200 bg-white">
+      <h2 className="px-4 pt-3.5 pb-2 text-sm font-semibold">
+        Coming up{' '}
+        <span className="font-normal text-stone-400">by {until}</span>
+      </h2>
+      <ul>
+        {items.map((it) => {
+          const label =
+            it.payee ?? it.category?.name ?? it.pot?.name ?? 'Repeating'
+          const icon = it.category?.icon ?? it.pot?.icon
+          return (
+            <li
+              key={`${it.ruleId}-${it.dueOn}`}
+              className="flex items-center gap-3 border-t border-stone-100 px-4 py-2.5"
+            >
+              {icon ? (
+                <CategoryIcon icon={icon} />
+              ) : (
+                <RepeatIcon size={20} aria-hidden />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{label}</p>
+                <p className="text-xs text-stone-400">
+                  {dueLabel(it.dueOn, today)}
+                  {it.amountMode === 'estimate' && ' · estimate'}
+                  {it.autoPost && ' · posts itself'}
+                </p>
+              </div>
+              <span
+                data-money
+                className={`text-sm ${it.direction === 'income' ? 'text-gain' : 'text-stone-800'}`}
+              >
+                {formatMoney(it.amount, { signed: it.direction === 'income' })}
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
+}

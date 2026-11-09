@@ -44,7 +44,9 @@ export function Legend({ items }: { items: LegendItem[] }) {
               <Mark swatch={it.swatch} />
             </p>
             <p className="tnum mt-0.5 text-sm">
-              <span className="text-stone-800">{formatMoney(it.amount)}</span>
+              <span className="text-stone-800">
+                {formatMoney(it.amount, { whole: true })}
+              </span>
               {it.share !== null && (
                 <span className="ml-1.5 text-stone-500">
                   {formatPercent(it.share)}
@@ -67,7 +69,7 @@ export function Legend({ items }: { items: LegendItem[] }) {
               {it.share !== null ? formatPercent(it.share) : ''}
             </dd>
             <dd data-money className="w-28 shrink-0 text-right text-sm text-stone-800">
-              {formatMoney(it.amount)}
+              {formatMoney(it.amount, { whole: true })}
             </dd>
           </div>
         ))}

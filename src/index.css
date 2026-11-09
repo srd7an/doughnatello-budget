@@ -101,6 +101,21 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* Money that is still yours and already spoken for: what is due, and what
+     the rules will take by the end of the month.
+
+     The leftover colour, hatched. It is a PART of leftover — the same money,
+     in the same place on the bar — so it keeps the hue and loses the solidity,
+     which is the difference between having something and having promised it.
+     A fourth flat colour would have said it was a fourth kind of thing. */
+  .bg-reserved {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      var(--color-leftover) 0 3px,
+      color-mix(in srgb, var(--color-leftover) 35%, white) 3px 6px
+    );
+  }
+
   /* The privacy curtain.
      
      Every figure in the app already carries [data-money] or .tnum, so one rule
