@@ -2,11 +2,13 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   type ReactNode,
 } from 'react'
 import { useLocation, useSearchParams, type Location } from 'react-router-dom'
-import { formatMonth } from '../lib/format'
+import { formatMonth, formatMonthShort } from '../lib/format'
 
 /**
  * The period control IS the navigation (2026-07-25 IA revision). There are no
@@ -32,12 +34,16 @@ type Period = {
   year: number
   month: number // 1-12
   label: string // "2026" or "July 2026", matching the current granularity
+  /** "2026" or "Jul 2026" — the same, for a control with no room. */
+  shortLabel: string
   /** Whether this is the period today falls in — the one you return to. */
   isCurrent: boolean
   setGranularity: (g: Granularity) => void
   step: (delta: number) => void // steps year or month depending on granularity
   /** Jump straight to a month and zoom in — what clicking a column does. */
   openMonth: (year: number, month: number) => void
+  /** Zoom out to a whole year. */
+  openYear: (year: number) => void
   /** Back to the period today is in, at whatever granularity is showing. */
   goToToday: () => void
 }
@@ -76,7 +82,23 @@ const write = (g: Granularity, y: number, m: number) =>
 
 export function PeriodProvider({ children }: { children: ReactNode }) {
   const [params, setParams] = useSearchParams()
-  const { granularity, year, month } = parse(params.get('p'))
+  const parsed = parse(params.get('p'))
+  const { granularity, year } = parsed
+
+  // The month you were reading, kept while you are looking at a year.
+  //
+  // `?p=2026` has no month in it, so zooming out used to forget which one you
+  // came from: zooming back in landed on TODAY's month of whatever year was
+  // showing, and the year had no way to mark the column you had just left.
+  // Zoom out and back in is the commonest trip through this control, and it
+  // should end where it began. Not in the URL — a link to a year is a link to
+  // a year — so a cold load of one starts from today's month, as before.
+  const lastMonth = useRef<number | null>(null)
+  useEffect(() => {
+    if (granularity === 'month') lastMonth.current = parsed.month
+  }, [granularity, parsed.month])
+  const month =
+    granularity === 'month' ? parsed.month : (lastMonth.current ?? parsed.month)
 
   const set = useCallback(
     (g: Granularity, y: number, m: number) => {
@@ -117,10 +139,13 @@ export function PeriodProvider({ children }: { children: ReactNode }) {
       year,
       month,
       label: granularity === 'year' ? String(year) : formatMonth(year, month),
+      shortLabel:
+        granularity === 'year' ? String(year) : formatMonthShort(year, month),
       isCurrent,
       setGranularity: (g) => set(g, year, month),
       step,
       openMonth: (y, m) => set('month', y, m),
+      openYear: (y) => set('year', y, month),
       goToToday: () => {
         const today = new Date()
         set(granularity, today.getFullYear(), today.getMonth() + 1)

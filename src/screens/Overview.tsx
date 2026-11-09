@@ -1,4 +1,5 @@
 import { usePeriod } from '../period/PeriodContext'
+import { PeriodHeading } from '../app/PeriodHeading'
 import { YearView } from './YearView'
 import { MonthView } from './MonthView'
 
@@ -9,5 +10,10 @@ import { MonthView } from './MonthView'
  */
 export function Overview() {
   const { granularity } = usePeriod()
-  return granularity === 'year' ? <YearView /> : <MonthView />
+  return (
+    <>
+      <PeriodHeading />
+      {granularity === 'year' ? <YearView /> : <MonthView />}
+    </>
+  )
 }

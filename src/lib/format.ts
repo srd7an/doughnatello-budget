@@ -48,12 +48,18 @@ export function fromPara(para: number): number {
  * number (the design's figures are all whole), but a stored 50 para is never
  * hidden — rounding it away would show a figure that does not match the money.
  * Pass `signed` to force a leading + for positives; negatives always show minus.
+ *
+ * `whole` rounds to the dinar, and is for one kind of figure only: a SUMMARY —
+ * a headline, a total across a month, an estimate. Thirty transactions' worth
+ * of para on the end of a headline is noise at the size a headline is set in,
+ * and nobody checks a headline against a receipt. A single transaction is never
+ * formatted this way; that is the figure the rule above protects.
  */
 export function formatMoney(
   para: number,
-  opts: { signed?: boolean } = {},
+  opts: { signed?: boolean; whole?: boolean } = {},
 ): string {
-  const rounded = Math.round(para);
+  const rounded = opts.whole ? Math.round(para / 100) * 100 : Math.round(para);
   const abs = Math.abs(rounded);
   const body =
     abs % 100 === 0
@@ -146,6 +152,25 @@ export function formatPercentPoints(points: number): string {
 /** Month + year label, English: (2026, 7) → "July 2026". */
 export function formatMonth(year: number, month1to12: number): string {
   return monthFmt.format(new Date(year, month1to12 - 1, 1));
+}
+
+const monthShortFmt = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  year: "numeric",
+});
+const monthNameFmt = new Intl.DateTimeFormat("en-US", { month: "long" });
+const monthAbbrFmt = new Intl.DateTimeFormat("en-US", { month: "short" });
+
+/** "Nov 2026" — for a control with no room for the whole word. */
+export function formatMonthShort(year: number, month1to12: number): string {
+  return monthShortFmt.format(new Date(year, month1to12 - 1, 1));
+}
+
+/** "November", or "Nov" when `short`. */
+export function monthName(month1to12: number, short = false): string {
+  return (short ? monthAbbrFmt : monthNameFmt).format(
+    new Date(2000, month1to12 - 1, 1),
+  );
 }
 
 /** Two-letter-ish initials from a display name for member avatars. */
