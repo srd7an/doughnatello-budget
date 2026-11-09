@@ -123,6 +123,7 @@ export function YearView() {
                   note={formatMoney(data.months[dearest].expense, {
                     whole: true,
                   })}
+                  onGo={() => openMonth(year, dearest + 1)}
                 />
               </div>
             )}

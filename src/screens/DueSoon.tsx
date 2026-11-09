@@ -5,6 +5,7 @@ import type { Id } from '../../convex/_generated/dataModel'
 import { useHousehold } from '../household/HouseholdContext'
 import {
   formatMoney,
+  monthName,
   inputToPara,
   paraToInput,
   sanitizeMoneyInput,
@@ -204,10 +205,7 @@ export function ComingUp({
   const today = localISO(new Date())
   if (items.length === 0) return null
   const [, m, d] = through.split('-').map(Number)
-  const until = new Intl.DateTimeFormat('en-US', {
-    day: 'numeric',
-    month: 'long',
-  }).format(new Date(2000, m - 1, d))
+  const until = `${d} ${monthName(m)}`
 
   return (
     <section className="rounded-2xl border border-stone-200 bg-white">

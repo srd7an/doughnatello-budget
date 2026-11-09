@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { CaretDownIcon } from '../ui/icons'
+import { CaretDownIcon, CaretRightIcon } from '../ui/icons'
 
 /**
  * One figure worth knowing before you scroll, in a box.
@@ -21,6 +21,7 @@ export function Tile({
   noteTone = 'text-stone-400',
   open,
   onToggle,
+  onGo,
   aside,
 }: {
   label: string
@@ -30,6 +31,9 @@ export function Tile({
   noteTone?: string
   open?: boolean
   onToggle?: () => void
+  /** Goes somewhere instead of opening something: a caret that points away,
+   *  not down, and no `aria-expanded` — nothing here expands. */
+  onGo?: () => void
   /** A small picture at the far end, where there is room for one. */
   aside?: ReactNode
 }) {
@@ -45,6 +49,7 @@ export function Tile({
               className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
             />
           )}
+          {onGo && <CaretRightIcon size={12} aria-hidden className="shrink-0" />}
         </span>
         <span
           data-money
@@ -63,11 +68,11 @@ export function Tile({
   )
   const box =
     'flex min-w-0 items-center gap-3 rounded-xl border px-3 py-2.5 text-left'
-  return onToggle ? (
+  return onToggle || onGo ? (
     <button
       type="button"
-      onClick={onToggle}
-      aria-expanded={open}
+      onClick={onToggle ?? onGo}
+      aria-expanded={onToggle ? open : undefined}
       className={`${box} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
         open
           ? 'border-stone-400 bg-stone-50'
