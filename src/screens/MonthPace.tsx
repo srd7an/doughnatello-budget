@@ -308,9 +308,12 @@ export function MonthPace({
                 strokeDasharray="2 3"
               />
               <text
-                x={width - 2}
+                // On the left, where every running total is still near the
+                // floor. On the right it sat on top of the projection's own
+                // label whenever the month was heading for about its income.
+                x={2}
                 y={yOf(totalIncome) - 5}
-                textAnchor="end"
+                data-money
                 className="fill-stone-400 text-[11px]"
               >
                 Income {formatMoney(totalIncome)}
@@ -361,7 +364,7 @@ export function MonthPace({
             strokeLinecap="round"
           />
 
-          {/* Direct labels at the ends, where the eye finishes reading. */}
+          {/* Where the month stands today. */}
           <circle
             cx={xOf(lastDay - 1)}
             cy={yOf(spent)}
@@ -369,16 +372,10 @@ export function MonthPace({
             className="fill-expense stroke-white"
             strokeWidth={2}
           />
-          {projected !== null && (
-            <text
-              x={xOf(days - 1)}
-              y={yOf(projected) - 8}
-              textAnchor="end"
-              className="fill-stone-500 text-[11px]"
-            >
-              ≈ {formatMoney(projected)}
-            </text>
-          )}
+          {/* The projection's figure is NOT written at the end of its line: up
+              there it lands on the typical line, the income rule or its own
+              dots, depending on the month. It is the "Heading for" figure
+              below, where nothing can sit on top of it. */}
 
           <line x1={0} x2={width} y1={HEIGHT} y2={HEIGHT} className="stroke-stone-200" />
 
@@ -488,7 +485,7 @@ export function MonthPace({
             value={formatMoney(projected)}
             note={
               typicalEnd
-                ? `typical ${formatMoney(typicalEnd)}`
+                ? `typical ${formatMoney(whole(typicalEnd))}`
                 : totalIncome > 0
                   ? `${formatPercent(projected / totalIncome)} of income`
                   : undefined
@@ -497,7 +494,7 @@ export function MonthPace({
         ) : (
           <Stat
             label={typicalEnd !== null ? 'Typical month' : 'Spent'}
-            value={formatMoney(typicalEnd ?? spent)}
+            value={formatMoney(typicalEnd !== null ? whole(typicalEnd) : spent)}
             note={
               typicalEnd !== null && lastDay === days && typicalEnd > 0
                 ? `${spent > typicalEnd ? '+' : '−'}${formatPercent(
@@ -529,7 +526,12 @@ function Stat({
       <p className="tnum mt-0.5 text-base text-stone-800">
         <span data-money>{value}</span>
       </p>
-      {note && <p className="text-xs text-stone-400">{note}</p>}
+      {/* A note is as often a figure as a date, so it hides with the figures. */}
+      {note && (
+        <p data-money className="text-xs text-stone-400">
+          {note}
+        </p>
+      )}
     </>
   )
   return onClick ? (
