@@ -196,6 +196,7 @@ export const monthStocks = query({
           color: p.color,
           balance: -(await debtOwed(ctx, householdId, p)), // negative = owed
           change: moved.get(p._id) ?? 0,
+          goal: p.originalAmount ?? null,
         });
       } else {
         funds.push({
@@ -205,6 +206,7 @@ export const monthStocks = query({
           color: p.color,
           balance: await potBalance(ctx, householdId, p._id),
           change: moved.get(p._id) ?? 0,
+          goal: p.targetAmount ?? null,
         });
       }
     }
@@ -331,6 +333,9 @@ type StockItem = {
   balance: number; // current, all-time (loans are negative = owed)
   change: number; // this year
   valuedOn?: string;
+  /** What it is going towards: a fund's target, a loan's original amount.
+   *  Null where there is none, so a card never draws progress to nowhere. */
+  goal?: number | null;
 };
 
 /**
@@ -538,6 +543,7 @@ export const year = query({
           balance: await potBalance(ctx, householdId, p._id),
           change:
             (transfersInYear.get(p._id) ?? 0) - (spentFromPotYear.get(p._id) ?? 0),
+          goal: p.targetAmount ?? null,
         });
       } else if (p.kind === "debt") {
         loanItems.push({
@@ -547,6 +553,7 @@ export const year = query({
           color: p.color,
           balance: -(await debtOwed(ctx, householdId, p)), // negative = owed
           change: debtPaidYear.get(p._id) ?? 0, // +paid
+          goal: p.originalAmount ?? null,
         });
       }
     }
@@ -636,6 +643,56 @@ export const year = query({
     const opened = await snapshot(startOfYear);
     const closed = await snapshot(endOfYear);
 
+    /**
+     * Net worth at the end of each month — the path between the two sheets.
+     *
+     * Walked forward from the opening sheet rather than snapshotted twelve
+     * times: a snapshot reads every transaction the household has ever had, and
+     * the year's own are already in hand. Bank moves by income less expense on
+     * the live accounts, debt falls by what was paid against it, and an asset
+     * is worth what its latest valuation said that day. December's figure is
+     * the closing sheet by construction, which the test holds it to.
+     *
+     * Null for a month that has not ended and is not the one today is in: a
+     * line drawn flat across the future claims to know it.
+     */
+    const liveAccounts = new Set(
+      (
+        await ctx.db
+          .query("accounts")
+          .withIndex("by_household", (q) => q.eq("householdId", householdId))
+          .collect()
+      )
+        .filter((a) => !a.isArchived)
+        .map((a) => a._id as string),
+    );
+    const bankMove = Array<number>(12).fill(0);
+    const debtPaid = Array<number>(12).fill(0);
+    for (const t of txs) {
+      const mi = Number(t.occurredOn.slice(5, 7)) - 1;
+      if (liveAccounts.has(t.accountId as string)) {
+        if (t.direction === "income") bankMove[mi] += t.amount;
+        else if (t.direction === "expense") bankMove[mi] -= t.amount;
+      }
+      if (t.direction === "expense" && t.potId && debtPotIds.has(t.potId)) {
+        const pot = pots.find((p) => p._id === t.potId);
+        if (pot && !pot.isArchived) debtPaid[mi] += t.amount;
+      }
+    }
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    let bankRun = opened.bank;
+    let debtRun = opened.debt;
+    const netWorthByMonth = Array.from({ length: 12 }, (_, mi) => {
+      bankRun += bankMove[mi];
+      debtRun -= debtPaid[mi];
+      const key = `${year}-${String(mi + 1).padStart(2, "0")}`;
+      if (key > thisMonth) return null;
+      const assetsThen = assets
+        .filter((a) => !a.isArchived)
+        .reduce((sum, a) => sum + assetValueAt(a, `${key}-31`), 0);
+      return bankRun + assetsThen - debtRun;
+    });
+
     return {
       netWorth: bank + assetGroup.balance - debtTotal,
       /** What you are worth at the end of this year, less what you were worth
@@ -661,6 +718,7 @@ export const year = query({
         assets: closed.assets - opened.assets,
         loans: opened.debt - closed.debt,
       },
+      netWorthByMonth,
       bank,
       months,
       totals,
@@ -762,5 +820,81 @@ export const monthPace = query({
         : null;
 
     return { days, daily, income, typical, typicalMonths: cumulative.length };
+  },
+});
+
+/**
+ * Where the month's spending went, category by category, each against what a
+ * typical month had put there BY THE SAME DAY.
+ *
+ * The same "typical" as `monthPace` — the average of the earlier months that
+ * had any spending — cut at `throughDay` so a month nine days old is compared
+ * with nine days of the others. Against whole months it would be under on
+ * everything until the 28th, and say nothing.
+ *
+ * Only categories with spending this month are returned, largest first; the
+ * uncategorised remainder comes back with a null category.
+ */
+export const monthCategories = query({
+  args: {
+    householdId: v.id("households"),
+    month: v.string(), // YYYY-MM
+    throughDay: v.optional(v.number()),
+  },
+  handler: async (ctx, { householdId, month, throughDay }) => {
+    await requireMember(ctx, householdId);
+    const limit = throughDay ?? 31;
+
+    const first = shiftMonth(month, -PACE_LOOKBACK);
+    const [txs, categories] = await Promise.all([
+      ctx.db
+        .query("transactions")
+        .withIndex("by_household_date", (q) =>
+          q
+            .eq("householdId", householdId)
+            .gte("occurredOn", `${first}-01`)
+            .lte("occurredOn", `${month}-31`),
+        )
+        .collect(),
+      ctx.db
+        .query("categories")
+        .withIndex("by_household", (q) => q.eq("householdId", householdId))
+        .collect(),
+    ]);
+    const catById = new Map(categories.map((c) => [c._id, c]));
+
+    const now = new Map<string, number>();
+    const before = new Map<string, number>();
+    const spendingMonths = new Set<string>();
+    for (const t of txs) {
+      if (t.direction !== "expense") continue;
+      const key = t.occurredOn.slice(0, 7);
+      const cat = (t.categoryId as string | undefined) ?? "";
+      if (key === month) {
+        now.set(cat, (now.get(cat) ?? 0) + t.amount);
+        continue;
+      }
+      spendingMonths.add(key);
+      if (Number(t.occurredOn.slice(8, 10)) <= limit) {
+        before.set(cat, (before.get(cat) ?? 0) + t.amount);
+      }
+    }
+
+    return [...now.entries()]
+      .map(([cat, amount]) => {
+        const c = cat ? catById.get(cat as Id<"categories">) : undefined;
+        return {
+          categoryId: c ? c._id : null,
+          name: c?.name ?? null,
+          icon: c?.icon ?? null,
+          color: c?.color ?? null,
+          amount,
+          typical:
+            spendingMonths.size > 0
+              ? (before.get(cat) ?? 0) / spendingMonths.size
+              : null,
+        };
+      })
+      .sort((a, b) => b.amount - a.amount);
   },
 });

@@ -340,6 +340,120 @@ export const listDue = query({
 });
 
 /**
+ * What the rest of the month is already promised to: the pending occurrences
+ * the Due block lists, and the ones the rules will produce between tomorrow and
+ * `through`.
+ *
+ * It exists for one number. "Left to spend" is income less what has actually
+ * happened, and a pending occurrence has deliberately not happened yet — so a
+ * month with the rent still unconfirmed says it has the rent to spend. This is
+ * what the screen subtracts to say what is really free.
+ *
+ * `fromIncome` is the part of each total that will come out of this month's
+ * income: expenses and money set aside, unless the rule pays from a fund —
+ * that money was counted when it was set aside and is not spent twice. Income
+ * still to arrive is reported and NOT netted off: a salary that has not landed
+ * is not money to plan a week around.
+ *
+ * A pure query. Nothing is materialised; upcoming dates are read off the rules,
+ * strictly after today, so one occurrence is never both pending and upcoming.
+ */
+export const outlook = query({
+  args: { householdId: v.id("households"), through: v.string() }, // YYYY-MM-DD
+  handler: async (ctx, { householdId, through }) => {
+    await requireMember(ctx, householdId);
+    const today = todayISO();
+
+    const [occurrences, rules, categories, pots] = await Promise.all([
+      ctx.db
+        .query("recurringOccurrences")
+        .withIndex("by_household", (q) => q.eq("householdId", householdId))
+        .collect(),
+      ctx.db
+        .query("recurringRules")
+        .withIndex("by_household", (q) => q.eq("householdId", householdId))
+        .collect(),
+      ctx.db
+        .query("categories")
+        .withIndex("by_household", (q) => q.eq("householdId", householdId))
+        .collect(),
+      ctx.db
+        .query("pots")
+        .withIndex("by_household", (q) => q.eq("householdId", householdId))
+        .collect(),
+    ]);
+    const ruleById = new Map(rules.map((r) => [r._id, r]));
+    const catById = new Map(categories.map((c) => [c._id, c]));
+    const potById = new Map(pots.map((p) => [p._id, p]));
+
+    const tally = () => ({ count: 0, outgoing: 0, fromIncome: 0, incoming: 0 });
+    const add = (
+      t: ReturnType<typeof tally>,
+      rule: Doc<"recurringRules">,
+    ) => {
+      t.count += 1;
+      if (rule.direction === "income") {
+        t.incoming += rule.amount;
+        return;
+      }
+      t.outgoing += rule.amount;
+      if (!rule.fundedFromPotId) t.fromIncome += rule.amount;
+    };
+
+    const due = tally();
+    let oldestDueOn: string | null = null;
+    for (const o of occurrences) {
+      if (o.status !== "pending" || o.dueOn > today) continue;
+      const rule = ruleById.get(o.ruleId);
+      if (!rule) continue;
+      add(due, rule);
+      if (!oldestDueOn || o.dueOn < oldestDueOn) oldestDueOn = o.dueOn;
+    }
+
+    const upcoming = tally();
+    const items: {
+      ruleId: Id<"recurringRules">;
+      dueOn: string;
+      direction: Doc<"recurringRules">["direction"];
+      amount: number;
+      amountMode: Doc<"recurringRules">["amountMode"];
+      autoPost: boolean;
+      payee: string | null;
+      category: ReturnType<typeof summarise>;
+      pot: ReturnType<typeof summarise>;
+    }[] = [];
+    for (const rule of rules) {
+      if (!rule.isActive) continue;
+      const dates = dueDatesThrough(
+        rule.nextDueOn,
+        through,
+        rule,
+        rule.untilDate,
+      ).filter((d) => d > today);
+      for (const dueOn of dates) {
+        add(upcoming, rule);
+        items.push({
+          ruleId: rule._id,
+          dueOn,
+          direction: rule.direction,
+          amount: rule.amount,
+          amountMode: rule.amountMode,
+          autoPost: rule.autoPost,
+          payee: rule.payee ?? null,
+          category: rule.categoryId
+            ? summarise(catById.get(rule.categoryId))
+            : null,
+          pot: rule.potId ? summarise(potById.get(rule.potId)) : null,
+        });
+      }
+    }
+    items.sort((a, b) => (a.dueOn < b.dueOn ? -1 : 1));
+
+    return { today, through, due: { ...due, oldestDueOn }, upcoming: { ...upcoming, items } };
+  },
+});
+
+/**
  * Materialise every occurrence due on or before `through` for one household.
  * Called on app open, so the Due block is correct the moment it renders rather
  * than waiting for the nightly cron.

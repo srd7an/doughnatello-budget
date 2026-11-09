@@ -572,3 +572,51 @@ describe("monthPace — the month day by day, against a typical one", () => {
     expect(p.typical).toBeNull();
   });
 });
+
+describe("monthCategories — each category against a typical month by the same day", () => {
+  test("the comparison is cut at the day asked for", async () => {
+    const { t, householdId, groceryCat } = await setup();
+    const spend = (occurredOn: string, amount: number) =>
+      asA(t).mutation(api.transactions.create, {
+        householdId,
+        direction: "expense",
+        amount,
+        categoryId: groceryCat,
+        occurredOn,
+      });
+    await spend("2026-05-05", 1_000);
+    await spend("2026-05-20", 3_000);
+    await spend("2026-06-08", 2_000);
+    await spend("2026-07-03", 500);
+
+    const byDay10 = await asA(t).query(api.overview.monthCategories, {
+      householdId,
+      month: MONTH,
+      throughDay: 10,
+    });
+    expect(byDay10).toHaveLength(1);
+    expect(byDay10[0].name).toBe("Grocery");
+    expect(byDay10[0].amount).toBe(500);
+    // May had 1.000 by the 10th, June 2.000 → 1.500 on average.
+    expect(byDay10[0].typical).toBe(1_500);
+
+    const whole = await asA(t).query(api.overview.monthCategories, {
+      householdId,
+      month: MONTH,
+    });
+    expect(whole[0].typical).toBe(3_000);
+  });
+
+  test("no earlier spending, nothing to compare with", async () => {
+    const { t, householdId, groceryCat } = await setup();
+    await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "expense",
+      amount: 500,
+      categoryId: groceryCat,
+      occurredOn: `${MONTH}-03`,
+    });
+    const rows = await asA(t).query(api.overview.monthCategories, { householdId, month: MONTH });
+    expect(rows[0].typical).toBeNull();
+  });
+});

@@ -223,3 +223,32 @@ describe("asset revaluation", () => {
     expect(y.assets.change).toBe(0);
   });
 });
+
+describe("net worth month by month", () => {
+  test("walks from the opening sheet to the closing one", async () => {
+    const { t, householdId, incomeCat, groceryCat } = await setup();
+    await asA(t).mutation(api.transactions.create, {
+      householdId, direction: "income", amount: 10_000_000,
+      categoryId: incomeCat, occurredOn: "2024-01-10",
+    });
+    await asA(t).mutation(api.transactions.create, {
+      householdId, direction: "expense", amount: 3_000_000,
+      categoryId: groceryCat, occurredOn: "2024-03-02",
+    });
+
+    const y = await asA(t).query(api.overview.year, { householdId, year: "2024" });
+    const open = y.netWorthParts.opening;
+    expect(y.netWorthByMonth[0]).toBe(open + 10_000_000);
+    expect(y.netWorthByMonth[1]).toBe(open + 10_000_000);
+    expect(y.netWorthByMonth[2]).toBe(open + 7_000_000);
+    // December is the closing sheet, by construction.
+    expect(y.netWorthByMonth[11]).toBe(y.netWorthParts.closing);
+  });
+
+  test("a month that has not happened has no figure", async () => {
+    const { t, householdId } = await setup();
+    const next = String(new Date().getUTCFullYear() + 1);
+    const y = await asA(t).query(api.overview.year, { householdId, year: next });
+    expect(y.netWorthByMonth.every((v) => v === null)).toBe(true);
+  });
+});

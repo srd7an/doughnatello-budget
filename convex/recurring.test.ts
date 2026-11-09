@@ -513,3 +513,40 @@ describe("cross-household isolation for recurring", () => {
     );
   });
 });
+
+describe("outlook — what the rest of the month is promised to", () => {
+  test("pending is due, later dates are upcoming, and neither is counted twice", async () => {
+    const { t, householdId, incomeCat, groceryCat } = await setup();
+    const today = new Date().toISOString().slice(0, 10);
+    const day = (n: number) => {
+      const d = new Date(`${today}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + n);
+      return d.toISOString().slice(0, 10);
+    };
+
+    // Came due two days ago and has not been confirmed.
+    await asA(t).mutation(api.recurring.create, {
+      householdId, direction: "expense", amount: 1_000, amountMode: "exact",
+      categoryId: groceryCat, cadence: "weekly", startOn: day(-2),
+    });
+    // Income that starts tomorrow.
+    await asA(t).mutation(api.recurring.create, {
+      householdId, direction: "income", amount: 5_000, amountMode: "exact",
+      categoryId: incomeCat, cadence: "weekly", startOn: day(1),
+    });
+    await asA(t).mutation(api.recurring.sync, { householdId });
+
+    const o = await asA(t).query(api.recurring.outlook, { householdId, through: day(13) });
+
+    expect(o.due.count).toBe(1);
+    expect(o.due.fromIncome).toBe(1_000);
+    expect(o.due.oldestDueOn).toBe(day(-2));
+
+    // The expense again on +5 and +12; the income on +1 and +8.
+    expect(o.upcoming.count).toBe(4);
+    expect(o.upcoming.outgoing).toBe(2_000);
+    expect(o.upcoming.fromIncome).toBe(2_000);
+    expect(o.upcoming.incoming).toBe(10_000);
+    expect(o.upcoming.items.map((i) => i.dueOn)).toEqual([day(1), day(5), day(8), day(12)]);
+  });
+});
