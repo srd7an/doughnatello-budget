@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Popover } from '../ui/Popover'
 import { SearchField, useSearch } from '../ui/SearchField'
 import { CategoryIcon, TagIcon } from '../ui/icons'
@@ -339,6 +339,99 @@ function Options<T>({
           </li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+/** How many categories are offered before "More" — two short lines on a phone. */
+const CHIPS_SHOWN = 8
+
+/**
+ * The category, chosen in one tap instead of two.
+ *
+ * Every other picker on this form is a row that opens a list, and for those
+ * that is right: a fund or a loan is chosen on one transaction in twenty. The
+ * category is chosen on EVERY one, and a popover — open, scroll, find, tap —
+ * made the commonest decision on the form its slowest.
+ *
+ * So the options are simply on the card, most-used first, and the eight you
+ * actually use are always the eight in front of you. The rest are one tap
+ * further, never a search away. The chosen one is always shown, even when it is
+ * not among the eight — a scan that picked "Vet" must be visible as having
+ * picked it.
+ *
+ * Needs and Wants are not here at all. As a badge on the chosen chip they were
+ * a word read on every transaction and acted on by none; as a filter above the
+ * chips they were one more control between you and the category. The group is
+ * a property of the category, set once in Settings, not a question this form
+ * asks.
+ */
+export function CategoryChips<T extends string>({
+  options,
+  selected,
+  onPick,
+}: {
+  /** Already in the order to show them. */
+  options: { value: T; icon: string; color: string; text: string }[]
+  selected: T | null
+  onPick: (value: T) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const head = options.slice(0, CHIPS_SHOWN)
+  const visible = expanded
+    ? options
+    : head.some((o) => o.value === selected) || !selected
+      ? head
+      : [...head, ...options.filter((o) => o.value === selected)]
+  const hidden = options.length - visible.length
+
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Category"
+      className="flex flex-wrap gap-1.5 border-b border-dashed border-stone-200 pb-3"
+    >
+      {visible.map((o) => {
+        const on = o.value === selected
+        return (
+          <button
+            key={o.value}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            onClick={() => onPick(o.value)}
+            className={`flex min-h-11 max-w-full items-center gap-1.5 rounded-full border px-3 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-9 ${
+              on
+                ? 'text-stone-900'
+                : 'border-stone-200 text-stone-600 hover:bg-stone-100'
+            }`}
+            // The category's own colour, tinted the way a tag is — so the
+            // chosen one reads as that category rather than as "selected".
+            style={
+              on
+                ? { backgroundColor: `${o.color}1f`, borderColor: o.color }
+                : undefined
+            }
+          >
+            <CategoryIcon
+              icon={o.icon}
+              color={o.color}
+              size={16}
+              className="shrink-0"
+            />
+            <span className="truncate">{o.text}</span>
+          </button>
+        )
+      })}
+      {(hidden > 0 || expanded) && options.length > CHIPS_SHOWN && (
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          className="flex min-h-11 items-center rounded-full px-3 text-sm text-brand hover:bg-violet-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-9"
+        >
+          {expanded ? 'Fewer' : `${hidden} more`}
+        </button>
+      )}
     </div>
   )
 }

@@ -561,6 +561,59 @@ describe("remembering a shop by its till", () => {
       { name: "Idea", count: 1 },
     ]);
   });
+
+  test("the till remembers its category, and the latest filing wins", async () => {
+    const { t, householdId, groceryCat } = await setup();
+    const cats = await asA(t).query(api.categories.list, { householdId });
+    const other = cats.find(
+      (c) => c.kind !== "income" && c._id !== groceryCat,
+    )!;
+    await buy(t, householdId, groceryCat, { fiscalDevice: "PET1" }, "01");
+    await buy(t, householdId, other._id, { fiscalDevice: "PET1" }, "02");
+
+    expect(
+      await asA(t).query(api.transactions.categoryFor, {
+        householdId,
+        direction: "expense",
+        fiscalDevice: "PET1",
+      }),
+    ).toBe(other._id);
+  });
+
+  test("an unseen till falls back to the payee's name", async () => {
+    const { t, householdId, groceryCat } = await setup();
+    // Another Lidl, filed under Grocery; this till has never been scanned.
+    await buy(t, householdId, groceryCat, { payee: "Lidl", fiscalDevice: "A" });
+
+    expect(
+      await asA(t).query(api.transactions.categoryFor, {
+        householdId,
+        direction: "expense",
+        fiscalDevice: "NEW",
+        payee: "Lidl",
+      }),
+    ).toBe(groceryCat);
+  });
+
+  test("income from a payee says nothing about spending there", async () => {
+    const { t, householdId, incomeCat } = await setup();
+    await asA(t).mutation(api.transactions.create, {
+      householdId,
+      direction: "income",
+      amount: 1_000_00,
+      categoryId: incomeCat,
+      occurredOn: "2026-07-01",
+      payee: "Lidl",
+    });
+
+    expect(
+      await asA(t).query(api.transactions.categoryFor, {
+        householdId,
+        direction: "expense",
+        payee: "Lidl",
+      }),
+    ).toBeNull();
+  });
 });
 
 describe("free text has a ceiling", () => {

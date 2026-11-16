@@ -116,6 +116,16 @@ describe("cross-household isolation", () => {
         month: "2026-07",
       }),
     ).rejects.toThrow(/Not a member/);
+    await expect(
+      asA.query(api.transactions.categoryFor, {
+        householdId: hB,
+        direction: "expense",
+        payee: "Lidl",
+      }),
+    ).rejects.toThrow(/Not a member/);
+    await expect(
+      asA.query(api.categories.usage, { householdId: hB, since: "2026-01-01" }),
+    ).rejects.toThrow(/Not a member/);
   });
 
   test("A cannot READ B's docs by passing B's ids directly", async () => {

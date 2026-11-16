@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderScreen, setFixtures } from '../test/render'
 import { TransactionForm } from './TransactionForm'
@@ -62,6 +62,7 @@ const READY = {
   'pots:balances': POTS,
   'accounts:list': [{ _id: 'a1', name: 'Main', isPrimary: true }],
   'tags:list': TAGS,
+  'categories:usage': {},
 }
 
 describe('while the data is still coming', () => {
@@ -88,9 +89,7 @@ describe('once it has', () => {
     setFixtures(READY)
     renderScreen(<TransactionForm onDone={() => {}} />)
 
-    expect(screen.getByRole('button', { name: 'Category' })).toHaveTextContent(
-      'Grocery',
-    )
+    expect(screen.getByRole('radio', { name: /Grocery/ })).toBeChecked()
 
     // Unset, both are actions. A row reading "Month's income" on every single
     // expense is a row that says nothing on every single expense.
@@ -129,9 +128,7 @@ describe('once it has', () => {
     expect(
       screen.queryByRole('button', { name: 'Pay a loan' }),
     ).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Category' })).toHaveTextContent(
-      'Salary',
-    )
+    expect(screen.getByRole('radio', { name: /Salary/ })).toBeChecked()
   })
 
   test('a transfer swaps its category for two ends', async () => {
@@ -141,7 +138,7 @@ describe('once it has', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'Transfer' }))
 
     expect(
-      screen.queryByRole('button', { name: 'Category' }),
+      screen.queryByRole('radiogroup', { name: 'Category' }),
     ).not.toBeInTheDocument()
     // Two filled blocks and a swap between them: on a transfer these ARE the
     // transaction, so they lead rather than sitting among the fields.
@@ -158,8 +155,8 @@ describe('once it has', () => {
     setFixtures(READY)
     const { container } = renderScreen(<TransactionForm onDone={() => {}} />)
 
-    await userEvent.click(screen.getByRole('button', { name: 'Category' }))
-    const panel = screen.getByRole('dialog', { name: 'Category' })
+    await userEvent.click(screen.getByRole('button', { name: 'Tags' }))
+    const panel = screen.getByRole('dialog', { name: 'Tags' })
 
     // Rendered to the body, not inside the form. Every card this sits in
     // clips — rounded corners, a scrolling modal — and an absolutely
@@ -168,22 +165,66 @@ describe('once it has', () => {
     expect(document.body.contains(panel)).toBe(true)
   })
 
-  test('picking a category closes the popover and shows the choice', async () => {
+  test('a category is one tap, right on the card', async () => {
     setFixtures(READY)
     renderScreen(<TransactionForm onDone={() => {}} />)
 
-    await userEvent.click(screen.getByRole('button', { name: 'Category' }))
     // An expense is offered expense categories only — Salary is not among them.
     expect(
-      screen.queryByRole('button', { name: 'Salary' }),
+      screen.queryByRole('radio', { name: /Salary/ }),
     ).not.toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: 'Takeout' }))
+    await userEvent.click(screen.getByRole('radio', { name: /Takeout/ }))
 
-    expect(screen.getByRole('button', { name: 'Category' })).toHaveTextContent(
-      'Takeout',
-    )
+    expect(screen.getByRole('radio', { name: /Takeout/ })).toBeChecked()
+    expect(screen.getByRole('radio', { name: /Grocery/ })).not.toBeChecked()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  test('the ones you use most come first, and that is the default', () => {
+    setFixtures({ ...READY, 'categories:usage': { c3: 12, c1: 2 } })
+    renderScreen(<TransactionForm onDone={() => {}} />)
+
+    const names = screen
+      .getAllByRole('radio')
+      .map((r) => r.textContent?.replace(/·.*/, '').trim())
+    expect(names).toEqual(['Takeout', 'Grocery'])
+    expect(screen.getByRole('radio', { name: /Takeout/ })).toBeChecked()
+  })
+})
+
+/** Render the add form and wait for the amount to take its focus — which it
+ *  does a frame after mounting, and would otherwise do halfway through
+ *  whatever the test was typing or clicking. */
+async function openAdd() {
+  renderScreen(<TransactionForm onDone={() => {}} />)
+  await waitFor(() => expect(screen.getByLabelText('Amount')).toHaveFocus())
+}
+
+const nameIt = (text: string) =>
+  userEvent.type(screen.getByLabelText('Name'), text)
+
+/**
+ * What a payee was filed under last time is what it is filed under now —
+ * until you say otherwise.
+ */
+describe('guessing the category', () => {
+  test('a payee seen before brings its category with it', async () => {
+    setFixtures({ ...READY, 'transactions:categoryFor': 'c3' })
+    await openAdd()
+
+    expect(screen.getByRole('radio', { name: /Grocery/ })).toBeChecked()
+    await nameIt('Wolt')
+    expect(screen.getByRole('radio', { name: /Takeout/ })).toBeChecked()
+  })
+
+  test('a category you picked is never guessed over', async () => {
+    setFixtures({ ...READY, 'transactions:categoryFor': 'c3' })
+    await openAdd()
+
+    await userEvent.click(screen.getByRole('radio', { name: /Grocery/ }))
+    await nameIt('Wolt')
+    expect(screen.getByRole('radio', { name: /Grocery/ })).toBeChecked()
   })
 })
 
@@ -226,11 +267,10 @@ describe('deleting', () => {
 })
 
 /**
- * A picker you can type into, once there is enough in it to be worth typing.
- * Two dozen categories is a scroll, and scrolling to find "Štednja" when the
- * keyboard in front of you has no Š is the case this exists for.
+ * A long list of categories. Every one is reachable without a popover or a
+ * search: the eight you use most up front, the rest one tap further.
  */
-describe('searching a long picker', () => {
+describe('a long list of categories', () => {
   const MANY = [
     ...CATEGORIES,
     ...[
@@ -250,42 +290,28 @@ describe('searching a long picker', () => {
     })),
   ]
 
-  test('a short list has no search field to get in the way', async () => {
-    setFixtures(READY) // three categories
-    renderScreen(<TransactionForm onDone={() => {}} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Category' }))
-
-    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
-  })
-
-  test('a long one does, and it narrows the list as you type', async () => {
+  test('eight are offered, and the rest are one tap further', async () => {
     setFixtures({ ...READY, 'categories:list': MANY })
     renderScreen(<TransactionForm onDone={() => {}} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Category' }))
 
-    const field = screen.getByRole('searchbox')
-    await userEvent.type(field, 'ste')
-
-    // Typed without the accent, found with it.
-    expect(screen.getByRole('button', { name: 'Štednja' })).toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: 'Grocery' }),
-    ).not.toBeInTheDocument()
+    expect(screen.getAllByRole('radio')).toHaveLength(8)
+    await userEvent.click(screen.getByRole('button', { name: '1 more' }))
+    expect(screen.getAllByRole('radio')).toHaveLength(9)
+    expect(screen.getByRole('radio', { name: /Fuel/ })).toBeInTheDocument()
   })
 
-  test('two fragments mean both, and no match says so', async () => {
-    setFixtures({ ...READY, 'categories:list': MANY })
-    renderScreen(<TransactionForm onDone={() => {}} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Category' }))
+  test('the chosen one is shown even when it is not among the eight', async () => {
+    setFixtures({
+      ...READY,
+      'categories:list': MANY,
+      'transactions:categoryFor': 'm6', // Fuel, the ninth
+    })
+    await openAdd()
+    await nameIt('NIS')
 
-    await userEvent.type(screen.getByRole('searchbox'), 'kuc rac')
-    expect(
-      screen.getByRole('button', { name: 'Kućni računi' }),
-    ).toBeInTheDocument()
-
-    await userEvent.clear(screen.getByRole('searchbox'))
-    await userEvent.type(screen.getByRole('searchbox'), 'zzz')
-    expect(screen.getByText('Nothing matches')).toBeInTheDocument()
+    // A guess you cannot see is a guess you cannot check.
+    expect(screen.getAllByRole('radio')).toHaveLength(9)
+    expect(screen.getByRole('radio', { name: /Fuel/ })).toBeChecked()
   })
 })
 
@@ -315,9 +341,7 @@ describe('duplicating a transaction', () => {
 
     // Grouped, as the field now shows every amount.
     expect(await screen.findByLabelText('Amount')).toHaveValue('2.500')
-    expect(screen.getByRole('button', { name: 'Category' })).toHaveTextContent(
-      'Grocery',
-    )
+    expect(screen.getByRole('radio', { name: /Grocery/ })).toBeChecked()
     expect(screen.getByDisplayValue('Idea')).toBeInTheDocument()
 
     // A copy is a new transaction: there is nothing yet to delete or duplicate.

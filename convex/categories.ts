@@ -24,6 +24,32 @@ export const list = query({
   },
 });
 
+/**
+ * How often each category has been used lately — the order the form offers
+ * them in, so the three you use every week are the three under your thumb.
+ *
+ * Ninety days rather than all time: a category you stopped using should drift
+ * down, and the one you started using should not have to outlive years of
+ * history first.
+ */
+export const usage = query({
+  args: { householdId: v.id("households"), since: v.string() },
+  handler: async (ctx, { householdId, since }) => {
+    await requireMember(ctx, householdId);
+    const rows = await ctx.db
+      .query("transactions")
+      .withIndex("by_household_date", (q) =>
+        q.eq("householdId", householdId).gte("occurredOn", since),
+      )
+      .collect();
+    const counts: Record<string, number> = {};
+    for (const t of rows) {
+      if (t.categoryId) counts[t.categoryId] = (counts[t.categoryId] ?? 0) + 1;
+    }
+    return counts;
+  },
+});
+
 export const create = mutation({
   args: {
     householdId: v.id("households"),
@@ -103,7 +129,9 @@ export const remove = mutation({
   handler: async (ctx, { categoryId }) => {
     const { doc } = await requireDoc(ctx, "categories", categoryId);
     if (!doc.isArchived) {
-      throw new Error("Archive it first — deleting is for things you are done with");
+      throw new Error(
+        "Archive it first — deleting is for things you are done with",
+      );
     }
 
     const used = await ctx.db

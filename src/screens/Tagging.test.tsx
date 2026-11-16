@@ -41,6 +41,7 @@ const FORM_READY = {
   'pots:balances': [],
   'accounts:list': [{ _id: 'a1', name: 'Main', isPrimary: true }],
   'tags:list': TAGS,
+  'categories:usage': {},
 }
 
 function row(overrides: Record<string, unknown> = {}) {

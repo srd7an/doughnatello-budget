@@ -776,6 +776,67 @@ export const payeeForDevice = query({
   },
 });
 
+/**
+ * The category this is probably in, judged by what you did last time.
+ *
+ * The till first: it is the most specific thing a receipt knows, and a shop
+ * you filed under Pets once is a shop you file under Pets. Then the payee's
+ * exact name, which is what covers a payment slip, a hand-typed "Lidl", and a
+ * chain's OTHER branch whose till this household has never seen but whose
+ * company name the tax portal reports the same way.
+ *
+ * The most recent wins rather than the commonest: a shop you have started
+ * filing differently should follow you, not outvote you with its history.
+ *
+ * Only transactions of the same direction count, so a refund booked as income
+ * from Lidl cannot suggest an income category for a Lidl expense. A category
+ * since archived is not an answer — the caller also checks it is still offered.
+ */
+export const categoryFor = query({
+  args: {
+    householdId: v.id("households"),
+    direction: v.union(v.literal("income"), v.literal("expense")),
+    fiscalDevice: v.optional(v.string()),
+    payee: v.optional(v.string()),
+  },
+  handler: async (ctx, { householdId, direction, fiscalDevice, payee }) => {
+    await requireMember(ctx, householdId);
+
+    const latest = (rows: Doc<"transactions">[]) =>
+      rows
+        .filter((t) => t.direction === direction && t.categoryId)
+        .sort((a, b) => b._creationTime - a._creationTime)[0]?.categoryId ??
+      null;
+
+    if (fiscalDevice) {
+      const byDevice = latest(
+        await ctx.db
+          .query("transactions")
+          .withIndex("by_household_device", (q) =>
+            q.eq("householdId", householdId).eq("fiscalDevice", fiscalDevice),
+          )
+          .collect(),
+      );
+      if (byDevice) return byDevice;
+    }
+
+    const name = payee?.trim();
+    if (name) {
+      const byPayee = latest(
+        await ctx.db
+          .query("transactions")
+          .withIndex("by_household_payee", (q) =>
+            q.eq("householdId", householdId).eq("payee", name),
+          )
+          .collect(),
+      );
+      if (byPayee) return byPayee;
+    }
+
+    return null;
+  },
+});
+
 /** Every payee this household has used, most-used first — the picker's list. */
 export const payees = query({
   args: { householdId: v.id("households") },

@@ -30,6 +30,7 @@ import { Button } from '../ui/Button'
 import { Popover } from '../ui/Popover'
 import {
   ActionRow,
+  CategoryChips,
   EndBlock,
   OpenRow,
   PickRow,
@@ -64,7 +65,12 @@ function reason(e: unknown, fallback: string): string {
 }
 
 function todayISO(): string {
+  return isoDaysAgo(0)
+}
+
+function isoDaysAgo(days: number): string {
   const d = new Date()
+  d.setDate(d.getDate() - days)
   const off = d.getTimezoneOffset()
   return new Date(d.getTime() - off * 60_000).toISOString().slice(0, 10)
 }
@@ -148,6 +154,13 @@ export function TransactionForm({
   const potList = useQuery(api.pots.balances, { householdId })
   const accountList = useQuery(api.accounts.list, { householdId })
   const tagList = useQuery(api.tags.list, { householdId })
+  // Fixed at mount: a window that slid on every render would be a new query
+  // argument on every render.
+  const [usageSince] = useState(() => isoDaysAgo(90))
+  const usage = useQuery(api.categories.usage, {
+    householdId,
+    since: usageSince,
+  })
   const categories = categoryList ?? []
   const potBalances = potList ?? []
   const accounts = accountList ?? []
@@ -160,6 +173,7 @@ export function TransactionForm({
     potList !== undefined &&
     accountList !== undefined &&
     tagList !== undefined &&
+    usage !== undefined &&
     (source === undefined || detail !== undefined)
   const create = useMutation(api.transactions.create)
   const update = useMutation(api.transactions.update)
@@ -167,8 +181,13 @@ export function TransactionForm({
   const createRule = useMutation(api.recurring.create)
   const createTag = useMutation(api.tags.create)
 
-  const incomeCats = categories.filter((c) => c.kind === 'income')
-  const expenseCats = categories.filter((c) => c.kind !== 'income')
+  // Most-used first. The list arrives in the order you arranged it, and the
+  // sort is stable, so categories used equally often keep that order.
+  const byUse = [...categories].sort(
+    (a, b) => (usage?.[b._id] ?? 0) - (usage?.[a._id] ?? 0),
+  )
+  const incomeCats = byUse.filter((c) => c.kind === 'income')
+  const expenseCats = byUse.filter((c) => c.kind !== 'income')
   const transferTargets = potBalances.filter((p) => p.kind !== 'debt')
   // A loan you have finished paying is not something you can pay again — but
   // one this transaction already pays stays listed, so it can be unset.
@@ -179,6 +198,15 @@ export function TransactionForm({
   const [direction, setDirection] = useState<Direction>('expense')
   const [amountStr, setAmountStr] = useState('')
   const [categoryId, setCategoryId] = useState<Id<'categories'> | null>(null)
+  /**
+   * Whether the category is a decision rather than a default.
+   *
+   * Until you pick one, the category is the app's guess and is free to change
+   * its mind — a scan or a payee that has been seen before replaces it. Once
+   * you pick one, or open a transaction that already has one, nothing guesses
+   * over you. A ref: nothing renders from it.
+   */
+  const categoryChosen = useRef(false)
   const [potId, setPotId] = useState<Id<'pots'> | null>(null)
   const [takeFrom, setTakeFrom] = useState<'income' | Id<'pots'>>('income')
   // Transfers: where the money comes from. 'income' is the ordinary "set some
@@ -212,6 +240,33 @@ export function TransactionForm({
     api.transactions.payeeForDevice,
     fiscalDevice ? { householdId, fiscalDevice } : 'skip',
   )
+  // What this shop or payee was filed under last time. Asked only while the
+  // category is still a guess worth improving, and only once there is
+  // something to recognise.
+  const askCategory =
+    !isEdit && direction !== 'transfer' && (!!fiscalDevice || !!payee.trim())
+  const categoryGuess = useQuery(
+    api.transactions.categoryFor,
+    askCategory
+      ? {
+          householdId,
+          direction: direction as 'income' | 'expense',
+          fiscalDevice: fiscalDevice ?? undefined,
+          payee: payee.trim() || undefined,
+        }
+      : 'skip',
+  )
+  // The last ANSWER, held across the moment a new question is in flight: every
+  // keystroke in the name is a new question, and reading "no answer yet" as
+  // "no suggestion" would flick the category back to the default and forward
+  // again on each one.
+  const [suggestedCat, setSuggestedCat] = useState<Id<'categories'> | null>(
+    null,
+  )
+  useEffect(() => {
+    if (!askCategory) setSuggestedCat(null)
+    else if (categoryGuess !== undefined) setSuggestedCat(categoryGuess)
+  }, [askCategory, categoryGuess])
   const [note, setNote] = useState('')
   // What this belongs to besides its category. A copy keeps them: the same
   // thing happening again is nearly always part of the same story.
@@ -241,6 +296,7 @@ export function TransactionForm({
     setDirection(detail.direction)
     setAmountStr(groupMoneyInput(paraToInput(detail.amount)))
     setCategoryId(detail.categoryId)
+    categoryChosen.current = true
     setPotId(detail.direction === 'transfer' ? detail.potId : null)
     setPaysOff(detail.direction === 'expense' ? detail.potId : null)
     setFrom(detail.fromPotId ?? 'income')
@@ -323,18 +379,25 @@ export function TransactionForm({
     return () => cancelAnimationFrame(id)
   }, [isEdit])
 
-  // Default the category to the first relevant one so one-tap save works. It
-  // runs when editing too: switching an existing expense to income has to drop
-  // a category that no longer belongs to it, not save income as Grocery.
+  // Default the category so one-tap save works: what this payee was filed
+  // under before if that is known, otherwise the one you use most. It runs when
+  // editing too: switching an existing expense to income has to drop a
+  // category that no longer belongs to it, not save income as Grocery.
+  const catOrder = (direction === 'income' ? incomeCats : expenseCats)
+    .map((c) => c._id)
+    .join(',')
   useEffect(() => {
     if (direction === 'transfer') return
     const list = direction === 'income' ? incomeCats : expenseCats
+    const offered = (id: Id<'categories'> | null) =>
+      !!id && list.some((c) => c._id === id)
     setCategoryId((prev) => {
-      if (prev && list.some((c) => c._id === prev)) return prev
+      if (categoryChosen.current && offered(prev)) return prev
+      if (offered(suggestedCat)) return suggestedCat
       return list[0]?._id ?? null
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [direction, categories.length])
+  }, [direction, catOrder, suggestedCat])
 
   const amountPara = inputToPara(amountStr)
 
@@ -537,15 +600,8 @@ export function TransactionForm({
   }
 
   const catOptions = (direction === 'income' ? incomeCats : expenseCats).map(
-    (c) => ({
-      key: c._id,
-      icon: c.icon,
-      color: c.color,
-      text: c.name,
-      value: c._id,
-    }),
+    (c) => ({ value: c._id, icon: c.icon, color: c.color, text: c.name }),
   )
-  const chosenCat = categories.find((c) => c._id === categoryId)
   const chosenTakeFrom = potBalances.find((p) => p._id === takeFrom)
   const chosenFrom = potBalances.find((p) => p._id === from)
   const chosenInto = potBalances.find((p) => p._id === potId)
@@ -772,36 +828,13 @@ export function TransactionForm({
           ) : (
             <>
               {direction !== 'transfer' && (
-                <PickRow
-                  label="Category"
-                  value={
-                    chosenCat
-                      ? {
-                          icon: chosenCat.icon,
-                          color: chosenCat.color,
-                          text: chosenCat.name,
-                        }
-                      : null
-                  }
-                  // The same two colours the month and the year give those
-                  // groups. A badge that says Wants in violet while the bar
-                  // beside it draws Wants in orange is two answers to one
-                  // question.
-                  trailing={
-                    chosenCat && chosenCat.kind !== 'income' ? (
-                      <span
-                        className={`shrink-0 rounded-md px-2 py-0.5 text-xs ${
-                          chosenCat.kind === 'committed'
-                            ? 'bg-violet-100 text-violet-700'
-                            : 'bg-orange-100 text-orange-700'
-                        }`}
-                      >
-                        {chosenCat.kind === 'committed' ? 'Needs' : 'Wants'}
-                      </span>
-                    ) : undefined
-                  }
+                <CategoryChips
                   options={catOptions}
-                  onPick={setCategoryId}
+                  selected={categoryId}
+                  onPick={(id) => {
+                    categoryChosen.current = true
+                    setCategoryId(id)
+                  }}
                 />
               )}
 
