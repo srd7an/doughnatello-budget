@@ -156,6 +156,27 @@ export const create = mutation({
   },
 });
 
+/**
+ * Change a rule — what it is and when it comes back.
+ *
+ * Everything the rule decides can be changed here except its direction: an
+ * expense that becomes income is a different rule, and its occurrences already
+ * written would mean the opposite of what they say.
+ *
+ * THE SCHEDULE is changed by saying when it comes NEXT, not by editing an anchor
+ * day. "The 15th" for monthly and yearly rules is read off that date — the same
+ * way a new rule reads it off its start — so moving the rent from the 1st to the
+ * 5th is one date, and a weekly rule keeps its weekday the same way. The date
+ * may not be in the past: the next sync would back-fill every occurrence
+ * between it and today, which is a pile of surprise rows, not an edit.
+ *
+ * Occurrences already written are left as they are. A pending one keeps its
+ * date — it is a bill that already came due — and confirming it reads the
+ * rule's amount at that moment, so a corrected figure reaches it anyway.
+ *
+ * Text and the end date are CLEARED by sending an empty string, since an
+ * optional argument cannot say "remove this" on its own.
+ */
 export const update = mutation({
   args: {
     ruleId: v.id("recurringRules"),
@@ -166,7 +187,10 @@ export const update = mutation({
     fundedFromPotId: v.optional(v.id("pots")),
     payee: v.optional(v.string()),
     note: v.optional(v.string()),
-    untilDate: v.optional(v.string()),
+    cadence: v.optional(cadence),
+    intervalCount: v.optional(v.number()),
+    nextDueOn: v.optional(v.string()), // YYYY-MM-DD
+    untilDate: v.optional(v.string()), // "" clears it
     autoPost: v.optional(v.boolean()),
     isActive: v.optional(v.boolean()),
   },
@@ -178,6 +202,28 @@ export const update = mutation({
         throw new Error("Amount must be a positive whole number of para");
       }
     }
+    if (patch.intervalCount !== undefined) {
+      if (!Number.isInteger(patch.intervalCount) || patch.intervalCount < 1) {
+        throw new Error("Repeat every must be a whole number, 1 or more");
+      }
+    }
+    if (patch.nextDueOn !== undefined) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(patch.nextDueOn)) {
+        throw new Error("Next date must be YYYY-MM-DD");
+      }
+      if (patch.nextDueOn < todayISO()) {
+        throw new Error("The next date cannot be in the past");
+      }
+    }
+    if (patch.untilDate) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(patch.untilDate)) {
+        throw new Error("End date must be YYYY-MM-DD");
+      }
+      const next = patch.nextDueOn ?? doc.nextDueOn;
+      if (patch.untilDate < next) {
+        throw new Error("It cannot end before it next comes due");
+      }
+    }
     assertPostable(
       patch.amountMode ?? doc.amountMode,
       patch.autoPost ?? doc.autoPost,
@@ -187,10 +233,30 @@ export const update = mutation({
       await assertLoanRef(ctx, doc.householdId, doc.direction, patch.potId);
     }
 
-    const fields = Object.fromEntries(
-      Object.entries(patch).filter(([, val]) => val !== undefined),
+    const { payee, note, untilDate, ...rest } = patch;
+    const fields: Partial<Doc<"recurringRules">> = Object.fromEntries(
+      Object.entries(rest).filter(([, val]) => val !== undefined),
     );
-    await ctx.db.patch(ruleId, fields);
+    // The day it falls on comes from the date it next falls on.
+    if (patch.nextDueOn !== undefined) {
+      fields.anchorDay = Number(patch.nextDueOn.slice(8, 10));
+    }
+    // Empty means gone. `undefined` in a patch removes the field.
+    const text = (val: string | undefined) =>
+      val === undefined ? null : val.trim() === "" ? undefined : val.trim();
+    const t = { payee: text(payee), note: text(note) };
+    const clear: Record<string, undefined> = {};
+    for (const [k, val] of Object.entries(t)) {
+      if (val === null) continue;
+      if (val === undefined) clear[k] = undefined;
+      else (fields as Record<string, unknown>)[k] = val;
+    }
+    if (untilDate !== undefined) {
+      if (untilDate === "") clear.untilDate = undefined;
+      else fields.untilDate = untilDate;
+    }
+
+    await ctx.db.patch(ruleId, { ...fields, ...clear });
   },
 });
 
@@ -268,6 +334,7 @@ export const listRules = query({
         untilDate: r.untilDate ?? null,
         autoPost: r.autoPost,
         isActive: r.isActive,
+        categoryId: r.categoryId ?? null,
         category: r.categoryId ? summarise(catById.get(r.categoryId)) : null,
         pot: r.potId ? summarise(potById.get(r.potId)) : null,
         fundedFromPot: r.fundedFromPotId

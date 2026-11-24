@@ -550,3 +550,71 @@ describe("outlook — what the rest of the month is promised to", () => {
     expect(o.upcoming.items.map((i) => i.dueOn)).toEqual([day(1), day(5), day(8), day(12)]);
   });
 });
+
+describe("update — a rule can be changed after it is made", () => {
+  const day = (n: number) => {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  };
+
+  async function rule() {
+    const s = await setup();
+    const ruleId = await asA(s.t).mutation(api.recurring.create, {
+      householdId: s.householdId, direction: "expense", amount: 1_000,
+      amountMode: "exact", categoryId: s.groceryCat, cadence: "monthly",
+      startOn: day(3), payee: "Gym", note: "card", untilDate: day(400),
+    });
+    const get = () => s.t.run((ctx) => ctx.db.get(ruleId));
+    return { ...s, ruleId, get };
+  }
+
+  test("moving the next date moves the day it falls on", async () => {
+    const { t, ruleId, get } = await rule();
+    const next = day(10);
+    await asA(t).mutation(api.recurring.update, {
+      ruleId, nextDueOn: next, cadence: "monthly", intervalCount: 2,
+    });
+    const r = (await get())!;
+    expect(r.nextDueOn).toBe(next);
+    expect(r.anchorDay).toBe(Number(next.slice(8, 10)));
+    expect(r.intervalCount).toBe(2);
+  });
+
+  test("a next date in the past is refused — it would back-fill", async () => {
+    const { t, ruleId } = await rule();
+    await expect(
+      asA(t).mutation(api.recurring.update, { ruleId, nextDueOn: day(-5) }),
+    ).rejects.toThrow(/past/);
+  });
+
+  test("empty text and an empty end date are removed, not stored", async () => {
+    const { t, ruleId, get } = await rule();
+    await asA(t).mutation(api.recurring.update, {
+      ruleId, payee: "", note: "  ", untilDate: "",
+    });
+    const r = (await get())!;
+    expect(r.payee).toBeUndefined();
+    expect(r.note).toBeUndefined();
+    expect(r.untilDate).toBeUndefined();
+  });
+
+  test("it cannot end before it next comes due", async () => {
+    const { t, ruleId } = await rule();
+    await expect(
+      asA(t).mutation(api.recurring.update, { ruleId, untilDate: day(1) }),
+    ).rejects.toThrow(/end/);
+  });
+
+  test("a pending occurrence is confirmed at the corrected amount", async () => {
+    const { t, householdId, groceryCat } = await setup();
+    const ruleId = await asA(t).mutation(api.recurring.create, {
+      householdId, direction: "expense", amount: 1_000, amountMode: "exact",
+      categoryId: groceryCat, cadence: "monthly", startOn: day(-1),
+    });
+    await asA(t).mutation(api.recurring.sync, { householdId });
+    await asA(t).mutation(api.recurring.update, { ruleId, amount: 2_500 });
+    const [due] = await asA(t).query(api.recurring.listDue, { householdId });
+    expect(due.amount).toBe(2_500);
+  });
+});
