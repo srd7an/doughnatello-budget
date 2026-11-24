@@ -711,7 +711,18 @@ export const detail = query({
     const nameByUser = new Map(members.map((m) => [m.userId, m.displayName]));
     const tags = await tagsForTransactions(ctx, doc.householdId, [doc._id]);
 
+    // Whether a repeating rule wrote this row. The form offers to make a row
+    // repeat, and offering it on one that already does would make a second
+    // rule for the same bill — so it says where the rule is instead.
+    const occurrences = await ctx.db
+      .query("recurringOccurrences")
+      .withIndex("by_household", (q) => q.eq("householdId", doc.householdId))
+      .collect();
+    const occurrence = occurrences.find((o) => o.transactionId === doc._id);
+    const rule = occurrence ? await ctx.db.get(occurrence.ruleId) : null;
+
     return {
+      fromRule: rule !== null,
       _id: doc._id,
       direction: doc.direction,
       amount: doc.amount,

@@ -83,6 +83,11 @@ export const create = mutation({
     categoryId: v.optional(v.id("categories")),
     potId: v.optional(v.id("pots")), // transfer destination
     fundedFromPotId: v.optional(v.id("pots")), // expense: take from this pot
+    // The account it is paid from. Unset is the primary account. The form
+    // sends the transaction's own account, and the rule used to reject the
+    // field outright — so making a row repeat failed whenever an account was
+    // known, which on an existing row is always.
+    accountId: v.optional(v.id("accounts")),
     payee: v.optional(v.string()),
     note: v.optional(v.string()),
     cadence,
@@ -116,13 +121,16 @@ export const create = mutation({
       await assertLoanRef(ctx, args.householdId, args.direction, args.potId);
     }
 
-    const account = (
-      await ctx.db
-        .query("accounts")
-        .withIndex("by_household", (q) => q.eq("householdId", args.householdId))
-        .collect()
-    ).find((a) => a.isPrimary && !a.isArchived);
-    if (!account) throw new Error("No primary account");
+    const accounts = await ctx.db
+      .query("accounts")
+      .withIndex("by_household", (q) => q.eq("householdId", args.householdId))
+      .collect();
+    const account = args.accountId
+      ? accounts.find((a) => a._id === args.accountId && !a.isArchived)
+      : accounts.find((a) => a.isPrimary && !a.isArchived);
+    if (!account) {
+      throw new Error(args.accountId ? "Account not found" : "No primary account");
+    }
 
     await assertRefs(ctx, args.householdId, args);
 

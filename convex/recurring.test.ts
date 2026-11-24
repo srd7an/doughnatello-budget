@@ -618,3 +618,24 @@ describe("update — a rule can be changed after it is made", () => {
     expect(due.amount).toBe(2_500);
   });
 });
+
+describe("create — the account a rule pays from", () => {
+  test("a given account is used, and none means the primary", async () => {
+    const { t, householdId, groceryCat } = await setup();
+    const accounts = await t.run((ctx) => ctx.db.query("accounts").collect());
+    const primary = accounts.find((a) => a.isPrimary)!;
+    const other = await t.run((ctx) =>
+      ctx.db.insert("accounts", { ...primary, _id: undefined, _creationTime: undefined, name: "Cash", isPrimary: false } as never),
+    );
+    const base = {
+      householdId, direction: "expense" as const, amount: 1_000,
+      amountMode: "exact" as const, categoryId: groceryCat,
+      cadence: "monthly" as const, startOn: "2099-01-05",
+    };
+    const a = await asA(t).mutation(api.recurring.create, { ...base, accountId: other });
+    const b = await asA(t).mutation(api.recurring.create, base);
+    const [ra, rb] = await t.run(async (ctx) => [await ctx.db.get(a), await ctx.db.get(b)]);
+    expect(ra!.accountId).toBe(other);
+    expect(rb!.accountId).toBe(primary._id);
+  });
+});

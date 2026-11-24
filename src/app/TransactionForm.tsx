@@ -11,7 +11,7 @@ import {
   groupMoneyInput,
   paraToInput,
 } from '../lib/format'
-import { formatDayMonthYear } from '../lib/dates'
+import { formatDayMonthYear, localISO } from '../lib/dates'
 import { ConvexError } from 'convex/values'
 import {
   ArrowsDownUpIcon,
@@ -112,11 +112,16 @@ const REPEATS: { id: Repeat; label: string }[] = [
  * transfer lands in. Editing re-derives the funding rows from scratch, so a
  * change of fund or amount cannot leave a stale split behind.
  *
- * The two genuine differences, both because they cannot mean anything here:
- *  - Repeat is add-only. It creates a RULE beside the transaction; an existing
- *    transaction has nothing to repeat, and rules are edited in Repeating.
- *  - Editing shows how the money was actually funded, and offers Delete. Both
- *    need a transaction to exist first.
+ * Repeat works on both. It creates a RULE beside the transaction, starting at
+ * the next occurrence after it — so a bill entered once by hand can become a
+ * repeating one without entering it again. On an existing row the rule starts
+ * at the first occurrence from today: a rent paid in September made monthly in
+ * November must not back-fill October as though it had been paid. A row that a
+ * rule wrote already repeats, and the form says where that rule lives instead
+ * of offering a second one. Changing a rule happens in Repeating.
+ *
+ * The one genuine difference: editing shows how the money was actually funded,
+ * and offers Delete. Both need a transaction to exist first.
  */
 export function TransactionForm({
   transactionId,
@@ -463,7 +468,9 @@ export function TransactionForm({
         detail.accountId,
       ].join('|')
     : null
-  const dirty = !isEdit || shape !== savedShape
+  // Making it repeat is a change worth saving on its own, with nothing else
+  // touched. `repeat` is read here before the rule's own figures below.
+  const dirty = !isEdit || shape !== savedShape || repeat !== 'once'
 
   const canSave = ready && valid && dirty && !saving
 
@@ -483,7 +490,20 @@ export function TransactionForm({
   const anchorDay = parseISO(occurredOn).d
   const recurrence =
     repeat === 'once' ? null : { cadence: repeat, intervalCount: 1, anchorDay }
-  const ruleStartsOn = recurrence ? nextDue(occurredOn, recurrence) : null
+  const ruleStartsOn = useMemo(() => {
+    if (!recurrence) return null
+    let due = nextDue(occurredOn, recurrence)
+    // On an existing row, skip what has already gone by — see the note on the
+    // form. A new row keeps the plain next date: entering last month's bill
+    // with Repeat on is a deliberate catch-up.
+    if (isEdit) {
+      const today = localISO(new Date())
+      let guard = 0
+      while (due < today && guard++ < 400) due = nextDue(due, recurrence)
+    }
+    return due
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repeat, anchorDay, occurredOn, isEdit])
 
   /**
    * The date the rule should stop.
@@ -562,6 +582,20 @@ export function TransactionForm({
           // here means "no tags", which is a thing you can choose.
           tagIds,
         })
+        if (repeatsAtAll && ruleStartsOn && !detail?.fromRule) {
+          await createRule({
+            householdId,
+            ...shared,
+            payee: payee.trim() || undefined,
+            note: note.trim() || undefined,
+            fundedFromPotId: takeFromPotId,
+            amountMode: estimate ? 'estimate' : 'exact',
+            cadence: repeat as Exclude<Repeat, 'once'>,
+            anchorDay,
+            startOn: ruleStartsOn,
+            untilDate,
+          })
+        }
       } else {
         const text = {
           payee: payee.trim() || undefined,
@@ -874,7 +908,16 @@ export function TransactionForm({
               {/* Repeat is one row and a whole panel: the cadence, when it
                   ends, and whether the amount is a guess. All of it belongs to
                   the same decision, so all of it lives behind the same row. */}
-              {!isEdit && (
+              {isEdit && detail?.fromRule ? (
+                <OpenRow
+                  icon={<RepeatIcon size={20} aria-hidden />}
+                  label="Repeat"
+                >
+                  <span className="text-stone-500">
+                    Already repeats — change it in Settings → Repeating
+                  </span>
+                </OpenRow>
+              ) : (
                 <OpenRow
                   icon={<RepeatIcon size={20} aria-hidden />}
                   label="Repeat"
@@ -910,7 +953,10 @@ export function TransactionForm({
                           <div className="mt-2 border-t border-stone-100 pt-2">
                             <p className="px-2 text-xs text-stone-500">
                               {cadenceLabel(repeat, 1, anchorDay, ruleStartsOn)}{' '}
-                              · next on {ruleStartsOn}. This one is saved now.
+                              · next on {ruleStartsOn}.{' '}
+                              {isEdit
+                                ? 'This one stays as it is.'
+                                : 'This one is saved now.'}
                             </p>
                             <div className="mt-2 flex flex-wrap items-center gap-2 px-2">
                               <span className="text-xs text-stone-500">
