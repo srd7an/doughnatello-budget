@@ -280,7 +280,13 @@ export function SettingsModal({
           </div>
         </nav>
 
-        <div className="flex min-w-0 flex-1 flex-col">
+        {/* min-h-0, or there is no scrolling on a phone. Stacked, this column
+            is a flex child of a COLUMN, and a flex child will not shrink below
+            its content unless told it may — so it grew to the panel's full
+            length, the scroller inside it never overflowed, and the frame
+            around it simply cut the rest off. Side by side on a desktop the
+            row's height was already fixed, which is why only a phone broke. */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="flex items-start justify-between px-6 pt-5">
             <h2 className="text-base font-semibold text-stone-800">{title}</h2>
             <button
